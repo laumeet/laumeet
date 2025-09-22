@@ -35,7 +35,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-           <Toaster />
+           <Toaster position='top-center' />
           <div className="max-w-md mx-auto min-h-screen bg-white dark:bg-gray-900 overflow-hidden">
             {children}
           </div>

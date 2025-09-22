@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 // components/shared/onboarding/MaleSignupForm.tsx
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,24 +16,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { toast } from 'sonner';
 
 interface MaleSignupFormProps {
   onBack: () => void;
   onNext: () => void;
 }
 
-const saveToLocalStorage = (data: any) => {
-  const userData = {
-    ...data,
-    gender: 'male',
-    timestamp: new Date().toISOString(),
-    id: Math.random().toString(36).substr(2, 9)
-  };
-  
-  const existingUsers = JSON.parse(localStorage.getItem('campusVibesUsers') || '[]');
-  existingUsers.push(userData);
-  localStorage.setItem('campusVibesUsers', JSON.stringify(existingUsers));
-};
+
 
 export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) {
   const [formData, setFormData] = useState({
@@ -49,7 +39,39 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
   const [isProcessing, setIsProcessing] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const handleSubmit = (e: React.FormEvent) => {
+  const [suggestedUsernames, setSuggestedUsernames] = useState<string[]>([]);
+  const usernameInputRef = useRef<HTMLInputElement>(null);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const generateSuggestions = (baseName: string): string[] => {
+    const randomNumbers = () =>
+      Math.floor(100 + Math.random() * 900).toString(); // 3-digit numbers
+    return [
+      `${baseName}${randomNumbers()}`,
+      `${baseName}_${randomNumbers()}`,
+      `${baseName}${new Date().getFullYear()}`,
+      `${baseName}${Math.floor(Math.random() * 10000)}`,
+    ];
+  };
+    useEffect(() => {
+      if (usernameError && usernameInputRef.current) {
+        usernameInputRef.current.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+        usernameInputRef.current.focus();
+      }
+    }, [usernameError]);
+  
+    const scrollToElement = (element: HTMLElement | null) => {
+      if (element) {
+        element.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+        element.focus();
+      }
+    };
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
         // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
@@ -64,13 +86,51 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
     }
 
     setIsProcessing(true);
-    
-    // Simulate processing delay
-    setTimeout(() => {
-      saveToLocalStorage(formData);
-      onNext();
-      setIsProcessing(false);
-    }, 1000);
+    try{
+      
+            const payload = {
+              username: formData.username,
+              password: formData.password,
+              security_question: formData.securityQuestion,
+              security_answer: formData.securityAnswer,
+              age: formData.age,
+              gender: "male",
+              bio: formData.bio,
+              interestedIn: formData.interests, 
+             
+              
+            };
+      
+            const res = await fetch('http://127.0.0.1:5000/signup', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(payload)
+            });
+            
+            const data = await res.json();
+            console.log(data);
+            
+            if (data.success) {
+              toast.success(data.message);
+              onNext();
+            } else if (data.message === "Username already taken") {
+              setUsernameError("This username is already taken.");
+        setSuggestedUsernames(generateSuggestions(formData.username));
+        scrollToElement(usernameInputRef.current);
+
+            } else {
+              toast.error(data.message);
+            }
+      
+          } catch (err) {
+            console.error("❌ Error:", err);
+            toast.error("Error creating account. Try again.");
+          } finally {
+            setIsProcessing(false);
+          }
+
   };
 
   const handleChange = (field: string, value: string) => {
@@ -94,17 +154,43 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
       </div>
       
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
+             <div className="space-y-2">
           <Label htmlFor="username" className="text-gray-700 dark:text-gray-300">Username</Label>
           <Input
+            ref={usernameInputRef}
             id="username"
             type="text"
-            placeholder="Choose a username"
+            placeholder="Tom"
             value={formData.username}
             onChange={(e) => handleChange('username', e.target.value)}
             required
-            className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+            className={`bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 ${
+              usernameError ? 'border-red-500 dark:border-red-400' : ''
+            }`}
           />
+          {usernameError && (
+            <div className="text-red-600 dark:text-red-400 text-sm mt-1">
+              {usernameError}
+              <div className="mt-1">
+                <span className="font-medium">Try one of these:</span>
+                <ul className="list-disc list-inside">
+                  {suggestedUsernames.map((sug, idx) => (
+                    <li
+                      key={idx}
+                      className="cursor-pointer text-blue-600 dark:text-blue-400 hover:underline"
+                      onClick={() => {
+                        handleChange("username", sug);
+                        setUsernameError(null);
+                        setSuggestedUsernames([]);
+                      }}
+                    >
+                      {sug}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
 
         

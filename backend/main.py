@@ -138,18 +138,6 @@ class TokenBlocklist(db.Model):
     user = db.relationship('User', lazy='joined')
 
 
-COMMON_SECURITY_QUESTIONS = [
-    "What was the name of your first pet?",
-    "What city were you born in?",
-    "What is your mother's maiden name?",
-    "What was the name of your elementary school?",
-    "What was your childhood nickname?",
-    "What is the name of your favorite childhood friend?",
-    "What street did you grow up on?",
-    "What was the make of your first car?",
-    "What is your favorite movie?",
-    "What is your favorite book?"
-]
 
 
 def is_valid_username(username):
@@ -206,10 +194,6 @@ with app.app_context():
 def home():
     return jsonify({"message": "Dating App API"})
 
-
-@app.route("/security-questions", methods=["GET"])
-def get_security_questions():
-    return jsonify({"success": True, "questions": COMMON_SECURITY_QUESTIONS})
 
 
 @app.route("/signup", methods=["POST"])

@@ -18,7 +18,7 @@ import ImageUploader from './ImageUploader';
 import { Shield, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { getFaceBlurProcessor } from '@/lib/faceBlur';
 import { toast } from 'sonner';
-
+import axios from 'axios'
 interface FemaleSignupFormProps {
   isAnonymous: boolean | null;
   onBack: () => void;
@@ -216,26 +216,17 @@ export default function FemaleSignupForm({
         
       };
 
-      const res = await fetch('http://127.0.0.1:5000/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
-      });
+      const res = await axios.post('http://127.0.0.1:5000/signup',{payload})
+ 
       
-      const data = await res.json();
-      console.log(data);
-      
-      if (data.success) {
-        toast.success(data.message);
+      if (res.status === 200) {
         onNext();
-      } else if (data.message === "Username already taken") {
+      } else if (res.statusText === "Username already taken") {
         setUsernameError("This username is already taken.");
         setSuggestedUsernames(generateSuggestions(formData.username));
         scrollToElement(usernameInputRef.current);
       } else {
-        toast.error(data.message);
+        toast.error(res.statusText);
       }
 
     } catch (err) {

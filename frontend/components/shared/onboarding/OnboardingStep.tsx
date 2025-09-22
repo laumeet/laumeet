@@ -8,6 +8,7 @@ import AnonymousOptionStep from './AnonymousOptionStep';
 import MaleSignupForm from './MaleSignupForm';
 import FemaleSignupForm from './FemaleSignupForm';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 ;
 
 export default function OnboardingStep() {
@@ -30,12 +31,13 @@ export default function OnboardingStep() {
       setStep(step - 1);
     }
   };
-
+  const router = useRouter()
   const handleComplete = () => {
     // Redirect to main app or show success message
     toast.success('Login Successful')
     setTimeout(() => {
          toast.success('Redirecting to Homepage...')
+         router.replace('/')
     }, 4000);
     console.log('Onboarding completed');
   };

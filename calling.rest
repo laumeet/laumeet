@@ -9,3 +9,12 @@ Content-Type: application/json
     "age":"47",
     "gender":"female"
 }
+
+###
+POST  http://127.0.0.1:5000/login
+Content-Type: application/json
+
+{
+    "username": "Anitahhh",
+    "password": "Hemmyevo123"
+}

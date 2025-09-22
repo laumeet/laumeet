@@ -1,10 +1,11 @@
 // components/shared/auth/LoginForm.tsx
 'use client';
-
+import axios from 'axios'
 import { useState } from 'react';
 import { Eye, EyeOff,Lock, UserRound } from 'lucide-react';
 import Link from 'next/link';
-
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -17,10 +18,28 @@ export default function LoginForm() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const router = useRouter()
+  const handleSubmit = async(e: React.FormEvent) => {
     e.preventDefault();
-    
-    console.log('Login data:', formData);
+    console.log(formData)
+    try {
+      const res = await axios.post("http://127.0.0.1:5000/login",formData)
+      console.log(res)
+      if(res.status === 200 ){
+        toast.success('Login Successful')
+        setTimeout(() => {
+          toast.success('Redirecting to homepage')
+          router.replace('/')
+        }, 1000);
+      }
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+          toast.error(error.response?.data?.message);
+        } else {
+          toast.error('An unexpected error occurred');
+        }
+    }
+   
   };
 
   return (

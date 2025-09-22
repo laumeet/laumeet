@@ -13,9 +13,11 @@ import re
 import uuid
 import base64
 from functools import wraps
+from flask_cors import CORS
 import time
 
 app = Flask(__name__)
+CORS(app) 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///lausers.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'your-secret-key-change-this-in-production'  # Change this!
@@ -89,13 +91,13 @@ class User(db.Model):
     password: Mapped[str] = mapped_column(String(255), nullable=False)
     security_question: Mapped[str] = mapped_column(String(255), nullable=False)
     security_answer: Mapped[str] = mapped_column(String(255), nullable=False)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=True)
     age: Mapped[int] = mapped_column(Integer, nullable=False)
-    department: Mapped[str] = mapped_column(String(100), nullable=False)
+    department: Mapped[str] = mapped_column(String(100), nullable=True)
     gender: Mapped[str] = mapped_column(String(20), nullable=False)
     genotype: Mapped[str] = mapped_column(String(5), nullable=True)
-    level: Mapped[str] = mapped_column(String(20), nullable=False)
-    interested_in: Mapped[str] = mapped_column(String(50), nullable=False)
+    level: Mapped[str] = mapped_column(String(20), nullable=True)
+    interested_in: Mapped[str] = mapped_column(String(50), nullable=True)
     religious: Mapped[str] = mapped_column(String(50), nullable=True)
     is_anonymous: Mapped[bool] = mapped_column(Boolean, default=False)
     category: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -313,7 +315,6 @@ def signup():
     password = data.get("password")
     security_question = data.get("security_question")
     security_answer = data.get("security_answer")
-    name = data.get("name")
     age = data.get("age")
     department = data.get("department")
     gender = data.get("gender")
@@ -327,8 +328,7 @@ def signup():
     pictures = data.get("pictures", [])  # List of image URLs or base64 strings
 
     # Required field validation
-    required_fields = ["username", "password", "security_question", "security_answer",
-                       "name", "age", "department", "gender", "level", "interestedIn"]
+    required_fields = ["username", "password"]
     for field in required_fields:
         if not data.get(field):
             return jsonify({"success": False, "message": f"{field} is required"}), 400
@@ -357,7 +357,7 @@ def signup():
             return jsonify({"success": False, "message": "Age must be between 18 and 100"}), 400
     except (ValueError, TypeError):
         return jsonify({"success": False, "message": "Age must be a valid number"}), 400
-
+    
     # Validate gender
     if not validate_gender(gender):
         return jsonify({"success": False, "message": "Gender must be one of: male, female, other"}), 400
@@ -383,7 +383,7 @@ def signup():
     new_user = User(
         username=username,
         security_question=security_question.strip(),
-        name=name,
+        
         age=age,
         department=department,
         gender=gender.lower(),  # Store in lowercase for consistency
@@ -395,6 +395,7 @@ def signup():
         category=category,
         bio=bio
     )
+    print(new_user)
     new_user.set_password(password)
     new_user.set_security_answer(security_answer)
 

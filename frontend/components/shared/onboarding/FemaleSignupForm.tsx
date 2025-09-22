@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import ImageUploader from './ImageUploader';
 import { Shield, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { getFaceBlurProcessor } from '@/lib/faceBlur';
+import { toast } from 'sonner';
 
 interface FemaleSignupFormProps {
   isAnonymous: boolean | null;
@@ -78,6 +79,8 @@ const generateSuggestions = (baseName: string): string[] => {
     };
     loadModels();
   }, []);
+
+  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,13 +155,39 @@ const generateSuggestions = (baseName: string): string[] => {
         timestamp: new Date().toISOString(),
         id: Math.random().toString(36).substr(2, 9),
       };
+      const payload = {
+      username: formData.username,
+      password: formData.password,
+      security_question: formData.securityQuestion,
+      security_answer: formData.securityAnswer,
+      age: formData.age,
+      gender: "female",
+      isAnonymous: isAnonymous,
+      category: formData.category,
+      bio: formData.bio,
+      interestedIn: formData.interests, 
+      pictures: processedImagesData,
+    };
+
 
       const existingUsers = JSON.parse(
         localStorage.getItem("campusVibesUsers") || "[]"
       );
       existingUsers.push(userData);
-      localStorage.setItem("campusVibesUsers", JSON.stringify(existingUsers));
-      onNext();
+      const res = await fetch('http://127.0.0.1:5000/signup',{
+        method: 'POST',
+        headers:{
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      })
+      const data = await res.json();
+      console.log(data)
+      // localStorage.setItem("campusVibesUsers", JSON.stringify(existingUsers));
+      toast.error(data.message)
+       if (res.ok) {
+         onNext();
+       }
     } catch (err) {
       console.error("❌ Error:", err);
       alert("Error creating account. Try again.");

@@ -35,10 +35,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+           <Toaster />
           <div className="max-w-md mx-auto min-h-screen bg-white dark:bg-gray-900 overflow-hidden">
             {children}
           </div>
-          <Toaster />
+         
         </ThemeProvider>
       </body>
     </html>

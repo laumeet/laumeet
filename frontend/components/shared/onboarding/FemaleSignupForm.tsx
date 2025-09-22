@@ -167,6 +167,7 @@ const generateSuggestions = (baseName: string): string[] => {
       bio: formData.bio,
       interestedIn: formData.interests, 
       pictures: processedImagesData,
+      
     };
 
 

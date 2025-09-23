@@ -23,7 +23,7 @@ export default function LoginForm() {
     e.preventDefault();
     console.log(formData)
     try {
-      const res = await axios.post("http://127.0.0.1:5000/login",formData)
+      const res = await axios.post("https://laumeet.onrender.com", formData, { withCredentials: true })
       console.log(res)
       if(res.status === 200 ){
         toast.success('Login Successful')

@@ -297,24 +297,88 @@ def login():
     data = request.json or {}
     username = data.get("username")
     password = data.get("password")
+
     if not username or not password:
         return jsonify({"success": False, "message": "Username and password required"}), 400
+
     user = User.query.filter_by(username=username).first()
     if not user or not user.check_password(password):
         return jsonify({"success": False, "message": "Invalid username or password"}), 401
 
+    print("🔎 User fetched from DB:", user.to_dict())  # Log all info on console
+
     access_token = create_access_token(identity=user)
     refresh_token = create_refresh_token(identity=user)
+
     response = jsonify({
         "success": True,
         "message": "Login successful",
-        "user": user.to_dict(),
+        "user": user.to_dict(),  # This sends all user info to Postman
         "access_token": access_token,
         "refresh_token": refresh_token
     })
     set_access_cookies(response, access_token)
     set_refresh_cookies(response, refresh_token)
     return response, 200
+
+
+
+
+@app.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    """
+    Step 1: User submits their username; we return their security question.
+    """
+    data = request.json or {}
+    username = data.get("username")
+    if not username:
+        return jsonify({"success": False, "message": "Username required"}), 400
+
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        # Do not reveal that the username doesn't exist (security best practice)
+        return jsonify({"success": True, "question": None}), 200
+
+    return jsonify({
+        "success": True,
+        "question": user.security_question
+    }), 200
+
+
+@app.route("/reset-password", methods=["POST"])
+def reset_password():
+    """
+    Step 2: User submits username, security answer, and new password.
+    If the answer is correct, we reset their password.
+    """
+    data = request.json or {}
+    username = data.get("username")
+    answer = data.get("security_answer")
+    new_password = data.get("new_password")
+
+    if not username or not answer or not new_password:
+        return jsonify({"success": False, "message": "All fields are required"}), 400
+
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        # Do not reveal user existence
+        return jsonify({"success": False, "message": "Invalid credentials"}), 400
+
+    # Check security answer
+    if not user.check_security_answer(answer):
+        return jsonify({"success": False, "message": "Security answer is incorrect"}), 401
+
+    # Validate new password strength (optional)
+    if not is_strong_password(new_password):
+        return jsonify({"success": False, "message": "New password is too weak"}), 400
+
+    # Reset password
+    user.set_password(new_password)
+    user.last_password_reset = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Password reset successfully"}), 200
+
 
 
 @app.route("/protected")

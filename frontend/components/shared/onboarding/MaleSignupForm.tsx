@@ -101,7 +101,7 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
               
             };
       
-            const res = await fetch('https://laumeet.onrender.com', {
+            const res = await fetch('https://laumeet.onrender.com/signup', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

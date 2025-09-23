@@ -23,7 +23,7 @@ export default function LoginForm() {
     e.preventDefault();
     console.log(formData)
     try {
-      const res = await axios.post("https://laumeet.onrender.com", formData, { withCredentials: true })
+      const res = await axios.post("https://laumeet.onrender.com/login", formData, { withCredentials: true })
       console.log(res)
       if(res.status === 200 ){
         toast.success('Login Successful')
@@ -33,6 +33,7 @@ export default function LoginForm() {
         }, 1000);
       }
     } catch (error) {
+      
         if (axios.isAxiosError(error)) {
           toast.error(error.response?.data?.message);
         } else {

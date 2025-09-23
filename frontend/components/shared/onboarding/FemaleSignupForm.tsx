@@ -216,7 +216,7 @@ export default function FemaleSignupForm({
         
       };
 
-      const res = await axios.post('https://laumeet.onrender.com',{payload})
+      const res = await axios.post('https://laumeet.onrender.com/signup',{payload})
  
       
       if (res.status === 200) {

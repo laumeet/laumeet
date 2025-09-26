@@ -22,16 +22,26 @@ app = Flask(__name__)
 # Enable CORS for all routes to allow frontend-backend communication
 CORS(app)
 
+import os
+from datetime import timedelta
+
 # Application configuration settings
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///lausers.db'  # Database file path
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    "DB_URL", "sqlite:///lausers.db"
+)  # Use DATABASE_URL if set, otherwise fallback to local sqlite
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Disable modification tracking for performance
-app.config[
-    'JWT_SECRET_KEY'] = 'your-secret-key-change-this-in-production'  # Secret key for JWT signing (CHANGE IN PRODUCTION!)
+
+app.config['JWT_SECRET_KEY'] = os.environ.get(
+    "JWT_SECRET_KEY"
+)  # Use environment secret key, fallback for dev
+
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)  # Access token expiration time (24 hours)
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=14)  # Refresh token expiration time (14 days)
 app.config['JWT_TOKEN_LOCATION'] = ['cookies', 'headers']  # Where to look for JWT tokens
 app.config['JWT_COOKIE_SECURE'] = False  # Only allow HTTPS cookies in production (False for development)
 app.config['JWT_COOKIE_CSRF_PROTECT'] = False  # Disable CSRF protection for simplicity
+
 
 # Initialize database and JWT manager
 db = SQLAlchemy(app)  # Database instance
@@ -664,4 +674,4 @@ if __name__ == "__main__":
 
     # Start the Flask development server
     # debug=True enables auto-reload and detailed error pages (disable in production!)
-    app.run(debug=True)
+    app.run(debug=False)

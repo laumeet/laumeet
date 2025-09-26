@@ -4,9 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="i love u tori toru &#10;toba na u i dey follow talk">
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="Jesus is Lord">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/instance/lausers.db" beforeDir="false" afterPath="$PROJECT_DIR$/backend/instance/lausers.db" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/main.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -176,7 +175,15 @@
       <option name="project" value="LOCAL" />
       <updated>1758915531777</updated>
     </task>
-    <option name="localTasksCounter" value="12" />
+    <task id="LOCAL-00012" summary="Jesus is Lord">
+      <option name="closed" value="true" />
+      <created>1758916243592</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1758916243592</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -229,6 +236,7 @@
     <MESSAGE value="nownow23" />
     <MESSAGE value="i love u tori toru" />
     <MESSAGE value="i love u tori toru &#10;toba na u i dey follow talk" />
-    <option name="LAST_COMMIT_MESSAGE" value="i love u tori toru &#10;toba na u i dey follow talk" />
+    <MESSAGE value="Jesus is Lord" />
+    <option name="LAST_COMMIT_MESSAGE" value="Jesus is Lord" />
   </component>
 </project>

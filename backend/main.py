@@ -533,7 +533,6 @@ def forgot_password():
         "question": user.security_question
     }), 200
 
-
 @app.route("/reset-password", methods=["POST"])
 def reset_password():
     """

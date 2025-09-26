@@ -362,7 +362,7 @@ def signup():
 
     # Required fields validation
     if not username or not password:
-        return jsonify({"success": False, "message": "Username and password are required"}), 400
+        return jsonify({"success": False, "message": f"Username and password are required {username} and {password}" }), 400
 
     # Security question validation
     if not security_question or len(security_question.strip()) < 5:

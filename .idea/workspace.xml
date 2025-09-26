@@ -4,9 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="i love u tori toru">
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="i love u tori toru &#10;toba na u i dey follow talk">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/instance/lausers.db" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/instance/lausers.db" beforeDir="false" afterPath="$PROJECT_DIR$/backend/instance/lausers.db" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/main.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -159,7 +160,23 @@
       <option name="project" value="LOCAL" />
       <updated>1758912650903</updated>
     </task>
-    <option name="localTasksCounter" value="10" />
+    <task id="LOCAL-00010" summary="i love u tori toru">
+      <option name="closed" value="true" />
+      <created>1758914563654</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1758914563654</updated>
+    </task>
+    <task id="LOCAL-00011" summary="i love u tori toru &#10;toba na u i dey follow talk">
+      <option name="closed" value="true" />
+      <created>1758915531777</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1758915531777</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -211,6 +228,7 @@
     <MESSAGE value="nownow" />
     <MESSAGE value="nownow23" />
     <MESSAGE value="i love u tori toru" />
-    <option name="LAST_COMMIT_MESSAGE" value="i love u tori toru" />
+    <MESSAGE value="i love u tori toru &#10;toba na u i dey follow talk" />
+    <option name="LAST_COMMIT_MESSAGE" value="i love u tori toru &#10;toba na u i dey follow talk" />
   </component>
 </project>

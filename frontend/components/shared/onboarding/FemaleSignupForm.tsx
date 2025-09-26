@@ -216,7 +216,7 @@ export default function FemaleSignupForm({
         
       };
 
-      const res = await axios.post('http://127.0.0.1:5000/signup',{payload})
+      const res = await axios.post('http://127.0.0.1:5000/signup',payload)
  
       
       if (res.status === 200) {
@@ -231,7 +231,11 @@ export default function FemaleSignupForm({
 
     } catch (err) {
       console.error("❌ Error:", err);
-      toast.error("Error creating account. Try again.");
+      if (axios.isAxiosError(err)) {
+        toast.error(err.response?.data?.message || err.message);
+      } else {
+        toast.error("An unexpected error occurred.");
+      }
     } finally {
       setIsProcessing(false);
     }

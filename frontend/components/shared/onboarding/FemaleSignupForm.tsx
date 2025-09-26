@@ -200,7 +200,7 @@ export default function FemaleSignupForm({
 
         processedImagesData.push(base64);
       }
-
+    
       const payload = {
         username: formData.username,
         password: formData.password,
@@ -216,7 +216,7 @@ export default function FemaleSignupForm({
         
       };
 
-      const res = await axios.post('https://laumeet.onrender.com/signup',{payload})
+      const res = await axios.post('http://127.0.0.1:5000/signup',{payload})
  
       
       if (res.status === 200) {

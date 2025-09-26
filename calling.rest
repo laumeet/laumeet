@@ -2,8 +2,8 @@ POST  http://127.0.0.1:5000/signup
 Content-Type: application/json
 
 {
-    "username": "Anitahhh",
-    "password": "Hemmyevo123",
+    "username": "",
+    "password": "",
     "security_question": "Who is your mother",
     "security_answer":"Hello",
     "age":"47",

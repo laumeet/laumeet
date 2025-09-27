@@ -20,7 +20,7 @@ import time  # Time functions for rate limiting
 # Initialize Flask application
 app = Flask(__name__)
 # Enable CORS for all routes to allow frontend-backend communication
-CORS(app)
+CORS(app, supports_credentials=True)
 
 import os
 from datetime import timedelta
@@ -32,10 +32,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Disable modification tracking for performance
 
-app.config['JWT_SECRET_KEY'] = os.environ.get(
-    "JWT_SECRET_KEY"
-)  # Use environment secret key, fallback for dev
-
+# JWT configuration
+app.config['JWT_SECRET_KEY'] = os.environ.get("JWT_SECRET_KEY") or "dev-secret-key-please-change"
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)  # Access token expiration time (24 hours)
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=14)  # Refresh token expiration time (14 days)
 app.config['JWT_TOKEN_LOCATION'] = ['cookies', 'headers']  # Where to look for JWT tokens

@@ -1,9 +1,9 @@
-POST  http://127.0.0.1:5000/signup
+POST  http://laumeet.onrender.com/signup
 Content-Type: application/json
 
 {
-    "username": "",
-    "password": "",
+    "username": "hello",
+    "password": "helloE@123",
     "security_question": "Who is your mother",
     "security_answer":"Hello",
     "age":"47",

@@ -3,32 +3,31 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
-  // cookie name must match Flask's JWT_ACCESS_COOKIE_NAME
-  const cookieToken = req.cookies.get("access_token_cookie")?.value;
+  // Use a lightweight, non-HttpOnly cookie to detect login status
+  const isLoggedIn = req.cookies.get("is_logged_in")?.value === "true";
 
-  // fallback header (we'll attach this from client via axios)
-  const headerToken = req.headers.get("x-access-token");
-
-  const token = cookieToken || headerToken;
-  console.log("Middleware check, token found:", token);
-  // Public pages: landing ("/"), auth pages
+  // Public pages that don't require authentication
   const isPublicPage =
     req.nextUrl.pathname === "/" ||
     req.nextUrl.pathname === "/login" ||
     req.nextUrl.pathname === "/signup" ||
     req.nextUrl.pathname === "/forgot-password";
 
-  if (!token && !isPublicPage) {
+  // If user is NOT logged in and trying to access a protected page -> redirect to /login
+  if (!isLoggedIn && !isPublicPage) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  if (token && isPublicPage) {
+  // If user IS logged in and visiting a public page -> redirect to /explore
+  if (isLoggedIn && isPublicPage) {
     return NextResponse.redirect(new URL("/explore", req.url));
   }
 
+  // Otherwise, allow the request to continue
   return NextResponse.next();
 }
 
+// Apply middleware to all routes except _next, static files, favicon, etc.
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|models).*)"],
 };

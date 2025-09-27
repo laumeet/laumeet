@@ -488,6 +488,7 @@ def signup():
 
 
 @app.route("/login", methods=["POST"])
+@app.route("/login", methods=["POST"])
 def login():
     """
     User authentication endpoint
@@ -508,9 +509,6 @@ def login():
     if not user or not user.check_password(password):
         return jsonify({"success": False, "message": "Invalid username or password"}), 401
 
-    # Debug logging (remove in production)
-    print("🔎 User fetched from DB:", user.to_dict())
-
     # Create JWT tokens
     access_token = create_access_token(identity=user)
     refresh_token = create_refresh_token(identity=user)
@@ -524,12 +522,24 @@ def login():
         "refresh_token": refresh_token
     })
 
-    # Set tokens as cookies
+    # Set JWT cookies for browser
     set_access_cookies(response, access_token)
     set_refresh_cookies(response, refresh_token)
 
-    return response, 200  # HTTP 200 OK
+    # Set "is_logged_in" cookie for Next.js middleware
+    response.set_cookie(
+        "is_logged_in",
+        "true",
+        httponly=False,     # accessible by frontend JS
+        secure=True,        # required for HTTPS in production
+        samesite="None"     # cross-site allowed
+    )
 
+    return response, 200
+
+
+@app.route("/logout", methods=["POST"])
+@jwt_required(verify_type=False)  # allow both access and refresh tokens
 @app.route("/logout", methods=["POST"])
 @jwt_required(verify_type=False)  # allow both access and refresh tokens
 def logout():
@@ -566,7 +576,17 @@ def logout():
     # Remove JWT cookies (for browser-based clients)
     unset_jwt_cookies(response)
 
+    # Remove the "is_logged_in" cookie for Next.js middleware
+    response.set_cookie(
+        "is_logged_in",
+        "false",
+        httponly=False,   # accessible by frontend
+        secure=True,      # required in production for HTTPS
+        samesite="None"   # allow cross-site
+    )
+
     return response, 200
+
 
 
 

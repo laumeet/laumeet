@@ -4,10 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="add gunicorn to requirement">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/main.py" afterDir="false" />
-    </list>
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="token" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -38,7 +35,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "temporary",
+    "git-widget-placeholder": "main",
     "settings.editor.selected.configurable": "vcs.Git"
   }
 }]]></component>
@@ -199,7 +196,55 @@
       <option name="project" value="LOCAL" />
       <updated>1758917542855</updated>
     </task>
-    <option name="localTasksCounter" value="15" />
+    <task id="LOCAL-00015" summary="Added an Admin">
+      <option name="closed" value="true" />
+      <created>1758961173450</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1758961173450</updated>
+    </task>
+    <task id="LOCAL-00016" summary="Added an Admin">
+      <option name="closed" value="true" />
+      <created>1758961281056</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1758961281056</updated>
+    </task>
+    <task id="LOCAL-00017" summary="Added an Admin">
+      <option name="closed" value="true" />
+      <created>1758972136765</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1758972136765</updated>
+    </task>
+    <task id="LOCAL-00018" summary="Added an Admin">
+      <option name="closed" value="true" />
+      <created>1758973073370</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1758973073370</updated>
+    </task>
+    <task id="LOCAL-00019" summary="cors">
+      <option name="closed" value="true" />
+      <created>1758974889526</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1758974889526</updated>
+    </task>
+    <task id="LOCAL-00020" summary="token">
+      <option name="closed" value="true" />
+      <created>1758975844255</created>
+      <option name="number" value="00020" />
+      <option name="presentableId" value="LOCAL-00020" />
+      <option name="project" value="LOCAL" />
+      <updated>1758975844255</updated>
+    </task>
+    <option name="localTasksCounter" value="21" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -254,6 +299,10 @@
     <MESSAGE value="i love u tori toru &#10;toba na u i dey follow talk" />
     <MESSAGE value="Jesus is Lord" />
     <MESSAGE value="add gunicorn to requirement" />
-    <option name="LAST_COMMIT_MESSAGE" value="add gunicorn to requirement" />
+    <MESSAGE value="update the update_my_profile" />
+    <MESSAGE value="Added an Admin" />
+    <MESSAGE value="cors" />
+    <MESSAGE value="token" />
+    <option name="LAST_COMMIT_MESSAGE" value="token" />
   </component>
 </project>

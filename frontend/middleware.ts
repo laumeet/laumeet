@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
   // cookie name must match Flask's JWT_ACCESS_COOKIE_NAME
-  const cookieToken = req.cookies.get("access_token_cookie")?.value;
+  const cookieToken = req.cookies.get("access_token")?.value;
 
   // fallback header (we'll attach this from client via axios)
   const headerToken = req.headers.get("x-access-token");

@@ -20,7 +20,16 @@ import time  # Time functions for rate limiting
 # Initialize Flask application
 app = Flask(__name__)
 # Enable CORS for all routes to allow frontend-backend communication
-CORS(app, supports_credentials=True)
+# CORS(app, supports_credentials=True)
+
+from flask_cors import CORS
+
+CORS(
+    app,
+    supports_credentials=True,
+    resources={r"/*": {"origins": "https://laumeet.vercel.app"}}
+)
+
 
 import os
 from datetime import timedelta

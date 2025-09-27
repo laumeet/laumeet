@@ -240,6 +240,10 @@ export default function FemaleSignupForm({
       const res = await api.post('/signup', payload);
  
       if (res.status === 200 || res.status === 201) {
+             if (res.data.access_token) {
+        sessionStorage.setItem('access_token', res.data.access_token);
+      }
+      
         toast.success('Profile created successfully!');
         onNext();
       } else if (res.data?.message?.includes("Username already taken")) {

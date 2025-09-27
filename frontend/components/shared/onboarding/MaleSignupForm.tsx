@@ -105,6 +105,10 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
        const res = await axios.post('http://127.0.0.1:5000/signup', payload);
  
       if (res.status === 200) {
+             if (res.data.access_token) {
+        sessionStorage.setItem('access_token', res.data.access_token);
+      }
+       toast.success('Profile created successfully!');
         onNext();
       } else if (res.data?.message?.includes("Username already taken")) {
         setUsernameError("This username is already taken.");

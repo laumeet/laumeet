@@ -5,11 +5,11 @@ import type { NextRequest } from "next/server";
 export function middleware(req: NextRequest) {
   // cookie name must match Flask's JWT_ACCESS_COOKIE_NAME
   const cookieToken = req.cookies.get("access_token")?.value;
-
+  const sessionToken = sessionStorage.getItem("access_token"); // for testing in dev
   // fallback header (we'll attach this from client via axios)
   const headerToken = req.headers.get("x-access-token");
 
-  const token = cookieToken || headerToken;
+  const token = cookieToken || headerToken || sessionToken;
   console.log("Middleware check, token found:", token);
   // Public pages: landing ("/"), auth pages
   const isPublicPage =

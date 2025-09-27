@@ -668,12 +668,14 @@ def update_my_profile():
     data = request.json or {}  # Get update data from request
 
     # Update allowed fields with new values or keep existing ones
-    user.name = data.get("name", user.name)
+    user.username = data.get("username", user.username)
     user.bio = data.get("bio", user.bio)
     user.department = data.get("department", user.department)
     user.category = data.get("category", user.category)
     user.gender = data.get("gender", user.gender)
     user.interested_in = data.get("interestedIn", user.interested_in)
+    user.level = data.get("level", user.level)
+    user.is_anonymous = data.get("isAnonymous", user.is_anonymous)
 
     # Validate bio length (prevent excessively long bios)
     if user.bio and len(user.bio) > 500:

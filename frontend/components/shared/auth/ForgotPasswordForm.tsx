@@ -58,7 +58,7 @@ export default function ForgotPasswordForm() {
       setStep(2);
     } catch (err) {
       setError('Error retrieving account information. Please try again.');
-      console.error(err);
+     
     } finally {
       setIsLoading(false);
     }
@@ -119,7 +119,7 @@ export default function ForgotPasswordForm() {
       }, 3000);
     } catch (err) {
       setError('Error resetting password. Please try again.');
-      console.error(err);
+   
     } finally {
       setIsLoading(false);
     }

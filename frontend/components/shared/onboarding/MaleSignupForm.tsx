@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import axios from 'axios';
 
 interface MaleSignupFormProps {
   onBack: () => void;
@@ -75,13 +76,13 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
     e.preventDefault();
         // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
-      alert("Passwords don't match!");
+      toast.error("Passwords don't match!");
       return;
     }
     
     // Validate security question and answer
     if (!formData.securityQuestion || !formData.securityAnswer) {
-      alert("Please complete the security question section.");
+      toast.error("Please complete the security question section.");
       return;
     }
 
@@ -101,32 +102,26 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
               
             };
       
-            const res = await fetch('http://127.0.0.1:5000/signup', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(payload)
-            });
-            
-            const data = await res.json();
-            console.log(data);
-            
-            if (data.success) {
-              toast.success(data.message);
-              onNext();
-            } else if (data.message === "Username already taken") {
-              setUsernameError("This username is already taken.");
+       const res = await axios.post('http://127.0.0.1:5000/signup', payload);
+ 
+      if (res.status === 200) {
+        onNext();
+      } else if (res.data?.message?.includes("Username already taken")) {
+        setUsernameError("This username is already taken.");
         setSuggestedUsernames(generateSuggestions(formData.username));
         scrollToElement(usernameInputRef.current);
+      } else {
+        toast.error(res.data?.message || "Signup failed");
+      }
 
-            } else {
-              toast.error(data.message);
-            }
       
           } catch (err) {
-            console.error("❌ Error:", err);
-            toast.error("Error creating account. Try again.");
+      
+      if (axios.isAxiosError(err)) {
+        toast.error(err.response?.data?.message || err.message);
+      } else {
+        toast.error("An unexpected error occurred.");
+      }
           } finally {
             setIsProcessing(false);
           }

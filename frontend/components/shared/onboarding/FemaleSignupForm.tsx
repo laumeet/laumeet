@@ -79,7 +79,7 @@ export default function FemaleSignupForm({
         await getFaceBlurProcessor().ensureModelsLoaded();
         setModelsLoading(false);
       } catch (err) {
-        console.error(err);
+       
         setModelsError("Failed to load face detection models.");
         setModelsLoading(false);
       }
@@ -232,7 +232,7 @@ export default function FemaleSignupForm({
       }
 
     } catch (err) {
-      console.error("❌ Error:", err);
+      
       if (axios.isAxiosError(err)) {
         toast.error(err.response?.data?.message || err.message);
       } else {
@@ -308,7 +308,7 @@ export default function FemaleSignupForm({
         }));
         
       } catch (error) {
-        console.error('Error processing images for preview:', error);
+       
         // Fallback to original images
         const originalPreviewUrls = newPictures.map(file => URL.createObjectURL(file));
         setUploadedImages(prev => [...prev, ...originalPreviewUrls]);

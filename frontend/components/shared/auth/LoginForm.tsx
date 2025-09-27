@@ -6,6 +6,7 @@ import { Eye, EyeOff,Lock, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import api from '@/lib/axio';
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -21,15 +22,25 @@ export default function LoginForm() {
   const router = useRouter()
   const handleSubmit = async(e: React.FormEvent) => {
     e.preventDefault();
-    console.log(formData)
+
     try {
-      const res = await axios.post("http://127.0.0.1:5000/login", formData, { withCredentials: true })
-      console.log(res)
+      const res = await api.post("/login", formData);
+  
       if(res.status === 200 ){
         toast.success('Login Successful')
+   
+      
+      // Also store token in localStorage as backup
+   
+      if (res.data.access_token) {
+        localStorage.setItem('access_token', res.data.access_token);
+        sessionStorage.setItem('access_token', res.data.access_token);
+      }
+      
+      
         setTimeout(() => {
           toast.success('Redirecting to homepage')
-          router.replace('/')
+          router.replace('/explore')
         }, 1000);
       }
     } catch (error) {

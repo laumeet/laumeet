@@ -37,9 +37,9 @@ export default function OnboardingStep() {
     toast.success('Login Successful')
     setTimeout(() => {
          toast.success('Redirecting to Homepage...')
-         router.replace('/')
+         router.replace('/explore')
     }, 4000);
-    console.log('Onboarding completed');
+
   };
 
   const getStepTitle = () => {

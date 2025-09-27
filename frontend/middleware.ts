@@ -3,25 +3,32 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
-  const token = req.cookies.get("access_token_cookie"); 
-  // 👆 Flask-JWT-Extended default cookie name
+  // cookie name must match Flask's JWT_ACCESS_COOKIE_NAME
+  const cookieToken = req.cookies.get("access_token_cookie")?.value;
 
-  const isAuthPage = req.nextUrl.pathname.startsWith("/login") || req.nextUrl.pathname.startsWith("/signup");
+  // fallback header (we'll attach this from client via axios)
+  const headerToken = req.headers.get("x-access-token");
 
-  if (!token && !isAuthPage) {
-    // Not logged in → redirect to login
+  const token = cookieToken || headerToken;
+
+  // Public pages: landing ("/"), auth pages
+  const isPublicPage =
+    req.nextUrl.pathname === "/" ||
+    req.nextUrl.pathname === "/login" ||
+    req.nextUrl.pathname === "/signup" ||
+    req.nextUrl.pathname === "/forgot-password";
+
+  if (!token && !isPublicPage) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  if (token && isAuthPage) {
-    // Already logged in → block login/signup
-    return NextResponse.redirect(new URL("/", req.url));
+  if (token && (req.nextUrl.pathname === "/login" || req.nextUrl.pathname === "/signup")) {
+    return NextResponse.redirect(new URL("/explore", req.url));
   }
 
   return NextResponse.next();
 }
 
-// Define where middleware runs
 export const config = {
-  matcher: ["/"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|models).*)"],
 };

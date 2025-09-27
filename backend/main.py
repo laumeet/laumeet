@@ -339,7 +339,6 @@ with app.app_context():
 
 @app.route("/")
 def home():
-    """Root endpoint - simple API greeting"""
     return jsonify({"message": "Dating App API"})
 
 
@@ -580,6 +579,13 @@ def reset_password():
     db.session.commit()
 
     return jsonify({"success": True, "message": "Password reset successfully"}), 200
+
+
+@app.route("/explore", methods=["GET"])
+@jwt_required()
+def explore():
+    user_id = get_jwt_identity()
+    return jsonify({"msg": f"Hello user {user_id}, welcome to Explore!"})
 
 
 @app.route("/profile", methods=["GET"])

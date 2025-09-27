@@ -4,7 +4,7 @@ import { Eye, EyeOff, Lock, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import api from '../../../lib/axios'; // relative path
+import api from '@/lib/axios';
 
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);

@@ -513,6 +513,46 @@ def login():
 
     return response, 200  # HTTP 200 OK
 
+@app.route("/logout", methods=["POST"])
+@jwt_required(verify_type=False)  # allow both access and refresh tokens
+def logout():
+    """
+    Logout endpoint
+    Revokes the current JWT (access or refresh) and clears cookies.
+    """
+    jti = get_jwt()["jti"]             # Unique token ID
+    token_type = get_jwt()["type"]     # "access" or "refresh"
+    user_id = get_jwt_identity()       # Current user public_id
+
+    # Find user by public_id
+    user = User.query.filter_by(public_id=user_id).first()
+
+    if not user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+
+    # Add token to blocklist
+    db.session.add(TokenBlocklist(
+        jti=jti,
+        token_type=token_type,
+        user_id=user.id,
+        revoked_at=datetime.utcnow(),
+        expires=datetime.fromtimestamp(get_jwt()["exp"], tz=timezone.utc)
+    ))
+    db.session.commit()
+
+    # Build response
+    response = jsonify({
+        "success": True,
+        "message": "Successfully logged out"
+    })
+
+    # Remove JWT cookies (for browser-based clients)
+    unset_jwt_cookies(response)
+
+    return response, 200
+
+
+
 
 @app.route("/forgot-password", methods=["POST"])
 def forgot_password():

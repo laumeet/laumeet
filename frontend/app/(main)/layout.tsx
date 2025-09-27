@@ -29,7 +29,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
         setChecking(false); // valid; allow render
       })
       .catch(() => {
-        // invalid or expired - remove any stored token and send to login
         localStorage.removeItem("access_token");
         router.replace("/login");
       });

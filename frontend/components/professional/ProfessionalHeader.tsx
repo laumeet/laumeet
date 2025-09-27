@@ -4,6 +4,7 @@
 import { Bell, Search, MessageCircle, User, Settings, LogOut } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import api from '@/lib/axio';
 
 interface ProfessionalHeaderProps {
   activeTab: string;
@@ -41,10 +42,16 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLogout = () => {
-    // Implement logout logic
-    router.push('/login');
-  };
+ const handleLogout = async () => {
+  try {
+   await api.post("/logout"); // ✅ revoke + clear cookies
+   document.cookie = "access_token_cookie=; Max-Age=0; path=/;";
+    document.cookie = "refresh_token_cookie=; Max-Age=0; path=/;";
+    router.push("/login"); // ✅ redirect to login page after logout
+  } catch (err) {
+    console.error("Logout failed:", err);
+  }
+};
 
   return (
     <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200/60 dark:border-gray-700/60 sticky top-0 z-50">

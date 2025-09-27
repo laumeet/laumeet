@@ -2,19 +2,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Edit3, Shield, Eye, EyeOff, Heart, MessageCircle, MapPin, Calendar } from 'lucide-react';
+import { Edit3, Shield, Eye, EyeOff, Heart, MessageCircle, MapPin, Calendar, Book, Cross, Droplets, GraduationCap } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import api from '@/lib/axio';
 
 interface UserProfile {
   id: string;
+  username: string;
   name: string;
   age: string;
-  bio: string;
-  interests: string;
-  images: string[];
+  gender: string;
+  department: string;
+  genotype: string;
+  level: string;
+  interestedIn: string;
+  religious: string;
   isAnonymous: boolean;
   category: string;
+  bio: string;
+  pictures: string[];
+  timestamp: string;
 }
 
 export default function ProfilePage() {
@@ -22,13 +30,17 @@ export default function ProfilePage() {
   const [isAnonymous, setIsAnonymous] = useState(false);
 
   useEffect(() => {
-    // Get user data from localStorage
-    const users = JSON.parse(localStorage.getItem('campusVibesUsers') || '[]');
-    const currentUser = users[users.length - 1]; // Get the most recent user
-    if (currentUser) {
-      setUser(currentUser);
-      setIsAnonymous(currentUser.isAnonymous || false);
-    }
+    const fetchProfile = async () => {
+      try {
+        const res = await api.get("/profile");
+        setUser(res.data.user);
+        setIsAnonymous(res.data.user?.isAnonymous || false);
+      } catch (err) {
+        console.error("Failed to fetch profile:", err);
+      }
+    };
+
+    fetchProfile();
   }, []);
 
   if (!user) {
@@ -38,28 +50,34 @@ export default function ProfilePage() {
           <div className="w-16 h-16 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
             <Heart className="h-8 w-8 text-white" />
           </div>
-          <p className="text-gray-600 dark:text-gray-400">No profile data found</p>
+          <p className="text-gray-600 dark:text-gray-400">Loading profile...</p>
         </div>
       </div>
     );
   }
 
+  // Format join date
+  const joinDate = user.timestamp ? new Date(user.timestamp).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long'
+  }) : 'Recently';
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-6">
       {/* Profile Header */}
       <div className="text-center">
         <div className="relative inline-block mb-4">
           <div className="w-24 h-24 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 p-1">
             <div className="w-full h-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center">
-              {user.images && user.images.length > 0 ? (
-                <img 
-                  src={user.images[0]} 
-                  alt="Profile" 
+              {user.pictures && user.pictures.length > 0 ? (
+                <img
+                  src={user.pictures[0]}
+                  alt="Profile"
                   className="w-full h-full rounded-full object-cover"
                 />
               ) : (
                 <span className="text-2xl font-bold text-pink-500">
-                  {user.name.charAt(0).toUpperCase()}
+                  {user.username.charAt(0).toUpperCase()}
                 </span>
               )}
             </div>
@@ -70,20 +88,20 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
-        
+
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
-          {user.name}, {user.age}
+          {user.name || user.username}, {user.age}
         </h2>
-        <p className="text-gray-600 dark:text-gray-400">{user.category}</p>
-        
+        <p className="text-gray-600 dark:text-gray-400 capitalize">{user.category}</p>
+
         <div className="flex justify-center space-x-4 mt-3">
           <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
             <MapPin className="h-4 w-4 mr-1" />
-            Campus
+            {user.department || 'Campus'}
           </div>
           <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
             <Calendar className="h-4 w-4 mr-1" />
-            Joined recently
+            Joined {joinDate}
           </div>
         </div>
       </div>
@@ -122,9 +140,9 @@ export default function ProfilePage() {
               </div>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
-                className="sr-only peer" 
+              <input
+                type="checkbox"
+                className="sr-only peer"
                 checked={isAnonymous}
                 onChange={(e) => setIsAnonymous(e.target.checked)}
               />
@@ -134,43 +152,111 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Bio Section */}
+      {/* Personal Information Grid */}
       <Card>
         <CardContent className="p-4">
-          <h3 className="font-semibold text-gray-800 dark:text-white mb-2">About Me</h3>
-          <p className="text-gray-600 dark:text-gray-400">{user.bio}</p>
-        </CardContent>
-      </Card>
+          <h3 className="font-semibold text-gray-800 dark:text-white mb-3">Personal Information</h3>
+          <div className="grid grid-cols-2 gap-4">
+            {/* Gender */}
+            <div className="flex items-center space-x-2">
+              <div className="p-2 rounded-full bg-pink-100 dark:bg-pink-900/30">
+                <Heart className="h-4 w-4 text-pink-600 dark:text-pink-400" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Gender</p>
+                <p className="font-medium capitalize">{user.gender}</p>
+              </div>
+            </div>
 
-      {/* Interests */}
-      <Card>
-        <CardContent className="p-4">
-          <h3 className="font-semibold text-gray-800 dark:text-white mb-3">Interests</h3>
-          <div className="flex flex-wrap gap-2">
-            {user.interests.split(',').map((interest, index) => (
-              <span 
-                key={index}
-                className="px-3 py-1 bg-gradient-to-r from-pink-50 to-purple-50 dark:from-pink-900/20 dark:to-purple-900/20 text-pink-600 dark:text-pink-400 rounded-full text-sm"
-              >
-                {interest.trim()}
-              </span>
-            ))}
+            {/* Department */}
+            {user.department && (
+              <div className="flex items-center space-x-2">
+                <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                  <Book className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Department</p>
+                  <p className="font-medium">{user.department}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Level */}
+            {user.level && (
+              <div className="flex items-center space-x-2">
+                <div className="p-2 rounded-full bg-green-100 dark:bg-green-900/30">
+                  <GraduationCap className="h-4 w-4 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Level</p>
+                  <p className="font-medium">{user.level}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Genotype */}
+            {user.genotype && (
+              <div className="flex items-center space-x-2">
+                <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
+                  <Droplets className="h-4 w-4 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Genotype</p>
+                  <p className="font-medium">{user.genotype}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Religious */}
+            {user.religious && (
+              <div className="flex items-center space-x-2 col-span-2">
+                <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900/30">
+                  <Cross className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Religion</p>
+                  <p className="font-medium">{user.religious}</p>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Photos */}
-      {user.images && user.images.length > 0 && (
+      {/* Looking For */}
+      {user.interestedIn && (
         <Card>
           <CardContent className="p-4">
-            <h3 className="font-semibold text-gray-800 dark:text-white mb-3">Photos</h3>
+            <h3 className="font-semibold text-gray-800 dark:text-white mb-2">Looking For</h3>
+            <p className="text-gray-600 dark:text-gray-400 capitalize">{user.interestedIn}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Bio Section */}
+      {user.bio && (
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="font-semibold text-gray-800 dark:text-white mb-2">About Me</h3>
+            <p className="text-gray-600 dark:text-gray-400 whitespace-pre-line">{user.bio}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Photos */}
+      {user.pictures && user.pictures.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="font-semibold text-gray-800 dark:text-white mb-3">
+              Photos ({user.pictures.length})
+            </h3>
             <div className="grid grid-cols-3 gap-2">
-              {user.images.map((image, index) => (
-                <div key={index} className="aspect-square rounded-lg overflow-hidden">
-                  <img 
-                    src={image} 
-                    alt={`Photo ${index + 1}`} 
-                    className="w-full h-full object-cover"
+              {user.pictures.map((image, index) => (
+                <div key={index} className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
+                  <img
+                    src={image}
+                    alt={`Photo ${index + 1}`}
+                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
                   />
                 </div>
               ))}
@@ -178,6 +264,23 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Category Badge */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-800 dark:text-white">Profile Category</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                How others see your profile
+              </p>
+            </div>
+            <span className="px-3 py-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full text-sm font-medium capitalize">
+              {user.category}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -22,7 +22,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  if (token && (req.nextUrl.pathname === "/login" || req.nextUrl.pathname === "/signup")) {
+  if (token && isPublicPage) {
     return NextResponse.redirect(new URL("/explore", req.url));
   }
 

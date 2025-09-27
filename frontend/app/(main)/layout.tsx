@@ -20,8 +20,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // If there's no localStorage token, rely on cookie presence (middleware) — but still try verify:
-    const localToken = localStorage.getItem("access_token");
+
 
     // Try to verify by calling backend. This confirms token is valid (not expired).
     api.get("/protected")

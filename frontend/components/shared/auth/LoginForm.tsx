@@ -28,11 +28,8 @@ export default function LoginForm() {
   
       if(res.status === 200 ){
         toast.success('Login Successful')
-   
-      
- 
         setTimeout(() => {
-          toast.success('Redirecting to homepage')
+          toast.success('Redirecting to homepage...')
           router.replace('/explore')
         }, 1000);
       }

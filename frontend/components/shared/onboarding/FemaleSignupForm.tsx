@@ -19,6 +19,7 @@ import { Shield, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { getFaceBlurProcessor } from '@/lib/faceBlur';
 import { toast } from 'sonner';
 import axios from 'axios'
+import api from '@/lib/axio';
 
 interface FemaleSignupFormProps {
   isAnonymous: boolean | null;
@@ -42,7 +43,12 @@ export default function FemaleSignupForm({
     password: '',
     confirmPassword: '',
     securityQuestion: '',
-    securityAnswer: ''
+    securityAnswer: '',
+    department: '',
+    level: '',
+    genotype: '',
+    religious: '',
+    name: ''
   });
   
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
@@ -79,7 +85,6 @@ export default function FemaleSignupForm({
         await getFaceBlurProcessor().ensureModelsLoaded();
         setModelsLoading(false);
       } catch (err) {
-       
         setModelsError("Failed to load face detection models.");
         setModelsLoading(false);
       }
@@ -173,6 +178,18 @@ export default function FemaleSignupForm({
       return;
     }
 
+    // For non-anonymous users, require additional fields
+    if (!isAnonymous) {
+      if (!formData.department) {
+        toast.error("Please enter your department");
+        return;
+      }
+      if (!formData.level) {
+        toast.error("Please select your academic level");
+        return;
+      }
+    }
+
     setIsProcessing(true);
 
     try {
@@ -190,15 +207,11 @@ export default function FemaleSignupForm({
         ) {
           const emojiBlob = await processor.maskFacesWithEmojis(image);
           if (emojiBlob) {
-            // FIX: Properly convert blob to base64 for processed images
             base64 = await blobToBase64(emojiBlob);
           } else {
-            // If face blur fails, fall back to original image
-            console.warn('Face blur failed, using original image');
             base64 = await fileToBase64(image);
           }
         } else {
-          // For non-anonymous or non-sensitive categories, use original image
           base64 = await fileToBase64(image);
         }
 
@@ -215,13 +228,19 @@ export default function FemaleSignupForm({
         isAnonymous: isAnonymous,
         category: formData.category,
         bio: formData.bio,
-        interestedIn: formData.interests, 
+        interestedIn: formData.interests,
         pictures: processedImagesData,
+        department: formData.department,
+        level: formData.level,
+        genotype: formData.genotype,
+        religious: formData.religious,
+        name: formData.name
       };
 
-      const res = await axios.post('http://127.0.0.1:5000/signup', payload);
+      const res = await api.post('/signup', payload);
  
-      if (res.status === 200) {
+      if (res.status === 200 || res.status === 201) {
+        toast.success('Profile created successfully!');
         onNext();
       } else if (res.data?.message?.includes("Username already taken")) {
         setUsernameError("This username is already taken.");
@@ -232,7 +251,6 @@ export default function FemaleSignupForm({
       }
 
     } catch (err) {
-      
       if (axios.isAxiosError(err)) {
         toast.error(err.response?.data?.message || err.message);
       } else {
@@ -243,13 +261,11 @@ export default function FemaleSignupForm({
     }
   };
 
-  // FIX: Improved blob to base64 conversion
   const blobToBase64 = (blob: Blob): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        // Ensure the result is a proper data URL
         if (result && result.startsWith('data:')) {
           resolve(result);
         } else {
@@ -261,7 +277,6 @@ export default function FemaleSignupForm({
     });
   };
 
-  // FIX: Improved file to base64 conversion
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -278,11 +293,9 @@ export default function FemaleSignupForm({
     });
   };
 
-  // FIX: Update image preview when processing anonymous images
   const handleImageUpload = async (files: FileList) => {
     const newPictures = Array.from(files);
     
-    // For anonymous mode with sensitive categories, process images immediately for preview
     if (isAnonymous && ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category)) {
       try {
         const processor = getFaceBlurProcessor();
@@ -296,7 +309,6 @@ export default function FemaleSignupForm({
             const previewUrl = URL.createObjectURL(emojiBlob);
             processedPreviewUrls.push(previewUrl);
           } else {
-            // Fallback to original image if processing fails
             processedPreviewUrls.push(URL.createObjectURL(file));
           }
         }
@@ -304,12 +316,10 @@ export default function FemaleSignupForm({
         setUploadedImages(prev => [...prev, ...processedPreviewUrls]);
         setFormData(prev => ({
           ...prev,
-          pictures: [...prev.pictures, ...newPictures], // Store original files for final processing
+          pictures: [...prev.pictures, ...newPictures],
         }));
         
       } catch (error) {
-       
-        // Fallback to original images
         const originalPreviewUrls = newPictures.map(file => URL.createObjectURL(file));
         setUploadedImages(prev => [...prev, ...originalPreviewUrls]);
         setFormData(prev => ({
@@ -318,7 +328,6 @@ export default function FemaleSignupForm({
         }));
       }
     } else {
-      // For non-anonymous or non-sensitive categories, use normal preview
       const newPreviewUrls = newPictures.map(file => URL.createObjectURL(file));
       setUploadedImages(prev => [...prev, ...newPreviewUrls]);
       setFormData(prev => ({
@@ -329,7 +338,6 @@ export default function FemaleSignupForm({
   };
 
   const removeImage = (index: number) => {
-    // Revoke object URL to prevent memory leaks
     if (uploadedImages[index]) {
       URL.revokeObjectURL(uploadedImages[index]);
     }
@@ -341,7 +349,6 @@ export default function FemaleSignupForm({
     setUploadedImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Clean up object URLs on unmount
   useEffect(() => {
     return () => {
       uploadedImages.forEach(url => URL.revokeObjectURL(url));
@@ -351,25 +358,21 @@ export default function FemaleSignupForm({
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     
-    // Clear username error when user starts typing
     if (field === 'username' && usernameError) {
       setUsernameError(null);
       setSuggestedUsernames([]);
     }
     
-    // If category changes and we're in anonymous mode, update image previews if needed
     if (field === 'category' && isAnonymous) {
       const isSensitiveCategory = ["Hook Up", "Sex Chat", "Fuck Mate"].includes(value);
       const wasSensitiveCategory = ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category);
       
       if (isSensitiveCategory !== wasSensitiveCategory && formData.pictures.length > 0) {
-        // Re-process images with new category settings
         handleImageUpload(arrayToFileList(formData.pictures));
-       }
+      }
     }
   };
 
-  // Helper function to convert File[] to FileList
   function arrayToFileList(files: File[]): FileList {
     const dataTransfer = new DataTransfer();
     files.forEach(file => dataTransfer.items.add(file));
@@ -399,6 +402,24 @@ export default function FemaleSignupForm({
     "What is your favorite movie?",
     "What is your favorite book?"
   ];
+
+  const academicLevels = [
+    "100 Level",
+    "200 Level", 
+    "300 Level",
+    "400 Level",
+    "500 Level",
+    "Postgraduate"
+  ];
+
+  const genotypes = [
+    "AA", "AS", "SS", "AC", "SC", "CC"
+  ];
+
+  const religions = [
+    "Christianity", "Islam", "Traditional", "Other", "Atheist"
+  ];
+
   return (
     <div className="space-y-6">
       <div className="text-center">
@@ -475,6 +496,21 @@ export default function FemaleSignupForm({
             className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
           />
         </div>
+
+        {/* Full Name - Optional for all users */}
+        <div className="space-y-2">
+          <Label htmlFor="name" className="text-gray-700 dark:text-gray-300">
+            Full Name (Optional)
+          </Label>
+          <Input
+            id="name"
+            type="text"
+            placeholder="Your full name"
+            value={formData.name}
+            onChange={(e) => handleChange('name', e.target.value)}
+            className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+          />
+        </div>
         
         <div className="space-y-2">
           <Label htmlFor="username" className="text-gray-700 dark:text-gray-300">User Name</Label>
@@ -514,6 +550,87 @@ export default function FemaleSignupForm({
             </div>
           )}
         </div>
+
+        {/* Additional Fields for Non-Anonymous Users */}
+        {!isAnonymous && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="department" className="text-gray-700 dark:text-gray-300">
+                Department *
+              </Label>
+              <Input
+                id="department"
+                type="text"
+                placeholder="e.g. Computer Science, Medicine, Law"
+                value={formData.department}
+                onChange={(e) => handleChange('department', e.target.value)}
+                required={!isAnonymous}
+                className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="level" className="text-gray-700 dark:text-gray-300">
+                Academic Level *
+              </Label>
+              <Select
+                onValueChange={(value) => handleChange('level', value)}
+                required={!isAnonymous}
+              >
+                <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                  <SelectValue placeholder="Select your level" />
+                </SelectTrigger>
+                <SelectContent>
+                  {academicLevels.map((level) => (
+                    <SelectItem key={level} value={level}>
+                      {level}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="genotype" className="text-gray-700 dark:text-gray-300">
+                Blood Genotype (Optional)
+              </Label>
+              <Select
+                onValueChange={(value) => handleChange('genotype', value)}
+              >
+                <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                  <SelectValue placeholder="Select your genotype" />
+                </SelectTrigger>
+                <SelectContent>
+                  {genotypes.map((geno) => (
+                    <SelectItem key={geno} value={geno}>
+                      {geno}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="religious" className="text-gray-700 dark:text-gray-300">
+                Religion (Optional)
+              </Label>
+              <Select
+                onValueChange={(value) => handleChange('religious', value)}
+              >
+                <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                  <SelectValue placeholder="Select your religion" />
+                </SelectTrigger>
+                <SelectContent>
+                  {religions.map((religion) => (
+                    <SelectItem key={religion} value={religion}>
+                      {religion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        )}
         
         {/* Password Fields */}
         <div className="space-y-2">

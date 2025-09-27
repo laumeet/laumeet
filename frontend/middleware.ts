@@ -23,5 +23,5 @@ export function middleware(req: NextRequest) {
 
 // Define where middleware runs
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*),/explore"],
+  matcher: ["/"],
 };

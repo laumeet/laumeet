@@ -9,5 +9,14 @@ const api = axios.create({
 });
 
 
+api.interceptors.request.use((config) => {
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("access_token");
+    if (token && config.headers) {
+      config.headers["x-access-token"] = token;
+    }
+  }
+  return config;
+});
 
 export default api;

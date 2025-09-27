@@ -28,6 +28,12 @@ export default function LoginForm() {
   
       if(res.status === 200 ){
         toast.success('Login Successful')
+        
+      if (res.data.access_token) {
+        localStorage.setItem('access_token', res.data.access_token);
+        sessionStorage.setItem('access_token', res.data.access_token);
+      }
+      
         setTimeout(() => {
           toast.success('Redirecting to homepage...')
           router.replace('/explore')

@@ -20,8 +20,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-
-
     // Try to verify by calling backend. This confirms token is valid (not expired).
     api.get("/protected")
       .then(() => {

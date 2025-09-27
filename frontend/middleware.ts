@@ -10,7 +10,7 @@ export function middleware(req: NextRequest) {
   const headerToken = req.headers.get("x-access-token");
 
   const token = cookieToken || headerToken;
-
+  console.log("Middleware check, token found:", token);
   // Public pages: landing ("/"), auth pages
   const isPublicPage =
     req.nextUrl.pathname === "/" ||

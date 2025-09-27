@@ -149,6 +149,7 @@ class User(db.Model):
     # Account creation timestamp (automatically set to current UTC time)
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     # Last password reset timestamp (for security cooldown)
+    is_admin = db.Column(db.Boolean, default=False)
     last_password_reset: Mapped[datetime] = mapped_column(DateTime, nullable=True)
 
     # Relationship to Picture model - one user can have many pictures
@@ -194,6 +195,7 @@ class User(db.Model):
             "isAnonymous": self.is_anonymous,  # CamelCase for frontend compatibility
             "category": self.category,
             "bio": self.bio,
+            "is_admin": self.is_admin,
             "pictures": [picture.image for picture in self.pictures],  # List of image URLs/data
             "timestamp": self.timestamp.isoformat() + "Z" if self.timestamp else None  # ISO format with Zulu time
         }
@@ -668,12 +670,14 @@ def update_my_profile():
     data = request.json or {}  # Get update data from request
 
     # Update allowed fields with new values or keep existing ones
-    user.name = data.get("name", user.name)
+    user.username = data.get("username", user.username)
     user.bio = data.get("bio", user.bio)
     user.department = data.get("department", user.department)
     user.category = data.get("category", user.category)
     user.gender = data.get("gender", user.gender)
     user.interested_in = data.get("interestedIn", user.interested_in)
+    user.level = data.get("level", user.level)
+    user.is_anonymous = data.get("isAnonymous", user.is_anonymous)
 
     # Validate bio length (prevent excessively long bios)
     if user.bio and len(user.bio) > 500:
@@ -691,6 +695,38 @@ def update_my_profile():
         "success": True,
         "message": "Profile updated successfully",
         "user": user.to_dict()
+    }), 200
+
+
+
+@app.route("/admin/users", methods=["GET"])
+@jwt_required()  # Require JWT token
+def get_all_users():
+    """
+    Admin: Fetch all registered users
+    Only accessible if the current user is an admin
+    """
+    # Get current user’s identity from JWT
+    public_id = get_jwt_identity()
+    current_user = User.query.filter_by(public_id=public_id).first()
+
+    if not current_user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+
+    # Check if the current user is admin
+    if not current_user.is_admin:
+        return jsonify({"success": False, "message": "Access denied: Admins only"}), 403
+
+    # Query all users
+    users = User.query.all()
+
+    # Convert each user object to dictionary
+    users_data = [user.to_dict() for user in users]
+
+    return jsonify({
+        "success": True,
+        "total_users": len(users_data),
+        "users": users_data
     }), 200
 
 

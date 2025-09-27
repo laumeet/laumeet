@@ -33,12 +33,11 @@ export default function OnboardingStep() {
   };
   const router = useRouter()
   const handleComplete = () => {
-    // Redirect to main app or show success message
-    toast.success('Login Successful')
-    setTimeout(() => {
-         toast.success('Redirecting to Homepage...')
-         router.replace('/explore')
-    }, 4000);
+     toast.success('Login Successful')
+        setTimeout(() => {
+          toast.success('Redirecting to homepage...')
+          router.replace('/explore')
+        }, 1000);
 
   };
 

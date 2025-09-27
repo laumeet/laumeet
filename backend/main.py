@@ -37,8 +37,10 @@ app.config['JWT_SECRET_KEY'] = os.environ.get("JWT_SECRET_KEY") or "dev-secret-k
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)  # Access token expiration time (24 hours)
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=14)  # Refresh token expiration time (14 days)
 app.config['JWT_TOKEN_LOCATION'] = ['cookies', 'headers']  # Where to look for JWT tokens
-app.config['JWT_COOKIE_SECURE'] = False  # Only allow HTTPS cookies in production (False for development)
-app.config['JWT_COOKIE_CSRF_PROTECT'] = False  # Disable CSRF protection for simplicity
+# Cookie settings
+app.config['JWT_COOKIE_SECURE'] = not app.debug  # True in production, False in local dev
+app.config['JWT_COOKIE_SAMESITE'] = "None"       # Required for cross-site cookies
+app.config['JWT_COOKIE_CSRF_PROTECT'] = False    # Disable CSRF (simpler, but less secure
 
 
 # Initialize database and JWT manager

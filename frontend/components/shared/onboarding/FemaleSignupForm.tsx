@@ -19,6 +19,7 @@ import { Shield, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { getFaceBlurProcessor } from '@/lib/faceBlur';
 import { toast } from 'sonner';
 import axios from 'axios'
+
 interface FemaleSignupFormProps {
   isAnonymous: boolean | null;
   onBack: () => void;
@@ -117,7 +118,6 @@ export default function FemaleSignupForm({
     // Validate required fields and scroll to first error
     if (!formData.category) {
       toast.error("Please select what you're looking for");
-      // You can add similar refs for category if needed
       return;
     }
 
@@ -190,11 +190,15 @@ export default function FemaleSignupForm({
         ) {
           const emojiBlob = await processor.maskFacesWithEmojis(image);
           if (emojiBlob) {
+            // FIX: Properly convert blob to base64 for processed images
             base64 = await blobToBase64(emojiBlob);
           } else {
+            // If face blur fails, fall back to original image
+            console.warn('Face blur failed, using original image');
             base64 = await fileToBase64(image);
           }
         } else {
+          // For non-anonymous or non-sensitive categories, use original image
           base64 = await fileToBase64(image);
         }
 
@@ -213,20 +217,18 @@ export default function FemaleSignupForm({
         bio: formData.bio,
         interestedIn: formData.interests, 
         pictures: processedImagesData,
-        
       };
 
-      const res = await axios.post('http://127.0.0.1:5000/signup',payload)
+      const res = await axios.post('http://127.0.0.1:5000/signup', payload);
  
-      
       if (res.status === 200) {
         onNext();
-      } else if (res.statusText === "Username already taken") {
+      } else if (res.data?.message?.includes("Username already taken")) {
         setUsernameError("This username is already taken.");
         setSuggestedUsernames(generateSuggestions(formData.username));
         scrollToElement(usernameInputRef.current);
       } else {
-        toast.error(res.statusText);
+        toast.error(res.data?.message || "Signup failed");
       }
 
     } catch (err) {
@@ -241,21 +243,110 @@ export default function FemaleSignupForm({
     }
   };
 
-  const blobToBase64 = (blob: Blob): Promise<string> =>
-    new Promise((resolve, reject) => {
+  // FIX: Improved blob to base64 conversion
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        // Ensure the result is a proper data URL
+        if (result && result.startsWith('data:')) {
+          resolve(result);
+        } else {
+          reject(new Error('Failed to convert blob to base64'));
+        }
+      };
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
+  };
 
-  const fileToBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
+  // FIX: Improved file to base64 conversion
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        if (result && result.startsWith('data:')) {
+          resolve(result);
+        } else {
+          reject(new Error('Failed to convert file to base64'));
+        }
+      };
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
+  };
+
+  // FIX: Update image preview when processing anonymous images
+  const handleImageUpload = async (files: FileList) => {
+    const newPictures = Array.from(files);
+    
+    // For anonymous mode with sensitive categories, process images immediately for preview
+    if (isAnonymous && ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category)) {
+      try {
+        const processor = getFaceBlurProcessor();
+        await processor.ensureModelsLoaded();
+        
+        const processedPreviewUrls: string[] = [];
+        
+        for (const file of newPictures) {
+          const emojiBlob = await processor.maskFacesWithEmojis(file);
+          if (emojiBlob) {
+            const previewUrl = URL.createObjectURL(emojiBlob);
+            processedPreviewUrls.push(previewUrl);
+          } else {
+            // Fallback to original image if processing fails
+            processedPreviewUrls.push(URL.createObjectURL(file));
+          }
+        }
+        
+        setUploadedImages(prev => [...prev, ...processedPreviewUrls]);
+        setFormData(prev => ({
+          ...prev,
+          pictures: [...prev.pictures, ...newPictures], // Store original files for final processing
+        }));
+        
+      } catch (error) {
+        console.error('Error processing images for preview:', error);
+        // Fallback to original images
+        const originalPreviewUrls = newPictures.map(file => URL.createObjectURL(file));
+        setUploadedImages(prev => [...prev, ...originalPreviewUrls]);
+        setFormData(prev => ({
+          ...prev,
+          pictures: [...prev.pictures, ...newPictures],
+        }));
+      }
+    } else {
+      // For non-anonymous or non-sensitive categories, use normal preview
+      const newPreviewUrls = newPictures.map(file => URL.createObjectURL(file));
+      setUploadedImages(prev => [...prev, ...newPreviewUrls]);
+      setFormData(prev => ({
+        ...prev,
+        pictures: [...prev.pictures, ...newPictures],
+      }));
+    }
+  };
+
+  const removeImage = (index: number) => {
+    // Revoke object URL to prevent memory leaks
+    if (uploadedImages[index]) {
+      URL.revokeObjectURL(uploadedImages[index]);
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      pictures: prev.pictures.filter((_, i) => i !== index),
+    }));
+    setUploadedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Clean up object URLs on unmount
+  useEffect(() => {
+    return () => {
+      uploadedImages.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []);
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -265,25 +356,25 @@ export default function FemaleSignupForm({
       setUsernameError(null);
       setSuggestedUsernames([]);
     }
+    
+    // If category changes and we're in anonymous mode, update image previews if needed
+    if (field === 'category' && isAnonymous) {
+      const isSensitiveCategory = ["Hook Up", "Sex Chat", "Fuck Mate"].includes(value);
+      const wasSensitiveCategory = ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category);
+      
+      if (isSensitiveCategory !== wasSensitiveCategory && formData.pictures.length > 0) {
+        // Re-process images with new category settings
+        handleImageUpload(arrayToFileList(formData.pictures));
+       }
+    }
   };
 
-  const handleImageUpload = (files: FileList) => {
-    const newPictures = Array.from(files);
-    setFormData((prev) => ({
-      ...prev,
-      pictures: [...prev.pictures, ...newPictures],
-    }));
-    const newPreviewUrls = newPictures.map((file) => URL.createObjectURL(file));
-    setUploadedImages((prev) => [...prev, ...newPreviewUrls]);
-  };
-
-  const removeImage = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      pictures: prev.pictures.filter((_, i) => i !== index),
-    }));
-    setUploadedImages((prev) => prev.filter((_, i) => i !== index));
-  };
+  // Helper function to convert File[] to FileList
+  function arrayToFileList(files: File[]): FileList {
+    const dataTransfer = new DataTransfer();
+    files.forEach(file => dataTransfer.items.add(file));
+    return dataTransfer.files;
+  }
 
   const categories = isAnonymous
     ? [
@@ -308,7 +399,6 @@ export default function FemaleSignupForm({
     "What is your favorite movie?",
     "What is your favorite book?"
   ];
-
   return (
     <div className="space-y-6">
       <div className="text-center">

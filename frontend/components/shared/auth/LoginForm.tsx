@@ -5,7 +5,7 @@ import { Eye, EyeOff, Lock, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import api from '@/lib/axios';
+import api from '@/lib/axios'; // ✅ fixed import
 
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -25,22 +25,24 @@ export default function LoginForm() {
     e.preventDefault();
 
     try {
-      // POST to Flask backend (cookies handled automatically)
-      const res = await api.post('/login', formData, { withCredentials: true });
+      const res = await api.post('/login', formData);
 
-      if (res.status === 200 && res.data.success) {
-        toast.success('Login successful!');
+      if (res.status === 200) {
+        toast.success('Login Successful');
 
-        // Wait a moment for the cookie to be set
+        // Optionally store token for API requests in header
+        if (res.data.access_token) {
+          sessionStorage.setItem('access_token', res.data.access_token);
+        }
+
         setTimeout(() => {
-          toast.success('Redirecting to explore...');
+          toast.success('Redirecting to Explore...');
           router.replace('/explore');
-        }, 500);
+        }, 1000);
       }
-    } catch (error: any) {
-      // Axios error fallback
-      if (error.response?.data?.message) {
-        toast.error(error.response.data.message);
+    } catch (error) {
+      if (api.isAxiosError?.(error)) {
+        toast.error(error.response?.data?.message || 'Login failed');
       } else {
         toast.error('An unexpected error occurred');
       }
@@ -49,59 +51,61 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Username Field */}
-      <div className="space-y-2">
-        <label htmlFor="username" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          Username
-        </label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <UserRound className="h-5 w-5 text-gray-400" />
-          </div>
-          <input
-            id="username"
-            name="username"
-            type="text"
-            required
-            placeholder="Annie"
-            className="pl-10 w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            value={formData.username}
-            onChange={handleChange}
-          />
-        </div>
-      </div>
-
-      {/* Password Field */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Password
+      <div className="space-y-4">
+        {/* Username Field */}
+        <div className="space-y-2">
+          <label htmlFor="username" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Username
           </label>
-          <Link href="/forgot-password" className="text-sm text-pink-500 hover:text-pink-600">
-            Forgot password?
-          </Link>
-        </div>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Lock className="h-5 w-5 text-gray-400" />
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <UserRound className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              required
+              placeholder="Annie"
+              className="pl-10 w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              value={formData.username}
+              onChange={handleChange}
+            />
           </div>
-          <input
-            id="password"
-            name="password"
-            type={showPassword ? 'text' : 'password'}
-            required
-            placeholder="Enter your password"
-            className="pl-10 pr-10 w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            value={formData.password}
-            onChange={handleChange}
-          />
-          <button
-            type="button"
-            className="absolute inset-y-0 right-0 pr-3 flex items-center"
-            onClick={() => setShowPassword(!showPassword)}
-          >
-            {showPassword ? <EyeOff className="h-5 w-5 text-gray-400" /> : <Eye className="h-5 w-5 text-gray-400" />}
-          </button>
+        </div>
+
+        {/* Password Field */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Password
+            </label>
+            <Link href="/forgot-password" className="text-sm text-pink-500 hover:text-pink-600">
+              Forgot password?
+            </Link>
+          </div>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Lock className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              required
+              placeholder="Enter your password"
+              className="pl-10 pr-10 w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              value={formData.password}
+              onChange={handleChange}
+            />
+            <button
+              type="button"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? <EyeOff className="h-5 w-5 text-gray-400" /> : <Eye className="h-5 w-5 text-gray-400" />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -113,16 +117,9 @@ export default function LoginForm() {
         Log In
       </button>
 
-      {/* Divider */}
-      <div className="relative flex items-center justify-center">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-gray-300 dark:border-gray-600" />
-        </div>
-      </div>
-
       {/* Sign Up Link */}
       <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-        Don't have an account?{' '}
+        Don&apos;t have an account?{' '}
         <Link href="/signup" className="text-pink-500 font-medium hover:text-pink-600">
           Sign up
         </Link>

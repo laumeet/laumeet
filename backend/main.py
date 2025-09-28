@@ -36,7 +36,7 @@ app.config['JWT_COOKIE_SAMESITE'] = "None"
 app.config['JWT_COOKIE_CSRF_PROTECT'] = False
 app.config['JWT_SESSION_COOKIE'] = False
 app.config['JWT_COOKIE_SECURE'] = True  # Always True for HTTPS
-
+app.config['JWT_COOKIE_DOMAIN'] = os.environ.get("JWT_COOKIE_DOMAIN", None)  # Add this
 # CORS Configuration
 CORS(
     app,
@@ -44,7 +44,8 @@ CORS(
     origins=["https://laumeet.vercel.app", "http://localhost:3000"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "Accept"],
-    expose_headers=["Set-Cookie"]
+    expose_headers=["Set-Cookie"],
+     max_age=86400
 )
 
 # Initialize database and JWT manager
@@ -480,18 +481,35 @@ def signup():
             "access_token": access_token,
             "refresh_token": refresh_token
         })
+        is_production = os.environ.get("FLASK_ENV") == "production"
+        domain = ".onrender.com" if is_production else None
 
-        # Set JWT tokens as HTTP cookies (optional, for browser-based clients)
+        # Set JWT cookies for browser
         set_access_cookies(response, access_token)
         set_refresh_cookies(response, refresh_token)
+
+        # Set custom access token cookie for Next.js middleware
         response.set_cookie(
             "access_token_cookie",
             access_token,
             httponly=True,
             secure=True,
             samesite="None",
-            path="/", 
+            path="/",
+            domain=domain,
             max_age=60*60*24*7  # 1 week
+        )
+
+        # Set login status cookie
+        response.set_cookie(
+            "is_logged_in",
+            "true",
+            httponly=False,
+            secure=True,
+            samesite="None",
+            path="/",
+            domain=domain,
+            max_age=60*60*24*7
         )
         return response, 201  # HTTP 201 Created
     
@@ -511,7 +529,7 @@ def login():
         return jsonify({"success": True}), 200
         
     try:
-        data = request.json or {}  # Get request data
+        data = request.json or {}
         username = data.get("username")
         password = data.get("password")
 
@@ -534,31 +552,47 @@ def login():
         response = jsonify({
             "success": True,
             "message": "Login successful",
-            "user": user.to_dict(),  # Return user profile data
+            "user": user.to_dict(),
             "access_token": access_token,
             "refresh_token": refresh_token
         })
 
-        # Set JWT cookies for browser
+        # Get domain for cookie configuration
+        is_production = os.environ.get("FLASK_ENV") == "production"
+        domain = ".onrender.com" if is_production else None
+
+        # Set JWT cookies with proper configuration
         set_access_cookies(response, access_token)
         set_refresh_cookies(response, refresh_token)
 
-        # Set "is_logged_in" cookie for Next.js middleware
+        # Set custom access token cookie for Next.js middleware
         response.set_cookie(
             "access_token_cookie",
             access_token,
             httponly=True,
             secure=True,
             samesite="None",
-            path="/", 
+            path="/",
+            domain=domain,  # This allows cross-subdomain cookies
             max_age=60*60*24*7  # 1 week
         )
+
+        # Set a simple cookie for frontend to check login status
+        response.set_cookie(
+            "is_logged_in",
+            "true",
+            httponly=False,
+            secure=True,
+            samesite="None",
+            path="/",
+            domain=domain,
+            max_age=60*60*24*7
+        )
+
         return response, 200
     
     except Exception as e:
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
-
-
 @app.route("/logout", methods=["POST", "OPTIONS"])
 @jwt_required(verify_type=False)  # allow both access and refresh tokens
 @cross_origin(supports_credentials=True)

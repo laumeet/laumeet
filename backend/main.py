@@ -487,7 +487,15 @@ def signup():
         # Set JWT tokens as HTTP cookies (optional, for browser-based clients)
         set_access_cookies(response, access_token)
         set_refresh_cookies(response, refresh_token)
-
+        response.set_cookie(
+            "access_token_cookie",
+            access_token,
+            httponly=True,
+            secure=True,
+            samesite="None",
+            path="/", 
+            max_age=60*60*24*7  # 1 week
+        )
         return response, 201  # HTTP 201 Created
     
     except Exception as e:
@@ -540,11 +548,12 @@ def login():
 
         # Set "is_logged_in" cookie for Next.js middleware
         response.set_cookie(
-            "is_logged_in",
-            "true",
-            httponly=False,
+            "access_token_cookie",
+            access_token,
+            httponly=True,
             secure=True,
             samesite="None",
+            path="/", 
             max_age=60*60*24*7  # 1 week
         )
         return response, 200

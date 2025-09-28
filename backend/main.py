@@ -348,31 +348,6 @@ with app.app_context():
     db.create_all()  # Create all tables if they don't exist
 
 
-# CORS Preflight Handler
-@app.after_request
-def after_request(response):
-    """
-    Add CORS headers to all responses
-    """
-    response.headers.add('Access-Control-Allow-Origin', FRONTEND_URL)
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    response.headers.add('Access-Control-Expose-Headers', 'Set-Cookie')
-    return response
-
-
-# Handle OPTIONS requests for CORS preflight
-@app.route('/', methods=['OPTIONS'])
-@app.route('/<path:path>', methods=['OPTIONS'])
-def options_handler(path=None):
-    response = jsonify()
-    response.headers.add('Access-Control-Allow-Origin', FRONTEND_URL)
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response, 200
-
 
 # Route Handlers
 

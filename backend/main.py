@@ -24,11 +24,12 @@ app = Flask(__name__)
 
 from flask_cors import CORS
 
+FRONTEND_URL = os.environ.get("https://laumeet.vercel.app", "http://localhost:3000")
 CORS(
     app,
-    supports_credentials=True
+    supports_credentials=True,
+    origins=[FRONTEND_URL]
 )
-
 
 import os
 from datetime import timedelta
@@ -40,23 +41,14 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Disable modification tracking for performance
 
-# JWT configuration
-# JWT configuration
-app.config['JWT_SECRET_KEY'] = os.environ.get("JWT_SECRET_KEY") or "dev-secret-key-please-change"
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)   # Access token expiration time (24 hours)
-app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=14)   # Refresh token expiration time (14 days)
-app.config['JWT_TOKEN_LOCATION'] = ['cookies']  # Only use cookies (safer for browser apps)
-
-# Cookie settings
-if app.debug:
-    app.config['JWT_COOKIE_SECURE'] = False  # localhost http
-else:
-    app.config['JWT_COOKIE_SECURE'] = True   # vercel https     
-app.config['JWT_COOKIE_SAMESITE'] = "None"           # Required for cross-site cookies
-app.config['JWT_COOKIE_CSRF_PROTECT'] = False        # Disable if not using CSRF protection
-app.config['JWT_SESSION_COOKIE'] = False             # 🔑 Persistent cookies, not session-only
-    # Disable CSRF (simpler, but less secure
-
+app.config['JWT_SECRET_KEY'] = os.environ.get("JWT_SECRET_KEY", "dev-secret") 
+app.config['JWT_TOKEN_LOCATION'] = ['cookies']
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
+app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=14)
+app.config['JWT_COOKIE_SAMESITE'] = "None"
+app.config['JWT_COOKIE_CSRF_PROTECT'] = False
+app.config['JWT_SESSION_COOKIE'] = False
+app.config['JWT_COOKIE_SECURE'] = FRONTEND_URL.startswith("https://")
 
 # Initialize database and JWT manager
 db = SQLAlchemy(app)  # Database instance

@@ -16,13 +16,15 @@ import base64  # Base64 encoding/decoding for image data
 from functools import wraps  # Decorator utilities
 from flask_cors import CORS  # Cross-Origin Resource Sharing support
 import time  # Time functions for rate limiting
-
+import os
+from datetime import timedelta
+from flask_cors import CORS
 # Initialize Flask application
 app = Flask(__name__)
 # Enable CORS for all routes to allow frontend-backend communication
 # CORS(app, supports_credentials=True)
 
-from flask_cors import CORS
+
 
 FRONTEND_URL = os.environ.get("https://laumeet.vercel.app", "http://localhost:3000")
 CORS(
@@ -31,8 +33,6 @@ CORS(
     origins=[FRONTEND_URL]
 )
 
-import os
-from datetime import timedelta
 
 # Application configuration settings
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(

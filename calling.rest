@@ -1,4 +1,4 @@
-POST  http://127.0.0.1:5000/signup
+POST  http://laumeet.onrender.com/signup
 Content-Type: application/json
 
 {
@@ -10,6 +10,8 @@ Content-Type: application/json
     "gender":"female"
 }
 
+###
+GET https://laumeet.onrender.com/debug/auth
 ###
 GET  http://127.0.0.1:5000/profile
 Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc1OTA2OTI4NywianRpIjoiZjFjY2I2NjItOWNiMS00ZWNlLWIzOTUtN2I3YjEwZjVlYzYxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjljMWYwM2NiLTA4YWEtNDRmZS05YmI5LWRiZmUyMDU2NzEyMyIsIm5iZiI6MTc1OTA2OTI4NywiZXhwIjoxNzU5MTU1Njg3fQ.cxB1-E9gQSHs2yVneJqZ9M0fQTL4ynPpFu1NFaM9EIU

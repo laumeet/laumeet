@@ -24,6 +24,8 @@ export default function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+      // In your frontend, add a test function
+
     try {
       const res = await api.post('/login', formData); // backend sets cookies
       if (res.status === 200) {

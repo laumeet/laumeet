@@ -33,10 +33,9 @@ export default function OnboardingStep() {
   };
   const router = useRouter()
   const handleComplete = () => {
-     toast.success('Login Successful')
         setTimeout(() => {
           toast.success('Redirecting to homepage...')
-          router.replace('/explore')
+          router.push('/explore')
         }, 1000);
 
   };

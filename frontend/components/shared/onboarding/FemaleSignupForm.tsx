@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // components/shared/onboarding/FemaleSignupForm.tsx
 'use client';
 
@@ -238,29 +239,23 @@ export default function FemaleSignupForm({
       };
 
       const res = await api.post('/signup', payload);
- 
-      if (res.status === 200 || res.status === 201) {
-             if (res.data.access_token) {
-        sessionStorage.setItem('access_token', res.data.access_token);
-      }
-      
-        toast.success('Profile created successfully!');
+      toast.success('Profile created successfully!');
         onNext();
-      } else if (res.data?.message?.includes("Username already taken")) {
-        setUsernameError("This username is already taken.");
+      
+
+    } catch (error: any) {
+      if (error.response?.data?.message) {
+        if(error.response?.data?.message === "Username already taken"){
+         setUsernameError("This username is already taken.");
         setSuggestedUsernames(generateSuggestions(formData.username));
         scrollToElement(usernameInputRef.current);
+        }
+        toast.error(error.response.data.message);
+    
       } else {
-        toast.error(res.data?.message || "Signup failed");
+        toast.error('An unexpected error occurred');
       }
-
-    } catch (err) {
-      if (axios.isAxiosError(err)) {
-        toast.error(err.response?.data?.message || err.message);
-      } else {
-        toast.error("An unexpected error occurred.");
-      }
-    } finally {
+    }  finally {
       setIsProcessing(false);
     }
   };

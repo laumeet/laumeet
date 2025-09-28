@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 // components/shared/onboarding/MaleSignupForm.tsx
 'use client';
@@ -18,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import axios from 'axios';
+import api from '@/lib/axio';
 
 interface MaleSignupFormProps {
   onBack: () => void;
@@ -85,11 +87,7 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
       toast.error("Please complete the security question section.");
       return;
     }
-
-    setIsProcessing(true);
-    try{
-      
-            const payload = {
+      const payload = {
               username: formData.username,
               password: formData.password,
               security_question: formData.securityQuestion,
@@ -101,34 +99,27 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
              
               
             };
+    setIsProcessing(true);
+    try{
+      const res = await api.post('/signup', payload);
+      toast.success('Profile created successfully!');
+      onNext();
       
-       const res = await axios.post('http://127.0.0.1:5000/signup', payload);
- 
-      if (res.status === 200) {
-             if (res.data.access_token) {
-        sessionStorage.setItem('access_token', res.data.access_token);
-      }
-       toast.success('Profile created successfully!');
-        onNext();
-      } else if (res.data?.message?.includes("Username already taken")) {
-        setUsernameError("This username is already taken.");
+    } catch (error: any) {
+      if (error.response?.data?.message) {
+        if(error.response?.data?.message === "Username already taken"){
+         setUsernameError("This username is already taken.");
         setSuggestedUsernames(generateSuggestions(formData.username));
         scrollToElement(usernameInputRef.current);
+        }
+        toast.error(error.response.data.message);
+    
       } else {
-        toast.error(res.data?.message || "Signup failed");
+        toast.error('An unexpected error occurred');
       }
-
-      
-          } catch (err) {
-      
-      if (axios.isAxiosError(err)) {
-        toast.error(err.response?.data?.message || err.message);
-      } else {
-        toast.error("An unexpected error occurred.");
+    } finally {
+        setIsProcessing(false);
       }
-          } finally {
-            setIsProcessing(false);
-          }
 
   };
 

@@ -26,8 +26,7 @@ from flask_cors import CORS
 
 CORS(
     app,
-    supports_credentials=True,
-    resources={r"/*": {"origins": "https://laumeet.vercel.app"}}
+    supports_credentials=True
 )
 
 
@@ -488,11 +487,10 @@ def signup():
 
 
 @app.route("/login", methods=["POST"])
-@app.route("/login", methods=["POST"])
 def login():
     """
     User authentication endpoint
-    Verifies credentials and returns JWT tokens if valid
+    Verifies credentials and returns J`WT tokens if valid
     """
     data = request.json or {}  # Get request data
     username = data.get("username")
@@ -538,8 +536,6 @@ def login():
     return response, 200
 
 
-@app.route("/logout", methods=["POST"])
-@jwt_required(verify_type=False)  # allow both access and refresh tokens
 @app.route("/logout", methods=["POST"])
 @jwt_required(verify_type=False)  # allow both access and refresh tokens
 def logout():

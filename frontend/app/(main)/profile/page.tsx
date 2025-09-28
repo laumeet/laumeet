@@ -58,6 +58,7 @@ export default function ProfilePage() {
     try {
       setIsLoading(true);
       const res = await api.get("/profile");
+      console.log(res)
       setUser(res.data.user);
 
       if (res.data.user) {

@@ -4,7 +4,8 @@ import { Eye, EyeOff, Lock, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import api from '@/lib/axios';
+import api from '@/lib/axio';
+import axios from 'axios';
 
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -32,7 +33,7 @@ export default function LoginForm() {
         setTimeout(() => router.replace("/explore"), 500);
       }
     } catch (error) {
-      if (api.isAxiosError(error)) {
+      if (axios.isAxiosError(error)) {
         toast.error(error.response?.data?.message || "Login failed");
       } else {
         toast.error("An unexpected error occurred");

@@ -48,7 +48,10 @@ app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=14)   # Refresh token e
 app.config['JWT_TOKEN_LOCATION'] = ['cookies']  # Only use cookies (safer for browser apps)
 
 # Cookie settings
-app.config['JWT_COOKIE_SECURE'] = not app.debug      # True in production, False in local dev
+if app.debug:
+    app.config['JWT_COOKIE_SECURE'] = False  # localhost http
+else:
+    app.config['JWT_COOKIE_SECURE'] = True   # vercel https     
 app.config['JWT_COOKIE_SAMESITE'] = "None"           # Required for cross-site cookies
 app.config['JWT_COOKIE_CSRF_PROTECT'] = False        # Disable if not using CSRF protection
 app.config['JWT_SESSION_COOKIE'] = False             # 🔑 Persistent cookies, not session-only
@@ -526,13 +529,13 @@ def login():
 
     # Set "is_logged_in" cookie for Next.js middleware
     response.set_cookie(
-        "is_logged_in",
-        "true",
-        httponly=False,     # accessible by frontend JS
-        secure=True,        # required for HTTPS in production
-        samesite="None"     # cross-site allowed
-    )
-
+    "is_logged_in",
+    "true",
+    httponly=False,
+    secure=True,
+    samesite="None",
+    max_age=60*60*24*7  # 1 week (example)
+)
     return response, 200
 
 
@@ -578,7 +581,8 @@ def logout():
         "false",
         httponly=False,   # accessible by frontend
         secure=True,      # required in production for HTTPS
-        samesite="None"   # allow cross-site
+        samesite="None",
+        expires=0   # allow cross-site
     )
 
     return response, 200

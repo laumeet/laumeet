@@ -14,7 +14,7 @@ import re  # Regular expressions for validation
 import uuid  # UUID generation for unique identifiers
 import base64  # Base64 encoding/decoding for image data
 from functools import wraps  # Decorator utilities
-from flask_cors import CORS  # Cross-Origin Resource Sharing support
+from flask_cors import CORS, cross_origin  # Cross-Origin Resource Sharing support
 import time  # Time functions for rate limiting
 import os
 
@@ -37,14 +37,17 @@ app.config['JWT_COOKIE_CSRF_PROTECT'] = False
 app.config['JWT_SESSION_COOKIE'] = False
 
 # Get frontend URL from environment variable with proper default
-FRONTEND_URL = os.environ.get("NEXT_PUBLIC_API_URL", "http://localhost:3000")
-app.config['JWT_COOKIE_SECURE'] = FRONTEND_URL.startswith("https://")
+FRONTEND_URL = os.environ.get("NEXT_PUBLIC_API_URL", "https://laumeet.vercel.app")
+app.config['JWT_COOKIE_SECURE'] = True  # Always True for HTTPS
 
-# Initialize CORS with proper configuration (ONCE)
+# CORS Configuration
 CORS(
     app,
     supports_credentials=True,
-    origins=[FRONTEND_URL]
+    origins=[FRONTEND_URL, "http://localhost:3000"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept"],
+    expose_headers=["Set-Cookie"]
 )
 
 # Initialize database and JWT manager
@@ -345,6 +348,32 @@ with app.app_context():
     db.create_all()  # Create all tables if they don't exist
 
 
+# CORS Preflight Handler
+@app.after_request
+def after_request(response):
+    """
+    Add CORS headers to all responses
+    """
+    response.headers.add('Access-Control-Allow-Origin', FRONTEND_URL)
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    response.headers.add('Access-Control-Expose-Headers', 'Set-Cookie')
+    return response
+
+
+# Handle OPTIONS requests for CORS preflight
+@app.route('/', methods=['OPTIONS'])
+@app.route('/<path:path>', methods=['OPTIONS'])
+def options_handler(path=None):
+    response = jsonify()
+    response.headers.add('Access-Control-Allow-Origin', FRONTEND_URL)
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response, 200
+
+
 # Route Handlers
 
 @app.route("/")
@@ -352,12 +381,16 @@ def home():
     return jsonify({"message": "Dating App API"})
 
 
-@app.route("/signup", methods=["POST"])
+@app.route("/signup", methods=["POST", "OPTIONS"])
+@cross_origin(supports_credentials=True)
 def signup():
     """
     User registration endpoint
     Creates a new user account with provided information
     """
+    if request.method == "OPTIONS":
+        return jsonify({"success": True}), 200
+        
     try:
         # Get JSON data from request body, default to empty dict if None
         data = request.json or {}
@@ -487,12 +520,16 @@ def signup():
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
 
 
-@app.route("/login", methods=["POST"])
+@app.route("/login", methods=["POST", "OPTIONS"])
+@cross_origin(supports_credentials=True)
 def login():
     """
     User authentication endpoint
     Verifies credentials and returns JWT tokens if valid
     """
+    if request.method == "OPTIONS":
+        return jsonify({"success": True}), 200
+        
     try:
         data = request.json or {}  # Get request data
         username = data.get("username")
@@ -531,7 +568,7 @@ def login():
             "is_logged_in",
             "true",
             httponly=False,
-            secure=FRONTEND_URL.startswith("https://"),
+            secure=True,
             samesite="None",
             max_age=60*60*24*7  # 1 week
         )
@@ -541,13 +578,17 @@ def login():
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
 
 
-@app.route("/logout", methods=["POST"])
+@app.route("/logout", methods=["POST", "OPTIONS"])
 @jwt_required(verify_type=False)  # allow both access and refresh tokens
+@cross_origin(supports_credentials=True)
 def logout():
     """
     Logout endpoint
     Revokes the current JWT (access or refresh) and clears cookies.
     """
+    if request.method == "OPTIONS":
+        return jsonify({"success": True}), 200
+        
     try:
         jwt_data = get_jwt()
         jti = jwt_data["jti"]             # Unique token ID
@@ -584,7 +625,7 @@ def logout():
             "is_logged_in",
             "false",
             httponly=False,   # accessible by frontend
-            secure=FRONTEND_URL.startswith("https://"),      # required in production for HTTPS
+            secure=True,      # required in production for HTTPS
             samesite="None",
             expires=0   # allow cross-site
         )
@@ -596,12 +637,16 @@ def logout():
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
 
 
-@app.route("/forgot-password", methods=["POST"])
+@app.route("/forgot-password", methods=["POST", "OPTIONS"])
+@cross_origin(supports_credentials=True)
 def forgot_password():
     """
     Step 1 of password reset process
     User submits username, system returns their security question
     """
+    if request.method == "OPTIONS":
+        return jsonify({"success": True}), 200
+        
     try:
         data = request.json or {}
         username = data.get("username")
@@ -627,14 +672,18 @@ def forgot_password():
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
 
 
-@app.route("/reset-password", methods=["POST"])
+@app.route("/reset-password", methods=["POST", "OPTIONS"])
 @rate_limit(max_attempts=5, window_seconds=300)  # Apply rate limiting
+@cross_origin(supports_credentials=True)
 def reset_password():
     """
     Step 2 of password reset process
     User submits username, security answer, and new password
     If answer is correct, password is reset
     """
+    if request.method == "OPTIONS":
+        return jsonify({"success": True}), 200
+        
     try:
         data = request.json or {}
         username = data.get("username")
@@ -672,12 +721,16 @@ def reset_password():
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
 
 
-@app.route("/explore", methods=["GET"])
+@app.route("/explore", methods=["GET", "OPTIONS"])
 @jwt_required()
+@cross_origin(supports_credentials=True)
 def explore():
     """
     Explore endpoint - requires authentication
     """
+    if request.method == "OPTIONS":
+        return jsonify({"success": True}), 200
+        
     try:
         user_id = get_jwt_identity()
         return jsonify({"success": True, "message": f"Hello user {user_id}, welcome to Explore!"}), 200
@@ -685,13 +738,17 @@ def explore():
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
 
 
-@app.route("/profile", methods=["GET"])
+@app.route("/profile", methods=["GET", "OPTIONS"])
 @jwt_required()  # Require valid JWT token to access this endpoint
+@cross_origin(supports_credentials=True)
 def get_my_profile():
     """
     Get current user's profile information
     Requires authentication via JWT
     """
+    if request.method == "OPTIONS":
+        return jsonify({"success": True}), 200
+        
     try:
         # Get user identity from JWT token
         public_id = get_jwt_identity()
@@ -712,13 +769,17 @@ def get_my_profile():
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
 
 
-@app.route("/profile", methods=["PUT"])
+@app.route("/profile", methods=["PUT", "OPTIONS"])
 @jwt_required()  # Require valid JWT token to access this endpoint
+@cross_origin(supports_credentials=True)
 def update_my_profile():
     """
     Update current user's profile information
     Requires authentication via JWT
     """
+    if request.method == "OPTIONS":
+        return jsonify({"success": True}), 200
+        
     try:
         # Get user identity from JWT token
         public_id = get_jwt_identity()
@@ -772,13 +833,17 @@ def update_my_profile():
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
 
 
-@app.route("/admin/users", methods=["GET"])
+@app.route("/admin/users", methods=["GET", "OPTIONS"])
 @jwt_required()  # Require JWT token
+@cross_origin(supports_credentials=True)
 def get_all_users():
     """
     Admin: Fetch all registered users
     Only accessible if the current user is an admin
     """
+    if request.method == "OPTIONS":
+        return jsonify({"success": True}), 200
+        
     try:
         # Get current user's identity from JWT
         public_id = get_jwt_identity()
@@ -807,13 +872,17 @@ def get_all_users():
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
 
 
-@app.route("/protected")
+@app.route("/protected", methods=["GET", "OPTIONS"])
 @jwt_required()  # Require valid JWT token to access this endpoint
+@cross_origin(supports_credentials=True)
 def protected():
     """
     Protected endpoint example - requires authentication
     Useful for testing if JWT authentication is working
     """
+    if request.method == "OPTIONS":
+        return jsonify({"success": True}), 200
+        
     try:
         public_id = get_jwt_identity()
         user = User.query.filter_by(public_id=public_id).first()
@@ -827,12 +896,16 @@ def protected():
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
 
 
-@app.route("/refresh", methods=["POST"])
+@app.route("/refresh", methods=["POST", "OPTIONS"])
 @jwt_required(refresh=True)
+@cross_origin(supports_credentials=True)
 def refresh():
     """
     Refresh access token using refresh token
     """
+    if request.method == "OPTIONS":
+        return jsonify({"success": True}), 200
+        
     try:
         identity = get_jwt_identity()
         access_token = create_access_token(identity=identity)

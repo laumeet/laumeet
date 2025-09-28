@@ -37,7 +37,7 @@ app.config['JWT_COOKIE_CSRF_PROTECT'] = False
 app.config['JWT_SESSION_COOKIE'] = False
 
 # Get frontend URL from environment variable with proper default
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+FRONTEND_URL = os.environ.get("NEXT_PUBLIC_API_URL", "http://localhost:3000")
 app.config['JWT_COOKIE_SECURE'] = FRONTEND_URL.startswith("https://")
 
 # Initialize CORS with proper configuration (ONCE)

@@ -36,7 +36,6 @@ app.config['JWT_COOKIE_SAMESITE'] = "None"
 app.config['JWT_COOKIE_CSRF_PROTECT'] = False
 app.config['JWT_SESSION_COOKIE'] = False
 app.config['JWT_COOKIE_SECURE'] = True  # Always True for HTTPS
-app.config['JWT_COOKIE_DOMAIN'] = os.environ.get("JWT_COOKIE_DOMAIN", None)  # Add this
 # CORS Configuration
 CORS(
     app,
@@ -493,24 +492,12 @@ def signup():
             "access_token_cookie",
             access_token,
             httponly=True,
-            secure=True,
+            secure=app.config['JWT_COOKIE_SECURE'],
             samesite="None",
             path="/",
-            domain=domain,
             max_age=60*60*24*7  # 1 week
         )
 
-        # Set login status cookie
-        response.set_cookie(
-            "is_logged_in",
-            "true",
-            httponly=False,
-            secure=True,
-            samesite="None",
-            path="/",
-            domain=domain,
-            max_age=60*60*24*7
-        )
         return response, 201  # HTTP 201 Created
     
     except Exception as e:
@@ -557,9 +544,7 @@ def login():
             "refresh_token": refresh_token
         })
 
-        # Get domain for cookie configuration
-        is_production = os.environ.get("FLASK_ENV") == "production"
-        domain = ".onrender.com" if is_production else None
+  
 
         # Set JWT cookies with proper configuration
         set_access_cookies(response, access_token)
@@ -570,25 +555,14 @@ def login():
             "access_token_cookie",
             access_token,
             httponly=True,
-            secure=True,
+            secure=app.config['JWT_COOKIE_SECURE'],
             samesite="None",
             path="/",
-            domain=domain,  # This allows cross-subdomain cookies
             max_age=60*60*24*7  # 1 week
         )
 
-        # Set a simple cookie for frontend to check login status
-        response.set_cookie(
-            "is_logged_in",
-            "true",
-            httponly=False,
-            secure=True,
-            samesite="None",
-            path="/",
-            domain=domain,
-            max_age=60*60*24*7
-        )
-
+     
+      
         return response, 200
     
     except Exception as e:
@@ -640,7 +614,7 @@ def logout():
             "is_logged_in",
             "false",
             httponly=False,   # accessible by frontend
-            secure=True,      # required in production for HTTPS
+            secure=app.config['JWT_COOKIE_SECURE'],      # required in production for HTTPS
             samesite="None",
             expires=0   # allow cross-site
         )

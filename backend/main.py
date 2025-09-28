@@ -35,16 +35,13 @@ app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=14)
 app.config['JWT_COOKIE_SAMESITE'] = "None"
 app.config['JWT_COOKIE_CSRF_PROTECT'] = False
 app.config['JWT_SESSION_COOKIE'] = False
-
-# Get frontend URL from environment variable with proper default
-FRONTEND_URL = os.environ.get("NEXT_PUBLIC_API_URL", "https://laumeet.vercel.app")
 app.config['JWT_COOKIE_SECURE'] = True  # Always True for HTTPS
 
 # CORS Configuration
 CORS(
     app,
     supports_credentials=True,
-    origins=[FRONTEND_URL, "http://localhost:3000"],
+    origins=["https://laumeet.vercel.app", "http://localhost:3000"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "Accept"],
     expose_headers=["Set-Cookie"]

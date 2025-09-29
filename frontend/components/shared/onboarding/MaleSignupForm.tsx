@@ -45,6 +45,7 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
   const [suggestedUsernames, setSuggestedUsernames] = useState<string[]>([]);
   const usernameInputRef = useRef<HTMLInputElement>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
+  const interests = ["male", "female", "both"];
   const generateSuggestions = (baseName: string): string[] => {
     const randomNumbers = () =>
       Math.floor(100 + Math.random() * 900).toString(); // 3-digit numbers
@@ -102,9 +103,10 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
     setIsProcessing(true);
     try{
       const res = await api.post('/signup', payload);
-      toast.success('Profile created successfully!');
-      onNext();
-      
+        if(res.data){
+           toast.success('Profile created successfully!');
+             onNext();
+           }
     } catch (error: any) {
       if (error.response?.data?.message) {
         if(error.response?.data?.message === "Username already taken"){
@@ -143,7 +145,7 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
         <p className="text-gray-600 dark:text-gray-300 mt-1">Tell us about yourself</p>
       </div>
       
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} method='POST' className="space-y-4">
              <div className="space-y-2">
           <Label htmlFor="username" className="text-gray-700 dark:text-gray-300">Username</Label>
           <Input

@@ -239,9 +239,10 @@ export default function FemaleSignupForm({
       };
 
       const res = await api.post('/signup', payload);
+      if(res.data){
       toast.success('Profile created successfully!');
         onNext();
-      
+      }
 
     } catch (error: any) {
       if (error.response?.data?.message) {
@@ -401,7 +402,7 @@ export default function FemaleSignupForm({
     "What is your favorite movie?",
     "What is your favorite book?"
   ];
-
+const interests = ["male", "female", "both"];
   const academicLevels = [
     "100 Level",
     "200 Level", 
@@ -442,7 +443,7 @@ export default function FemaleSignupForm({
         </Alert>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} method='POST' className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="category" className="text-gray-700 dark:text-gray-300">
             What are you looking for?
@@ -748,15 +749,18 @@ export default function FemaleSignupForm({
         
         <div className="space-y-2">
           <Label htmlFor="interests" className="text-gray-700 dark:text-gray-300">Interests</Label>
-          <Input
-            id="interests"
-            type="text"
-            placeholder="e.g. Music, Travel, Sports"
-            value={formData.interests}
-            onChange={(e) => handleChange('interests', e.target.value)}
-            required
-            className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
-          />
+        <Select value={category} onValueChange={setCategory}>
+          <SelectTrigger>
+            <SelectValue placeholder="What are you looking for?" />
+          </SelectTrigger>
+          <SelectContent>
+            {categories.map((cat) => (
+              <SelectItem key={cat} value={cat}>
+                {cat}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         </div>
         
         <Alert className="bg-pink-50 dark:bg-pink-900/20 border-pink-200 dark:border-pink-800">

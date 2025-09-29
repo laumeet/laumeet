@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
-  const accessToken = req.cookies.get("access_token_cookie")?.value;
+  const accessToken = req.cookies.get("access_token")?.value;
   
   // Debug logging
   console.log('🔐 Middleware Debug:', {

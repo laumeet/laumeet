@@ -3,7 +3,7 @@
 
 import api from '@/lib/axio'; // use your configured axios
 import { useState } from 'react';
-import { Eye, EyeOff, Lock, UserRound } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Lock, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -15,6 +15,8 @@ export default function LoginForm() {
     password: '',
   });
 
+  const[isProcessing, setIsProcessing] = useState(false)
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -24,11 +26,11 @@ export default function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-      // In your frontend, add a test function
+  setIsProcessing(true)
 
     try {
       const res = await api.post('/login', formData); // backend sets cookies
-      if (res.status === 200) {
+      if (res.data) {
         toast.success('Login Successful');
         setTimeout(() => {
           toast.success('Redirecting to homepage');
@@ -41,11 +43,13 @@ export default function LoginForm() {
       } else {
         toast.error('An unexpected error occurred');
       }
+    }finally{
+      setIsProcessing(false)
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} method='POST' className="space-y-5">
       <div className="space-y-4">
         {/* Username Field */}
         <div className="space-y-2">
@@ -121,8 +125,17 @@ export default function LoginForm() {
       <button
         type="submit"
         className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3.5 rounded-lg font-medium shadow-lg shadow-pink-500/25 hover:shadow-xl transition-all duration-300"
+        disabled={isProcessing}
       >
-        Log In
+      {isProcessing ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Logging in...
+        </>
+      ) : (
+        'Log In'
+      )}
+       
       </button>
 
       {/* Sign Up Link */}

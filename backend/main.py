@@ -20,22 +20,6 @@ import os
 
 # Initialize Flask application
 app = Flask(__name__)
-
-# Application configuration settings
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
-    "DB_URL", "sqlite:///lausers.db"
-)  # Use DATABASE_URL if set, otherwise fallback to local sqlite
-
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Disable modification tracking for performance
-
-app.config['JWT_SECRET_KEY'] = os.environ.get("JWT_SECRET_KEY", "dev-secret") 
-app.config['JWT_TOKEN_LOCATION'] = ['cookies']
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
-app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=14)
-app.config['JWT_COOKIE_SAMESITE'] = "None"
-app.config['JWT_COOKIE_CSRF_PROTECT'] = False
-app.config['JWT_SESSION_COOKIE'] = False
-app.config['JWT_COOKIE_SECURE'] = True  # Always True for HTTPS
 # CORS Configuration
 CORS(
     app,
@@ -44,8 +28,24 @@ CORS(
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "Accept"],
     expose_headers=["Set-Cookie"],
-     max_age=86400
+    max_age=86400
 )
+
+# Application configuration settings
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    "DB_URL", "sqlite:///lausers.db"
+)  # Use DATABASE_URL if set, otherwise fallback to local sqlite
+
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Disable modification tracking for performance
+app.config['JWT_SECRET_KEY'] = os.environ.get("JWT_SECRET_KEY", "dev-secret") 
+app.config['JWT_TOKEN_LOCATION'] = ['cookies']
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
+app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=14)
+app.config['JWT_COOKIE_SAMESITE'] = "None"
+app.config['JWT_COOKIE_CSRF_PROTECT'] = False
+app.config['JWT_SESSION_COOKIE'] = True
+app.config['JWT_COOKIE_SECURE'] = True  # Always True for HTTPS
+
 
 # Initialize database and JWT manager
 db = SQLAlchemy(app)  # Database instance
@@ -480,23 +480,11 @@ def signup():
             "access_token": access_token,
             "refresh_token": refresh_token
         })
-        is_production = os.environ.get("FLASK_ENV") == "production"
-        domain = ".onrender.com" if is_production else None
+
 
         # Set JWT cookies for browser
         set_access_cookies(response, access_token)
         set_refresh_cookies(response, refresh_token)
-
-        # Set custom access token cookie for Next.js middleware
-        response.set_cookie(
-            "access_token_cookie",
-            access_token,
-            httponly=True,
-            secure=app.config['JWT_COOKIE_SECURE'],
-            samesite="None",
-            path="/",
-            max_age=60*60*24*7  # 1 week
-        )
 
         return response, 201  # HTTP 201 Created
     
@@ -532,8 +520,8 @@ def login():
             return jsonify({"success": False, "message": "Invalid username or password"}), 401
 
         # Create JWT tokens
-        access_token = create_access_token(identity=user)
-        refresh_token = create_refresh_token(identity=user)
+        access_token = create_access_token(identity=user.id)
+        refresh_token = create_refresh_token(identity=user.id)
 
         # Prepare success response
         response = jsonify({
@@ -543,30 +531,20 @@ def login():
             "access_token": access_token,
             "refresh_token": refresh_token
         })
-
+        print(response)
   
 
         # Set JWT cookies with proper configuration
         set_access_cookies(response, access_token)
         set_refresh_cookies(response, refresh_token)
-
-        # Set custom access token cookie for Next.js middleware
-        response.set_cookie(
-            "access_token_cookie",
-            access_token,
-            httponly=True,
-            secure=app.config['JWT_COOKIE_SECURE'],
-            samesite="None",
-            path="/",
-            max_age=60*60*24*7  # 1 week
-        )
-
-     
       
         return response, 200
     
     except Exception as e:
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
+    
+
+
 @app.route("/logout", methods=["POST", "OPTIONS"])
 @jwt_required(verify_type=False)  # allow both access and refresh tokens
 @cross_origin(supports_credentials=True)

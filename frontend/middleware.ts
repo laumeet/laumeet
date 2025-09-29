@@ -1,10 +1,12 @@
-// middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
-  const accessToken = req.cookies.get("access_token")?.value;
-  
+  // Try multiple possible cookie names that backend might set
+  const accessToken = 
+    req.cookies.get("access_token_cookie")?.value || 
+    req.cookies.get("access_token")?.value;
+
   // Debug logging
   console.log('🔐 Middleware Debug:', {
     path: req.nextUrl.pathname,

@@ -19,7 +19,6 @@ import ImageUploader from './ImageUploader';
 import { Shield, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { getFaceBlurProcessor } from '@/lib/faceBlur';
 import { toast } from 'sonner';
-import axios from 'axios'
 import api from '@/lib/axio';
 
 interface FemaleSignupFormProps {
@@ -51,7 +50,7 @@ export default function FemaleSignupForm({
     religious: '',
     name: ''
   });
-  
+
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [modelsLoading, setModelsLoading] = useState(true);
@@ -61,7 +60,7 @@ export default function FemaleSignupForm({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [suggestedUsernames, setSuggestedUsernames] = useState<string[]>([]);
-  
+
   // Refs for scrolling to errors
   const usernameInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
@@ -150,6 +149,12 @@ export default function FemaleSignupForm({
       return;
     }
 
+    if (formData.password.length < 6) {
+      toast.error("Password must be at least 6 characters long");
+      scrollToElement(passwordInputRef.current);
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       toast.error("Passwords don't match!");
       scrollToElement(confirmPasswordInputRef.current);
@@ -218,7 +223,7 @@ export default function FemaleSignupForm({
 
         processedImagesData.push(base64);
       }
-    
+
       const payload = {
         username: formData.username,
         password: formData.password,
@@ -240,19 +245,19 @@ export default function FemaleSignupForm({
 
       const res = await api.post('/signup', payload);
       if(res.data){
-      toast.success('Profile created successfully!');
+        toast.success('Profile created successfully!');
         onNext();
       }
 
     } catch (error: any) {
       if (error.response?.data?.message) {
         if(error.response?.data?.message === "Username already taken"){
-         setUsernameError("This username is already taken.");
-        setSuggestedUsernames(generateSuggestions(formData.username));
-        scrollToElement(usernameInputRef.current);
+          setUsernameError("This username is already taken.");
+          setSuggestedUsernames(generateSuggestions(formData.username));
+          scrollToElement(usernameInputRef.current);
         }
         toast.error(error.response.data.message);
-    
+
       } else {
         toast.error('An unexpected error occurred');
       }
@@ -295,14 +300,14 @@ export default function FemaleSignupForm({
 
   const handleImageUpload = async (files: FileList) => {
     const newPictures = Array.from(files);
-    
+
     if (isAnonymous && ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category)) {
       try {
         const processor = getFaceBlurProcessor();
         await processor.ensureModelsLoaded();
-        
+
         const processedPreviewUrls: string[] = [];
-        
+
         for (const file of newPictures) {
           const emojiBlob = await processor.maskFacesWithEmojis(file);
           if (emojiBlob) {
@@ -312,13 +317,13 @@ export default function FemaleSignupForm({
             processedPreviewUrls.push(URL.createObjectURL(file));
           }
         }
-        
+
         setUploadedImages(prev => [...prev, ...processedPreviewUrls]);
         setFormData(prev => ({
           ...prev,
           pictures: [...prev.pictures, ...newPictures],
         }));
-        
+
       } catch (error) {
         const originalPreviewUrls = newPictures.map(file => URL.createObjectURL(file));
         setUploadedImages(prev => [...prev, ...originalPreviewUrls]);
@@ -341,7 +346,7 @@ export default function FemaleSignupForm({
     if (uploadedImages[index]) {
       URL.revokeObjectURL(uploadedImages[index]);
     }
-    
+
     setFormData(prev => ({
       ...prev,
       pictures: prev.pictures.filter((_, i) => i !== index),
@@ -353,20 +358,20 @@ export default function FemaleSignupForm({
     return () => {
       uploadedImages.forEach(url => URL.revokeObjectURL(url));
     };
-  }, []);
+  }, [uploadedImages]);
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    
+
     if (field === 'username' && usernameError) {
       setUsernameError(null);
       setSuggestedUsernames([]);
     }
-    
+
     if (field === 'category' && isAnonymous) {
       const isSensitiveCategory = ["Hook Up", "Sex Chat", "Fuck Mate"].includes(value);
       const wasSensitiveCategory = ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category);
-      
+
       if (isSensitiveCategory !== wasSensitiveCategory && formData.pictures.length > 0) {
         handleImageUpload(arrayToFileList(formData.pictures));
       }
@@ -402,7 +407,9 @@ export default function FemaleSignupForm({
     "What is your favorite movie?",
     "What is your favorite book?"
   ];
-const interests = ["male", "female", "both"];
+
+  const interestsOptions = ["male", "female", "both"];
+
   const academicLevels = [
     "100 Level",
     "200 Level", 
@@ -426,7 +433,7 @@ const interests = ["male", "female", "both"];
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Complete Your Profile</h2>
         <p className="text-gray-600 dark:text-gray-300 mt-1">Help others get to know you better</p>
       </div>
-      
+
       {modelsLoading && (
         <Alert className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
           <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
@@ -435,7 +442,7 @@ const interests = ["male", "female", "both"];
           </AlertDescription>
         </Alert>
       )}
-      
+
       {modelsError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -443,12 +450,13 @@ const interests = ["male", "female", "both"];
         </Alert>
       )}
 
-      <form onSubmit={handleSubmit} method='POST' className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="category" className="text-gray-700 dark:text-gray-300">
             What are you looking for?
           </Label>
           <Select
+            value={formData.category}
             onValueChange={(value) => handleChange('category', value)}
             required
           >
@@ -511,7 +519,7 @@ const interests = ["male", "female", "both"];
             className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
           />
         </div>
-        
+
         <div className="space-y-2">
           <Label htmlFor="username" className="text-gray-700 dark:text-gray-300">User Name</Label>
           <Input
@@ -574,6 +582,7 @@ const interests = ["male", "female", "both"];
                 Academic Level *
               </Label>
               <Select
+                value={formData.level}
                 onValueChange={(value) => handleChange('level', value)}
                 required={!isAnonymous}
               >
@@ -595,6 +604,7 @@ const interests = ["male", "female", "both"];
                 Blood Genotype (Optional)
               </Label>
               <Select
+                value={formData.genotype}
                 onValueChange={(value) => handleChange('genotype', value)}
               >
                 <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
@@ -615,6 +625,7 @@ const interests = ["male", "female", "both"];
                 Religion (Optional)
               </Label>
               <Select
+                value={formData.religious}
                 onValueChange={(value) => handleChange('religious', value)}
               >
                 <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
@@ -631,7 +642,7 @@ const interests = ["male", "female", "both"];
             </div>
           </>
         )}
-        
+
         {/* Password Fields */}
         <div className="space-y-2">
           <Label htmlFor="password" className="text-gray-700 dark:text-gray-300">Password</Label>
@@ -659,7 +670,7 @@ const interests = ["male", "female", "both"];
             </button>
           </div>
         </div>
-        
+
         <div className="space-y-2">
           <Label htmlFor="confirmPassword" className="text-gray-700 dark:text-gray-300">Confirm Password</Label>
           <div className="relative">
@@ -686,19 +697,20 @@ const interests = ["male", "female", "both"];
             </button>
           </div>
         </div>
-        
+
         {/* Security Question Section */}
         <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
           <h3 className="font-medium text-gray-800 dark:text-white">Security Settings</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             These will help you recover your account if you forget your password.
           </p>
-          
+
           <div className="space-y-2">
             <Label htmlFor="securityQuestion" className="text-gray-700 dark:text-gray-300">
               Security Question
             </Label>
             <Select
+              value={formData.securityQuestion}
               onValueChange={(value) => handleChange('securityQuestion', value)}
               required
             >
@@ -717,7 +729,7 @@ const interests = ["male", "female", "both"];
               </SelectContent>
             </Select>
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="securityAnswer" className="text-gray-700 dark:text-gray-300">
               Security Answer
@@ -734,7 +746,7 @@ const interests = ["male", "female", "both"];
             />
           </div>
         </div>
-        
+
         <div className="space-y-2">
           <Label htmlFor="bio" className="text-gray-700 dark:text-gray-300">Bio</Label>
           <Textarea
@@ -746,23 +758,29 @@ const interests = ["male", "female", "both"];
             className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 min-h-[100px]"
           />
         </div>
-        
+
         <div className="space-y-2">
-          <Label htmlFor="interests" className="text-gray-700 dark:text-gray-300">Interests</Label>
-        <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger>
-            <SelectValue placeholder="What are you looking for?" />
-          </SelectTrigger>
-          <SelectContent>
-            {categories.map((cat) => (
-              <SelectItem key={cat} value={cat}>
-                {cat}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Label htmlFor="interests" className="text-gray-700 dark:text-gray-300">
+            Interested In
+          </Label>
+          <Select
+            value={formData.interests}
+            onValueChange={(value) => handleChange('interests', value)}
+            required
+          >
+            <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+              <SelectValue placeholder="Who are you interested in?" />
+            </SelectTrigger>
+            <SelectContent>
+              {interestsOptions.map((interest) => (
+                <SelectItem key={interest} value={interest}>
+                  {interest.charAt(0).toUpperCase() + interest.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        
+
         <Alert className="bg-pink-50 dark:bg-pink-900/20 border-pink-200 dark:border-pink-800">
           <Shield className="h-4 w-4 text-pink-600 dark:text-pink-400" />
           <AlertDescription className="text-pink-800 dark:text-pink-200">
@@ -770,7 +788,7 @@ const interests = ["male", "female", "both"];
             We have zero tolerance for harassment or harmful activities.
           </AlertDescription>
         </Alert>
-        
+
         <div className="flex space-x-4">
           <Button
             type="button"

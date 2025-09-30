@@ -3,35 +3,43 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
-  const accessToken = req.cookies.get("access_token")?.value;
-  
+  // Flask-JWT-Extended sets these cookie names by default
+  const accessToken = req.cookies.get("access_token_cookie")?.value;
+  const refreshToken = req.cookies.get("refresh_token_cookie")?.value;
+
   // Debug logging
-  console.log('🔐 Middleware Debug:', {
+  console.log("🔐 Middleware Debug:", {
     path: req.nextUrl.pathname,
     hasAccessToken: !!accessToken,
     accessTokenLength: accessToken?.length,
-    allCookies: Object.fromEntries(req.cookies.getAll().map(c => [c.name, c.value.length]))
+    hasRefreshToken: !!refreshToken,
+    allCookies: Object.fromEntries(
+      req.cookies.getAll().map((c) => [c.name, c.value.length])
+    ),
   });
 
   const publicPages = [
     "/",
-    "/login", 
+    "/login",
     "/signup",
     "/forgot-password",
-    "/reset-password"
+    "/reset-password",
   ];
 
   const isPublicPage = publicPages.includes(req.nextUrl.pathname);
 
   // Not logged in and trying to access protected page → redirect to login
   if (!accessToken && !isPublicPage) {
-    console.log('🚫 Redirecting to login: No access token');
+    console.log("🚫 Redirecting to login: No access token");
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
   // Logged in but visiting login/signup → redirect to explore
-  if (accessToken && (req.nextUrl.pathname === "/login" || req.nextUrl.pathname === "/signup")) {
-    console.log('✅ Redirecting to explore: Already logged in');
+  if (
+    accessToken &&
+    (req.nextUrl.pathname === "/login" || req.nextUrl.pathname === "/signup")
+  ) {
+    console.log("✅ Redirecting to explore: Already logged in");
     return NextResponse.redirect(new URL("/explore", req.url));
   }
 

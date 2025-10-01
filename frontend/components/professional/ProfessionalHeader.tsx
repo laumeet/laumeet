@@ -43,12 +43,25 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+const getBackendUrl = () => {
+  // Always use environment variable if set
+  if (process.env.BACKEND_URL) {
+    return process.env.BACKEND_URL;
+  }
+  
+  // In production, don't fall back to localhost
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("BACKEND_URL environment variable is required in production");
+  }
+  
+  // Only use localhost in development
+  return "http://localhost:5000";
+};
+
 const handleLogout = async () => {
   setLoading(true);
   try {
-    const BACKEND_URL = process.env.NODE_ENV === "development" 
-      ? "http://localhost:5000" 
-      : "https://laumeet.onrender.com";
+    const BACKEND_URL = getBackendUrl()
 
     // Call Flask backend directly
     const response = await fetch(`${BACKEND_URL}/logout`, {

@@ -3,17 +3,36 @@
 
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { X, Upload, Image as ImageIcon } from 'lucide-react';
+import { X, Upload, Image as ImageIcon, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import Image from 'next/image';
+
+interface ProcessingImage {
+  file: File;
+  previewUrl: string;
+  status: 'pending' | 'processing' | 'completed' | 'error';
+  processedUrl?: string;
+}
 
 interface ImageUploaderProps {
   onImageUpload: (files: FileList) => void;
-  uploadedImages: string[];
+  processingImages: ProcessingImage[];
   onRemoveImage: (index: number) => void;
+  isProcessingImages: boolean;
+  getImageDisplayUrl: (img: ProcessingImage) => string;
+  getStatusColor: (status: ProcessingImage['status']) => string;
+  getStatusText: (status: ProcessingImage['status']) => string;
 }
 
 const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
-  ({ onImageUpload, uploadedImages, onRemoveImage }, ref) => {
+  ({ 
+    onImageUpload, 
+    processingImages, 
+    onRemoveImage, 
+    isProcessingImages,
+    getImageDisplayUrl,
+    getStatusColor,
+    getStatusText
+  }, ref) => {
     const internalRef = useRef<HTMLInputElement>(null);
     
     useImperativeHandle(ref, () => internalRef.current as HTMLInputElement);
@@ -26,8 +45,40 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
     };
     
     const triggerFileInput = () => {
-      if (internalRef.current) {
+      if (internalRef.current && !isProcessingImages) {
         internalRef.current.click();
+      }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (isProcessingImages) {
+        return;
+      }
+
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        onImageUpload(files);
+      }
+    };
+    
+    const getStatusIcon = (status: ProcessingImage['status']) => {
+      switch (status) {
+        case 'processing':
+          return <Loader2 className="h-3 w-3 animate-spin text-yellow-600" />;
+        case 'completed':
+          return <CheckCircle className="h-3 w-3 text-green-600" />;
+        case 'error':
+          return <AlertCircle className="h-3 w-3 text-red-600" />;
+        default:
+          return null;
       }
     };
     
@@ -40,52 +91,81 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
           accept="image/*"
           multiple
           className="hidden"
+          disabled={isProcessingImages}
         />
         
         {/* Upload Card */}
         <Card 
-          className="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-pink-400 dark:hover:border-pink-600 transition-colors cursor-pointer bg-gray-50 dark:bg-gray-800/50"
+          className={`border-2 border-dashed transition-colors cursor-pointer ${
+            isProcessingImages 
+              ? 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30 cursor-not-allowed' 
+              : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50 hover:border-pink-400 dark:hover:border-pink-600'
+          }`}
           onClick={triggerFileInput}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
         >
           <CardContent className="flex flex-col items-center justify-center p-6 text-center">
-            <Upload className="h-10 w-10 text-gray-400 mb-3" />
-            <h3 className="font-medium text-gray-700 dark:text-gray-300">Upload Photos</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Click to upload or drag and drop
-            </p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              PNG, JPG, GIF up to 10MB
-            </p>
+            {isProcessingImages ? (
+              <>
+                <Loader2 className="h-10 w-10 text-gray-400 mb-3 animate-spin" />
+                <h3 className="font-medium text-gray-500 dark:text-gray-400">Processing Images...</h3>
+                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                  Please wait while we process your images
+                </p>
+              </>
+            ) : (
+              <>
+                <Upload className="h-10 w-10 text-gray-400 mb-3" />
+                <h3 className="font-medium text-gray-700 dark:text-gray-300">Upload Photos</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Click to upload or drag and drop
+                </p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  PNG, JPG, GIF up to 10MB • Max 5 photos
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
         
         {/* Uploaded Images */}
-        {uploadedImages.length > 0 && (
+        {processingImages.length > 0 && (
           <div className="grid grid-cols-3 gap-3">
-            {uploadedImages.map((url, index) => (
-              <div key={index} className="relative group">
-                <div className="aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+            {processingImages.map((img, index) => (
+              <div key={index} className={`relative group rounded-lg border-2 ${getStatusColor(img.status)}`}>
+                <div className="aspect-square rounded-lg overflow-hidden">
                   <Image
-                    src={url}
+                    src={getImageDisplayUrl(img)}
                     alt={`Upload ${index + 1}`}
                     fill
                     className="object-cover"
                   />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onRemoveImage(index)}
-                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-                >
-                  <X size={14} />
-                </button>
+                
+                {/* Status Badge */}
+                <div className="absolute top-1 left-1 flex items-center gap-1 bg-white/90 dark:bg-gray-800/90 px-2 py-1 rounded-full text-xs">
+                  {getStatusIcon(img.status)}
+                  <span className="font-medium">{getStatusText(img.status)}</span>
+                </div>
+                
+                {/* Remove Button */}
+                {img.status !== 'processing' && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveImage(index)}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
               </div>
             ))}
           </div>
         )}
         
         {/* Empty State */}
-        {uploadedImages.length === 0 && (
+        {processingImages.length === 0 && !isProcessingImages && (
           <div className="flex items-center justify-center text-gray-400 dark:text-gray-500 py-4">
             <ImageIcon className="h-5 w-5 mr-2" />
             <span className="text-sm">No images uploaded yet</span>

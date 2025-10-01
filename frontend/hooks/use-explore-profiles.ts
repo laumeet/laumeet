@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// hooks/use-explore-profiles.ts
 import { useState, useEffect } from 'react';
 import api from '@/lib/axio';
 
@@ -30,13 +31,69 @@ interface ExploreResponse {
   message?: string;
 }
 
+interface SwipeHistory {
+  profileId: string;
+  action: 'like' | 'pass';
+  timestamp: number;
+}
 
+const SWIPE_HISTORY_KEY = 'campus-vibes-swipe-history';
+const SWIPE_COOLDOWN = 30 * 60 * 1000; // 30 minutes in milliseconds
 
 export const useExploreProfiles = () => {
   const [profiles, setProfiles] = useState<ExploreProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalProfiles, setTotalProfiles] = useState(0);
+
+  // Get swipe history from localStorage
+  const getSwipeHistory = (): SwipeHistory[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      return JSON.parse(localStorage.getItem(SWIPE_HISTORY_KEY) || '[]');
+    } catch {
+      return [];
+    }
+  };
+
+  // Save swipe to history
+  const saveSwipeToHistory = (profileId: string, action: 'like' | 'pass') => {
+    if (typeof window === 'undefined') return;
+    
+    const history = getSwipeHistory();
+    const newHistory = history.filter(swipe => 
+      swipe.profileId !== profileId // Remove existing entry for this profile
+    );
+    
+    newHistory.push({
+      profileId,
+      action,
+      timestamp: Date.now()
+    });
+    
+    localStorage.setItem(SWIPE_HISTORY_KEY, JSON.stringify(newHistory));
+  };
+
+  // Filter out recently swiped profiles
+  const filterSwipedProfiles = (profilesData: ExploreProfile[]): ExploreProfile[] => {
+    const history = getSwipeHistory();
+    const now = Date.now();
+    
+    return profilesData.filter(profile => {
+      const swipe = history.find(s => s.profileId === profile.id);
+      if (!swipe) return true; // Never swiped, show profile
+      
+      // If liked, never show again
+      if (swipe.action === 'like') return false;
+      
+      // If passed, only show after cooldown period
+      if (swipe.action === 'pass') {
+        return (now - swipe.timestamp) > SWIPE_COOLDOWN;
+      }
+      
+      return true;
+    });
+  };
 
   const fetchProfiles = async () => {
     try {
@@ -47,7 +104,6 @@ export const useExploreProfiles = () => {
       console.log('Explore API Response:', response.data);
       
       if (response.data.success) {
-        // Safely handle profiles data with proper defaults
         const profilesData = response.data.profiles || [];
         
         const processedProfiles = profilesData.map(profile => ({
@@ -71,10 +127,13 @@ export const useExploreProfiles = () => {
           timestamp: profile.timestamp || new Date().toISOString()
         }));
         
-        setProfiles(processedProfiles);
-        setTotalProfiles(response.data.total_profiles || processedProfiles.length);
+        // Filter out recently swiped profiles
+        const filteredProfiles = filterSwipedProfiles(processedProfiles);
         
-        console.log('Processed profiles:', processedProfiles);
+        setProfiles(filteredProfiles);
+        setTotalProfiles(response.data.total_profiles || filteredProfiles.length);
+        
+        console.log('Filtered profiles:', filteredProfiles);
       } else {
         const errorMessage = response.data.message || 'Failed to fetch profiles';
         setError(errorMessage);
@@ -98,6 +157,9 @@ export const useExploreProfiles = () => {
   const swipeProfile = async (profileId: string, action: 'like' | 'pass') => {
     try {
       console.log(`${action} profile:`, profileId);
+      
+      // Save to swipe history immediately
+      saveSwipeToHistory(profileId, action);
       
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -137,7 +199,23 @@ export const useExploreProfiles = () => {
     fetchProfiles();
   };
 
+  // Clear old swipe history (older than 24 hours)
+  const clearOldSwipeHistory = () => {
+    if (typeof window === 'undefined') return;
+    
+    const history = getSwipeHistory();
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+    
+    const filteredHistory = history.filter(swipe => 
+      (now - swipe.timestamp) < oneDay
+    );
+    
+    localStorage.setItem(SWIPE_HISTORY_KEY, JSON.stringify(filteredHistory));
+  };
+
   useEffect(() => {
+    clearOldSwipeHistory();
     fetchProfiles();
   }, []);
 

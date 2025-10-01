@@ -1,6 +1,7 @@
+// app/(main)/explore/page.tsx
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo, useCallback } from 'react';
 import { 
   Heart, X, Shield, Info, Filter, MapPin, Calendar, Users, 
   Loader2, AlertCircle, ChevronLeft, ChevronRight 
@@ -10,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useExploreProfiles } from '@/hooks/use-explore-profiles';
 import { toast } from 'sonner';
+import TinderCard from 'react-tinder-card';
 
 interface Profile {
   id: string;
@@ -41,16 +43,19 @@ export default function ExplorePage() {
     swipeProfile 
   } = useExploreProfiles();
   
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
-  const [startX, setStartX] = useState(0);
-  const [currentX, setCurrentX] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(profiles.length - 1);
   const [isSwiping, setIsSwiping] = useState(false);
+  const [lastDirection, setLastDirection] = useState<string | null>(null);
   
   // State for image carousel per profile
   const [currentImageIndexes, setCurrentImageIndexes] = useState<{ [key: string]: number }>({});
-  const cardRef = useRef<HTMLDivElement>(null);
+  const currentIndexRef = useRef(currentIndex);
+
+  // Update current index ref
+  const updateCurrentIndex = (val: number) => {
+    setCurrentIndex(val);
+    currentIndexRef.current = val;
+  };
 
   // Image carousel functions
   const nextImage = (profileId: string, totalImages: number, e?: React.MouseEvent) => {
@@ -81,73 +86,25 @@ export default function ExplorePage() {
     return currentImageIndexes[profileId] || 0;
   };
 
-  const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    setStartX(clientX);
-    setCurrentX(clientX);
-    setIsDragging(true);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
-    if (!isDragging) return;
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    setCurrentX(clientX);
-    
-    const diff = clientX - startX;
-    if (diff > 50) {
-      setSwipeDirection('right');
-    } else if (diff < -50) {
-      setSwipeDirection('left');
-    } else {
-      setSwipeDirection(null);
-    }
-  };
-
-  const handleTouchEnd = async () => {
-    if (!isDragging) return;
-    setIsDragging(false);
-    
-    const diff = currentX - startX;
-    if (diff > 100) {
-      await handleSwipe('right');
-    } else if (diff < -100) {
-      await handleSwipe('left');
-    }
-    
-    setSwipeDirection(null);
-    setCurrentX(0);
-    setStartX(0);
-  };
-
-  const handleSwipe = async (direction: 'left' | 'right') => {
-    if (!profiles || profiles.length === 0 || currentIndex >= profiles.length) return;
-    
-    const currentProfile = profiles[currentIndex];
+  // Handle card swipe
+  const swiped = useCallback(async (direction: string, profileId: string, index: number) => {
+    setLastDirection(direction);
+    updateCurrentIndex(index - 1);
     setIsSwiping(true);
 
     try {
       const action = direction === 'right' ? 'like' : 'pass';
-      const result = await swipeProfile(currentProfile.id, action);
+      const result = await swipeProfile(profileId, action);
       
       if (result.success) {
         if (direction === 'right') {
           if (result.match) {
-            toast.success(`It's a match with ${currentProfile.name}! 🎉`);
+            toast.success(`It's a match with ${profiles[index]?.name}! 🎉`);
           } else {
-            toast.success(`Liked ${currentProfile.name}!`);
+            toast.success(`Liked ${profiles[index]?.name}!`);
           }
         } else {
-          toast.info(`Passed on ${currentProfile.name}`);
-        }
-
-        // Move to next profile
-        if (currentIndex < profiles.length - 1) {
-          setCurrentIndex(currentIndex + 1);
-        } else {
-          // No more profiles, refetch or show message
-          toast.info("You've seen all profiles! Check back later for new matches.");
-          setCurrentIndex(0);
-          await refetch();
+          toast.info(`Passed on ${profiles[index]?.name}`);
         }
       } else {
         toast.error(result.message || `Failed to ${action} profile`);
@@ -157,7 +114,24 @@ export default function ExplorePage() {
     } finally {
       setIsSwiping(false);
     }
-  };
+  }, [profiles, swipeProfile]);
+
+  const outOfFrame = useCallback((name: string, idx: number) => {
+    console.log(`${name} (${idx}) left the screen!`, currentIndexRef.current);
+  }, []);
+
+  // Manual swipe functions
+  const swipe = useCallback(async (dir: string) => {
+    if (currentIndexRef.current < 0 || currentIndexRef.current >= profiles.length) return;
+    
+    const profile = profiles[currentIndexRef.current];
+    await swiped(dir, profile.id, currentIndexRef.current);
+  }, [swiped, profiles, currentIndexRef]);
+
+  // Can go back function (optional)
+  const canGoBack = currentIndex < profiles.length - 1;
+
+  const canSwipe = currentIndex >= 0;
 
   // Show loading state
   if (loading) {
@@ -228,15 +202,8 @@ export default function ExplorePage() {
     );
   }
 
-  const currentProfile = profiles[currentIndex];
-  const rotate = isDragging ? (currentX - startX) * 0.1 : 0;
-  const opacity = Math.min(1, 1 - Math.abs(rotate) / 30);
-
-  // Get next profiles for stack effect
-  const visibleProfiles = profiles.slice(currentIndex, currentIndex + 3);
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       {/* Header with Filters */}
       <div className="flex items-center justify-between">
         <div>
@@ -251,35 +218,22 @@ export default function ExplorePage() {
         </Button>
       </div>
 
-      {/* Profile Stack */}
-      <div className="relative h-[600px]">
-        {visibleProfiles.map((profile, index) => {
+      {/* Cards Container */}
+      <div className="relative h-[600px] w-full max-w-md mx-auto">
+        {profiles.map((profile, index) => {
           const currentImageIndex = getCurrentImageIndex(profile.id);
           const hasMultipleImages = profile.images && profile.images.length > 1;
           const totalImages = profile.images?.length || 0;
           
           return (
-            <div
+            <TinderCard
               key={profile.id}
-              className={`absolute inset-0 transition-all duration-300 ${
-                index === 0 ? 'z-30' : index === 1 ? 'z-20 scale-95 opacity-60' : 'z-10 scale-90 opacity-30'
-              }`}
-              style={{
-                transform: index === 0 ? `translateX(${currentX - startX}px) rotate(${rotate}deg)` : 'none',
-                opacity: index === 0 ? opacity : 1
-              }}
+              className="absolute w-full h-full"
+              onSwipe={(dir) => swiped(dir, profile.id, index)}
+              onCardLeftScreen={() => outOfFrame(profile.name, index)}
+              preventSwipe={['up', 'down']}
             >
-              <Card 
-                ref={index === 0 ? cardRef : null}
-                className="h-full cursor-grab active:cursor-grabbing shadow-2xl border-0"
-                onMouseDown={handleTouchStart}
-                onMouseMove={handleTouchMove}
-                onMouseUp={handleTouchEnd}
-                onMouseLeave={handleTouchEnd}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-              >
+              <Card className="h-full w-full cursor-grab active:cursor-grabbing shadow-2xl border-0">
                 <CardContent className="p-0 h-full relative overflow-hidden">
                   {/* Profile Image with Gradient Overlay and Carousel */}
                   <div className="h-2/3 relative">
@@ -424,26 +378,9 @@ export default function ExplorePage() {
                   </div>
                 </CardContent>
               </Card>
-            </div>
+            </TinderCard>
           );
         })}
-
-        {/* Swipe Indicators */}
-        {isDragging && swipeDirection && (
-          <div className={`absolute inset-0 flex items-center justify-center z-40 ${
-            swipeDirection === 'right' ? 'bg-green-500/20' : 'bg-red-500/20'
-          } rounded-xl`}>
-            <div className={`p-4 rounded-full ${
-              swipeDirection === 'right' ? 'bg-green-500' : 'bg-red-500'
-            }`}>
-              {swipeDirection === 'right' ? (
-                <Heart className="h-8 w-8 text-white" />
-              ) : (
-                <X className="h-8 w-8 text-white" />
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Action Buttons */}
@@ -451,9 +388,9 @@ export default function ExplorePage() {
         <Button 
           variant="outline" 
           size="lg"
-          disabled={isSwiping}
+          disabled={!canSwipe || isSwiping}
           className="w-16 h-16 rounded-full border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
-          onClick={() => handleSwipe('left')}
+          onClick={() => swipe('left')}
         >
           {isSwiping ? (
             <Loader2 className="h-6 w-6 animate-spin text-red-500" />
@@ -472,9 +409,9 @@ export default function ExplorePage() {
         
         <Button 
           size="lg"
-          disabled={isSwiping}
+          disabled={!canSwipe || isSwiping}
           className="w-16 h-16 rounded-full bg-gradient-to-r from-green-500 to-teal-500 shadow-lg hover:shadow-xl hover:from-green-600 hover:to-teal-600 transition-all duration-200 hover:scale-105"
-          onClick={() => handleSwipe('right')}
+          onClick={() => swipe('right')}
         >
           {isSwiping ? (
             <Loader2 className="h-6 w-6 animate-spin text-white" />

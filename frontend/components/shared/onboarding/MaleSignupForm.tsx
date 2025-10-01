@@ -156,7 +156,7 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
 
     setIsProcessing(true);
     try {
-      const res = await api.post('/api/auth/signup', payload);
+      const res = await api.post('/auth/signup', payload);
       if (res.data) {
         toast.success('Profile created successfully!');
         onNext();

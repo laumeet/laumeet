@@ -7,6 +7,7 @@ import { Eye, EyeOff, Loader2, Lock, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -29,7 +30,7 @@ export default function LoginForm() {
   setIsProcessing(true)
 
     try {
-      const res = await api.post("/api/auth/login", formData); // backend sets cookies
+      const res = await api.post("/auth/login", formData); // backend sets cookies
       if (res.data) {
         toast.success('Login Successful');
         setTimeout(() => {
@@ -122,21 +123,20 @@ export default function LoginForm() {
       </div>
 
       {/* Submit Button */}
-      <button
-        type="submit"
-        className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3.5 rounded-lg font-medium shadow-lg shadow-pink-500/25 hover:shadow-xl transition-all duration-300"
-        disabled={isProcessing}
-      >
-      {isProcessing ? (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Logging in...
-        </>
-      ) : (
-        'Log In'
-      )}
-       
-      </button>
+     <Button
+            type="submit"
+            className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white py-3"
+            disabled={isProcessing }
+          >
+            {isProcessing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Logging in...
+              </>
+            ) : (
+              'Login'
+            )}
+          </Button>
 
       {/* Sign Up Link */}
       <div className="text-center text-sm text-gray-600 dark:text-gray-400">

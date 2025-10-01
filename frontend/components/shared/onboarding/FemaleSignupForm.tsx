@@ -243,7 +243,7 @@ export default function FemaleSignupForm({
         name: formData.name
       };
 
-      const res = await api.post('/api/auth/signup', payload);
+      const res = await api.post('/auth/signup', payload);
       if(res.data){
         toast.success('Profile created successfully!');
         onNext();

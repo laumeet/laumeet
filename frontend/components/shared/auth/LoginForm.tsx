@@ -30,7 +30,7 @@ export default function LoginForm() {
   setIsProcessing(true)
 
     try {
-      const res = await api.post("/auth/login", formData); // backend sets cookies
+      const res = await api.post("/auth/login", formData); 
       if (res.data) {
         toast.success('Login Successful');
         setTimeout(() => {

@@ -4,18 +4,19 @@
 import { Bell, Search, MessageCircle, User, Settings, LogOut } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import api from '@/lib/axio';
+import { toast } from 'sonner';
 
 interface ProfessionalHeaderProps {
   activeTab: string;
 }
 
 export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProps) {
-  const [notifications, setNotifications] = useState(3);
+  // const [notifications, setNotifications] = useState(3);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
+
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const [loading, setLoading] = useState(false)
 
   const getTitleConfig = () => {
     const config = {
@@ -42,14 +43,39 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
- const handleLogout = async () => {
+const handleLogout = async () => {
+  setLoading(true);
   try {
-   await api.post("/logout"); // ✅ revoke + clear cookies
-   document.cookie = "access_token_cookie=; Max-Age=0; path=/;";
-    document.cookie = "refresh_token_cookie=; Max-Age=0; path=/;";
-    router.push("/login"); // ✅ redirect to login page after logout
-  } catch (err) {
-    console.error("Logout failed:", err);
+    const BACKEND_URL = process.env.NODE_ENV === "development" 
+      ? "http://localhost:5000" 
+      : "https://laumeet.onrender.com";
+
+    // Call Flask backend directly
+    const response = await fetch(`${BACKEND_URL}/logout`, {
+      method: "POST",
+      credentials: "include", // This will send cookies
+    });
+
+    if (response.ok) {
+     toast.success("Logout successful");
+      // Clear frontend cookies manually
+      document.cookie = "access_token_cookie=; Path=/; Max-Age=0; SameSite=None; Secure";
+      document.cookie = "refresh_token_cookie=; Path=/; Max-Age=0; SameSite=None; Secure";
+      document.cookie = "is_logged_in=; Path=/; Max-Age=0; SameSite=None; Secure";
+      
+      router.push("/login");
+    } else {
+      throw new Error(`Logout failed: ${response.status}`);
+    }
+  } catch (error) {
+    console.error("Logout failed:", error);
+    // Still clear cookies and redirect as fallback
+    document.cookie = "access_token_cookie=; Path=/; Max-Age=0";
+    document.cookie = "refresh_token_cookie=; Path=/; Max-Age=0";
+    document.cookie = "is_logged_in=; Path=/; Max-Age=0";
+    router.push("/login");
+  }finally{
+    setLoading(false)
   }
 };
 
@@ -73,23 +99,14 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
           {/* Right Section - Action Icons */}
           <div className="flex items-center space-x-2">
             {/* Search Button */}
-            <button 
+            {/* <button 
               onClick={() => setShowSearch(!showSearch)}
               className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm"
             >
               <Search className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-            </button>
+            </button> */}
 
-            {/* Notifications */}
-            <button className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm relative">
-              <Bell className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-              {notifications > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center shadow-lg">
-                  {notifications}
-                </span>
-              )}
-            </button>
-
+    
             {/* Profile Menu */}
             <div className="relative" ref={menuRef}>
               <button 
@@ -101,19 +118,15 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
               
               {showProfileMenu && (
                 <div className="absolute right-0 top-12 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-2 z-50">
-                  <button className="w-full px-4 py-3 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                    View Profile
-                  </button>
-                  <button className="w-full px-4 py-3 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                    Settings
-                  </button>
-                  <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                
+                
                   <button 
                     onClick={handleLogout}
+                    disabled={loading}
                     className="w-full px-4 py-3 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center"
                   >
                     <LogOut className="h-4 w-4 mr-2" />
-                    Sign Out
+                    {loading ? 'Signing Out...' : 'Sign Out'}
                   </button>
                 </div>
               )}
@@ -121,7 +134,7 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
           </div>
         </div>
 
-        {/* Search Bar */}
+        {/* Search Bar
         {showSearch && (
           <div className="mt-3 animate-in slide-in-from-top-2 duration-300">
             <div className="relative">
@@ -133,7 +146,7 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
               />
             </div>
           </div>
-        )}
+        )} */}
       </div>
     </header>
   );

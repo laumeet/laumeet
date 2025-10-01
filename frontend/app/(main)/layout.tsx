@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import ProfessionalHeader from '@/components/professional/ProfessionalHeader';
 import LoadingSpinner from '@/components/professional/LoadingSpinner';
 import AdvancedBottomNav from '@/components/professional/AdvancedBottomNav';
-import api from '@/lib/axio';
+
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -17,32 +17,19 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const [checking, setChecking] = useState(true);
-
-  useEffect(() => {
-    // Try to verify by calling backend. This confirms token is valid (not expired).
-    api.get("/protected")
-      .then(() => {
-        setChecking(false); // valid; allow render
-      })
-      .catch(() => {
-        localStorage.removeItem("access_token");
-        router.replace("/login");
-      });
-  }, [router]);
 
   useEffect(() => {
     // Determine active tab based on pathname
-    if (pathname.startsWith('/feed')) {
+    if (pathname && pathname.startsWith('/feed')) {
       setActiveTab('feed');
-    } else if (pathname.startsWith('/explore')) {
+    } else if (pathname && pathname.startsWith('/explore')) {
       setActiveTab('explore');
     
-    } else if (pathname.startsWith('/jobs')) {
+    } else if (pathname && pathname.startsWith('/jobs')) {
       setActiveTab('jobs');
-    } else if (pathname.startsWith('/messages')) {
+    } else if (pathname && pathname.startsWith('/messages')) {
       setActiveTab('messages');
-    } else if (pathname.startsWith('/notifications')) {
+    } else if (pathname && pathname.startsWith('/notifications')) {
       setActiveTab('notifications');
     } else {
       setActiveTab('feed'); // default tab
@@ -50,13 +37,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
     setIsLoading(false); // done loading after initial tab set
   }, [pathname]);
 
-  if (checking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <span>Checking authentication…</span>
-      </div>
-    );
-  }
 
   const handleTabChange = (tab: string) => {
     setIsLoading(true);

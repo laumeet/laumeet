@@ -1,7 +1,8 @@
 // frontend/pages/api/auth/refresh.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 
-const BACKEND_URL = process.env.BACKEND_URL || "https://laumeet.onrender.com";
+// Your Flask backend URL
+const BACKEND_URL = process.env.NODE_ENV !== "development" ? process.env.BACKEND_URL || "http:laumeet.onrender.com" : "http://127.0.0.1:5000";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {

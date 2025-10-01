@@ -1,79 +1,85 @@
-// app/(main)/explore/page.tsx
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Heart, X, Shield, Info, Filter, MapPin, Calendar, Users } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { 
+  Heart, X, Shield, Info, Filter, MapPin, Calendar, Users, 
+  Loader2, AlertCircle, ChevronLeft, ChevronRight 
+} from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useExploreProfiles } from '@/hooks/use-explore-profiles';
+import { toast } from 'sonner';
 
 interface Profile {
   id: string;
+  username: string;
   name: string;
   age: number;
   bio: string;
   images: string[];
   category: string;
   isAnonymous: boolean;
-  department?: string;
-  interests?: string[];
-  distance?: number;
-  compatibility?: number;
+  department: string;
+  interests: string[];
+  distance: number;
+  compatibility: number;
+  level: string;
+  gender: string;
+  interestedIn: string;
+  religious: string;
+  genotype: string;
 }
 
 export default function ExplorePage() {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const { 
+    profiles = [], 
+    loading, 
+    error, 
+    totalProfiles = 0, 
+    refetch, 
+    swipeProfile 
+  } = useExploreProfiles();
+  
   const [currentIndex, setCurrentIndex] = useState(0);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
   const [startX, setStartX] = useState(0);
   const [currentX, setCurrentX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [isSwiping, setIsSwiping] = useState(false);
+  
+  // State for image carousel per profile
+  const [currentImageIndexes, setCurrentImageIndexes] = useState<{ [key: string]: number }>({});
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Mock data - replace with API call
-  useEffect(() => {
-    const mockProfiles: Profile[] = [
-      {
-        id: '1',
-        name: 'Alex Johnson',
-        age: 22,
-        bio: 'Computer Science major passionate about AI and machine learning. Love hiking and coffee dates.',
-        images: ['/api/placeholder/400/500'],
-        category: 'Serious Relationship',
-        isAnonymous: false,
-        department: 'Computer Science',
-        interests: ['AI', 'Hiking', 'Coffee', 'Tech'],
-        distance: 1.2,
-        compatibility: 87
-      },
-      {
-        id: '2',
-        name: 'Taylor Smith',
-        age: 21,
-        bio: 'Music production and art enthusiast. Always looking for new concert buddies!',
-        images: ['/api/placeholder/400/500'],
-        category: 'Friend to Vibe With',
-        isAnonymous: true,
-        department: 'Music',
-        interests: ['Music', 'Art', 'Concerts', 'Photography'],
-        distance: 0.8,
-        compatibility: 92
-      },
-      {
-        id: '3',
-        name: 'Jordan Miller',
-        age: 23,
-        bio: 'Business major with a passion for fitness and nutrition. Let\'s hit the gym together!',
-        images: ['/api/placeholder/400/500'],
-        category: 'Friend With Benefits',
-        isAnonymous: false,
-        department: 'Business',
-        interests: ['Fitness', 'Nutrition', 'Entrepreneurship', 'Travel'],
-        distance: 2.1,
-        compatibility: 78
-      }
-    ];
-    setProfiles(mockProfiles);
-  }, []);
+  // Image carousel functions
+  const nextImage = (profileId: string, totalImages: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setCurrentImageIndexes(prev => ({
+      ...prev,
+      [profileId]: ((prev[profileId] || 0) + 1) % totalImages
+    }));
+  };
+
+  const prevImage = (profileId: string, totalImages: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setCurrentImageIndexes(prev => ({
+      ...prev,
+      [profileId]: ((prev[profileId] || 0) - 1 + totalImages) % totalImages
+    }));
+  };
+
+  const goToImage = (profileId: string, index: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setCurrentImageIndexes(prev => ({
+      ...prev,
+      [profileId]: index
+    }));
+  };
+
+  const getCurrentImageIndex = (profileId: string) => {
+    return currentImageIndexes[profileId] || 0;
+  };
 
   const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
@@ -97,15 +103,15 @@ export default function ExplorePage() {
     }
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = async () => {
     if (!isDragging) return;
     setIsDragging(false);
     
     const diff = currentX - startX;
     if (diff > 100) {
-      handleSwipe('right');
+      await handleSwipe('right');
     } else if (diff < -100) {
-      handleSwipe('left');
+      await handleSwipe('left');
     }
     
     setSwipeDirection(null);
@@ -113,33 +119,110 @@ export default function ExplorePage() {
     setStartX(0);
   };
 
-  const handleSwipe = (direction: 'left' | 'right') => {
-    if (direction === 'right') {
-      console.log('Liked:', profiles[currentIndex].name);
-      // API call to like profile
-    } else {
-      console.log('Passed on:', profiles[currentIndex].name);
-    }
+  const handleSwipe = async (direction: 'left' | 'right') => {
+    if (!profiles || profiles.length === 0 || currentIndex >= profiles.length) return;
+    
+    const currentProfile = profiles[currentIndex];
+    setIsSwiping(true);
 
-    // Animate card out
-    setTimeout(() => {
-      if (currentIndex < profiles.length - 1) {
-        setCurrentIndex(currentIndex + 1);
+    try {
+      const action = direction === 'right' ? 'like' : 'pass';
+      const result = await swipeProfile(currentProfile.id, action);
+      
+      if (result.success) {
+        if (direction === 'right') {
+          if (result.match) {
+            toast.success(`It's a match with ${currentProfile.name}! 🎉`);
+          } else {
+            toast.success(`Liked ${currentProfile.name}!`);
+          }
+        } else {
+          toast.info(`Passed on ${currentProfile.name}`);
+        }
+
+        // Move to next profile
+        if (currentIndex < profiles.length - 1) {
+          setCurrentIndex(currentIndex + 1);
+        } else {
+          // No more profiles, refetch or show message
+          toast.info("You've seen all profiles! Check back later for new matches.");
+          setCurrentIndex(0);
+          await refetch();
+        }
       } else {
-        // Reset or load more profiles
-        setCurrentIndex(0);
+        toast.error(result.message || `Failed to ${action} profile`);
       }
-    }, 300);
+    } catch (err) {
+      toast.error('An error occurred while processing your swipe');
+    } finally {
+      setIsSwiping(false);
+    }
   };
 
-  if (profiles.length === 0) {
+  // Show loading state
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
-          <div className="w-20 h-20 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <Users className="h-8 w-8 text-gray-400" />
-          </div>
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-pink-500" />
           <p className="text-gray-500 dark:text-gray-400">Loading profiles...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Discover</h1>
+            <p className="text-gray-500 dark:text-gray-400">Swipe to connect with amazing people</p>
+          </div>
+        </div>
+        
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Error loading profiles: {error}
+            <div className="mt-2">
+              <Button onClick={refetch} variant="outline" size="sm">
+                Try Again
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  // Show empty state
+  if (!profiles || profiles.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Discover</h1>
+            <p className="text-gray-500 dark:text-gray-400">Swipe to connect with amazing people</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="w-20 h-20 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Users className="h-8 w-8 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              No profiles found
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 max-w-sm">
+              There are no other users to show right now. Check back later or invite friends to join!
+            </p>
+            <Button onClick={refetch} className="mt-4">
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -149,13 +232,18 @@ export default function ExplorePage() {
   const rotate = isDragging ? (currentX - startX) * 0.1 : 0;
   const opacity = Math.min(1, 1 - Math.abs(rotate) / 30);
 
+  // Get next profiles for stack effect
+  const visibleProfiles = profiles.slice(currentIndex, currentIndex + 3);
+
   return (
     <div className="space-y-6">
       {/* Header with Filters */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Discover</h1>
-          <p className="text-gray-500 dark:text-gray-400">Swipe to connect with amazing people</p>
+          <p className="text-gray-500 dark:text-gray-400">
+            {totalProfiles} people nearby • Swipe to connect
+          </p>
         </div>
         <Button variant="outline" className="rounded-xl border-gray-300 dark:border-gray-600">
           <Filter className="h-4 w-4 mr-2" />
@@ -165,112 +253,180 @@ export default function ExplorePage() {
 
       {/* Profile Stack */}
       <div className="relative h-[600px]">
-        {profiles.slice(currentIndex, currentIndex + 3).map((profile, index) => (
-          <div
-            key={profile.id}
-            className={`absolute inset-0 transition-all duration-300 ${
-              index === 0 ? 'z-30' : index === 1 ? 'z-20 scale-95 opacity-60' : 'z-10 scale-90 opacity-30'
-            }`}
-            style={{
-              transform: index === 0 ? `translateX(${currentX - startX}px) rotate(${rotate}deg)` : 'none',
-              opacity: index === 0 ? opacity : 1
-            }}
-          >
-            <Card 
-              ref={index === 0 ? cardRef : null}
-              className="h-full cursor-grab active:cursor-grabbing shadow-2xl border-0"
-              onMouseDown={handleTouchStart}
-              onMouseMove={handleTouchMove}
-              onMouseUp={handleTouchEnd}
-              onMouseLeave={handleTouchEnd}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
+        {visibleProfiles.map((profile, index) => {
+          const currentImageIndex = getCurrentImageIndex(profile.id);
+          const hasMultipleImages = profile.images && profile.images.length > 1;
+          const totalImages = profile.images?.length || 0;
+          
+          return (
+            <div
+              key={profile.id}
+              className={`absolute inset-0 transition-all duration-300 ${
+                index === 0 ? 'z-30' : index === 1 ? 'z-20 scale-95 opacity-60' : 'z-10 scale-90 opacity-30'
+              }`}
+              style={{
+                transform: index === 0 ? `translateX(${currentX - startX}px) rotate(${rotate}deg)` : 'none',
+                opacity: index === 0 ? opacity : 1
+              }}
             >
-              <CardContent className="p-0 h-full relative overflow-hidden">
-                {/* Profile Image with Gradient Overlay */}
-                <div className="h-2/3 relative">
-                  <img 
-                    src={profile.images[0]} 
-                    alt={profile.name}
-                    className="w-full h-full object-cover"
-                  />
-                  
-                  {/* Advanced Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                  
-                  {/* Profile Badges */}
-                  <div className="absolute top-4 left-4 right-4 flex justify-between items-start">
-                    <div className="flex space-x-2">
-                      {profile.isAnonymous && (
-                        <span className="bg-purple-500/90 text-white px-3 py-1 rounded-full text-xs font-medium backdrop-blur-sm">
-                          <Shield className="h-3 w-3 inline mr-1" />
-                          Anonymous
-                        </span>
+              <Card 
+                ref={index === 0 ? cardRef : null}
+                className="h-full cursor-grab active:cursor-grabbing shadow-2xl border-0"
+                onMouseDown={handleTouchStart}
+                onMouseMove={handleTouchMove}
+                onMouseUp={handleTouchEnd}
+                onMouseLeave={handleTouchEnd}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+              >
+                <CardContent className="p-0 h-full relative overflow-hidden">
+                  {/* Profile Image with Gradient Overlay and Carousel */}
+                  <div className="h-2/3 relative">
+                    {/* Image Carousel */}
+                    <div className="relative w-full h-full overflow-hidden">
+                      {profile.images && profile.images.length > 0 ? (
+                        <>
+                          {/* Current Image */}
+                          <img 
+                            src={profile.images[currentImageIndex] || '/api/placeholder/400/500'} 
+                            alt={`${profile.name} - Image ${currentImageIndex + 1}`}
+                            className="w-full h-full object-cover transition-transform duration-300"
+                            onError={(e) => {
+                              e.currentTarget.src = '/api/placeholder/400/500';
+                            }}
+                          />
+                          
+                          {/* Image Navigation Arrows */}
+                          {hasMultipleImages && (
+                            <>
+                              <button
+                                onClick={(e) => prevImage(profile.id, totalImages, e)}
+                                className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full backdrop-blur-sm hover:bg-black/70 transition-colors z-20"
+                              >
+                                <ChevronLeft className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={(e) => nextImage(profile.id, totalImages, e)}
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full backdrop-blur-sm hover:bg-black/70 transition-colors z-20"
+                              >
+                                <ChevronRight className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                          
+                          {/* Image Dots Indicator */}
+                          {hasMultipleImages && (
+                            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2 z-20">
+                              {profile.images.map((_, imgIndex) => (
+                                <button
+                                  key={imgIndex}
+                                  onClick={(e) => goToImage(profile.id, imgIndex, e)}
+                                  className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                                    imgIndex === currentImageIndex 
+                                      ? 'bg-white scale-125' 
+                                      : 'bg-white/50 hover:bg-white/70'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          )}
+                          
+                          {/* Image Counter */}
+                          {hasMultipleImages && (
+                            <div className="absolute top-4 left-4 bg-black/50 text-white px-2 py-1 rounded-full text-xs font-medium backdrop-blur-sm z-20">
+                              {currentImageIndex + 1} / {totalImages}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        // Fallback when no images
+                        <div className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
+                          <Users className="h-16 w-16 text-gray-400" />
+                        </div>
                       )}
-                      <span className="bg-green-500/90 text-white px-3 py-1 rounded-full text-xs font-medium backdrop-blur-sm">
-                        {profile.compatibility}% Match
-                      </span>
                     </div>
-                    <button className="bg-black/50 text-white p-2 rounded-full backdrop-blur-sm">
-                      <Info className="h-4 w-4" />
-                    </button>
-                  </div>
+                    
+                    {/* Advanced Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                    
+                    {/* Profile Badges */}
+                    <div className="absolute top-4 right-4 flex flex-col space-y-2 z-20">
+                      <div className="flex space-x-2">
+                        {profile.isAnonymous && (
+                          <span className="bg-purple-500/90 text-white px-3 py-1 rounded-full text-xs font-medium backdrop-blur-sm">
+                            <Shield className="h-3 w-3 inline mr-1" />
+                            Anonymous
+                          </span>
+                        )}
+                        <span className="bg-green-500/90 text-white px-3 py-1 rounded-full text-xs font-medium backdrop-blur-sm">
+                          {profile.compatibility}% Match
+                        </span>
+                      </div>
+                    </div>
 
-                  {/* Profile Info */}
-                  <div className="absolute bottom-6 left-6 right-6">
-                    <div className="flex items-end justify-between">
-                      <div>
-                        <h2 className="text-2xl font-bold text-white mb-1">
-                          {profile.name}, {profile.age}
-                        </h2>
-                        <p className="text-gray-200 text-sm">{profile.category}</p>
+                    {/* Profile Info */}
+                    <div className="absolute bottom-6 left-6 right-6 z-10">
+                      <div className="flex items-end justify-between">
+                        <div>
+                          <h2 className="text-2xl font-bold text-white mb-1">
+                            {profile.name}, {profile.age}
+                          </h2>
+                          <p className="text-gray-200 text-sm capitalize">{profile.category}</p>
+                          
+                          {/* Additional Info */}
+                          <div className="flex items-center space-x-4 mt-2">
+                            <div className="flex items-center text-gray-200 text-sm">
+                              <MapPin className="h-3 w-3 mr-1" />
+                              {profile.distance}km away
+                            </div>
+                            <div className="flex items-center text-gray-200 text-sm">
+                              <Calendar className="h-3 w-3 mr-1" />
+                              {profile.department}
+                            </div>
+                          </div>
+                        </div>
                         
-                        {/* Additional Info */}
-                        <div className="flex items-center space-x-4 mt-2">
-                          <div className="flex items-center text-gray-200 text-sm">
-                            <MapPin className="h-3 w-3 mr-1" />
-                            {profile.distance}km
+                        {/* Compatibility Circle */}
+                        <div className="relative">
+                          <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                            <span className="text-white font-bold text-sm">{profile.compatibility}%</span>
                           </div>
-                          <div className="flex items-center text-gray-200 text-sm">
-                            <Calendar className="h-3 w-3 mr-1" />
-                            {profile.department}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Compatibility Circle */}
-                      <div className="relative">
-                        <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center">
-                          <span className="text-white font-bold text-sm">{profile.compatibility}%</span>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Bio and Interests Section */}
-                <div className="p-6 h-1/3">
-                  <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed mb-4">
-                    {profile.bio}
-                  </p>
-                  
-                  {/* Interests */}
-                  <div className="flex flex-wrap gap-2">
-                    {profile.interests?.map((interest, i) => (
-                      <span 
-                        key={i}
-                        className="px-3 py-1 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 text-gray-700 dark:text-gray-300 rounded-full text-xs font-medium"
-                      >
-                        {interest}
-                      </span>
-                    ))}
+                  {/* Bio and Interests Section */}
+                  <div className="p-6 h-1/3 overflow-y-auto">
+                    <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed mb-4">
+                      {profile.bio}
+                    </p>
+                    
+                    {/* Interests */}
+                    {profile.interests && profile.interests.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {profile.interests.slice(0, 6).map((interest, i) => (
+                          <span 
+                            key={i}
+                            className="px-3 py-1 bg-gradient-to-r from-pink-100 to-purple-100 dark:from-pink-900/30 dark:to-purple-900/30 text-pink-700 dark:text-pink-300 rounded-full text-xs font-medium border border-pink-200 dark:border-pink-800"
+                          >
+                            {interest}
+                          </span>
+                        ))}
+                        {profile.interests.length > 6 && (
+                          <span className="px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full text-xs">
+                            +{profile.interests.length - 6} more
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        ))}
+                </CardContent>
+              </Card>
+            </div>
+          );
+        })}
 
         {/* Swipe Indicators */}
         {isDragging && swipeDirection && (
@@ -295,26 +451,36 @@ export default function ExplorePage() {
         <Button 
           variant="outline" 
           size="lg"
-          className="w-16 h-16 rounded-full border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-200"
+          disabled={isSwiping}
+          className="w-16 h-16 rounded-full border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
           onClick={() => handleSwipe('left')}
         >
-          <X className="h-8 w-8 text-red-500" />
+          {isSwiping ? (
+            <Loader2 className="h-6 w-6 animate-spin text-red-500" />
+          ) : (
+            <X className="h-8 w-8 text-red-500" />
+          )}
         </Button>
         
         <Button 
           variant="outline" 
           size="lg"
-          className="w-16 h-16 rounded-full border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-200"
+          className="w-16 h-16 rounded-full border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
         >
           <Shield className="h-6 w-6 text-blue-500" />
         </Button>
         
         <Button 
           size="lg"
-          className="w-16 h-16 rounded-full bg-gradient-to-r from-green-500 to-teal-500 shadow-lg hover:shadow-xl hover:from-green-600 hover:to-teal-600 transition-all duration-200"
+          disabled={isSwiping}
+          className="w-16 h-16 rounded-full bg-gradient-to-r from-green-500 to-teal-500 shadow-lg hover:shadow-xl hover:from-green-600 hover:to-teal-600 transition-all duration-200 hover:scale-105"
           onClick={() => handleSwipe('right')}
         >
-          <Heart className="h-8 w-8 text-white" />
+          {isSwiping ? (
+            <Loader2 className="h-6 w-6 animate-spin text-white" />
+          ) : (
+            <Heart className="h-8 w-8 text-white" />
+          )}
         </Button>
       </div>
 

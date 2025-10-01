@@ -102,7 +102,7 @@ class User(db.Model):
     bio: Mapped[str] = mapped_column(String(500))
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
-    last_password_reset: Mapped[datetime] = mapped_column(DateTime)
+    last_password_reset: Mapped[datetime] = mapped_column(DateTime, nullable=True)
 
     pictures = relationship("Picture", back_populates="user", cascade="all, delete-orphan", passive_deletes=True)
 
@@ -143,6 +143,12 @@ class TokenBlocklist(db.Model):
     revoked_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     expires: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     user = relationship("User", lazy="joined")
+
+# ---------------------------------------------------------
+# Initialize Database Tables
+# ---------------------------------------------------------
+with app.app_context():
+    db.create_all()
 
 # ---------------------------------------------------------
 # Validators
@@ -259,211 +265,242 @@ def logout():
         return resp
     except Exception as e: db.session.rollback(); return jsonify(success=False, message=f"Server error: {e}"), 500
 
-
 @app.route("/forgot-password", methods=["POST", "OPTIONS"])
 @cross_origin(supports_credentials=True)
 def forgot_password():
-    """
-    Step 1 of password reset process
-    User submits username, system returns their security question
-    """
-    if request.method == "OPTIONS":
-        return jsonify({"success": True}), 200
-        
+    if request.method == "OPTIONS": return jsonify(success=True), 200
     try:
         data = request.json or {}
         username = data.get("username")
-
-        if not username:
-            return jsonify({"success": False, "message": "Username required"}), 400
-
-        # Find user by username
+        if not username: return jsonify(success=False, message="Username required"), 400
         user = User.query.filter_by(username=username).first()
-
-        if not user:
-            # Security best practice: don't reveal if username exists
-            # Return success but with null question to avoid user enumeration
-            return jsonify({"success": True, "question": None}), 200
-
-        # Return the user's security question
-        return jsonify({
-            "success": True,
-            "question": user.security_question
-        }), 200
-    
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
-
+        if not user: return jsonify(success=True, question=None), 200
+        return jsonify(success=True, question=user.security_question), 200
+    except Exception as e: return jsonify(success=False, message=f"Server error: {e}"), 500
 
 @app.route("/reset-password", methods=["POST", "OPTIONS"])
-@rate_limit(max_attempts=5, window_seconds=300)  # Apply rate limiting
+@rate_limit(max_attempts=5, window_seconds=300)
 @cross_origin(supports_credentials=True)
 def reset_password():
-    """
-    Step 2 of password reset process
-    User submits username, security answer, and new password
-    If answer is correct, password is reset
-    """
-    if request.method == "OPTIONS":
-        return jsonify({"success": True}), 200
-        
+    if request.method == "OPTIONS": return jsonify(success=True), 200
     try:
         data = request.json or {}
-        username = data.get("username")
-        answer = data.get("security_answer")
-        new_password = data.get("new_password")
-
-        # Validate all required fields are present
-        if not username or not answer or not new_password:
-            return jsonify({"success": False, "message": "All fields are required"}), 400
-
-        # Find user by username
+        username, answer, new_password = data.get("username"), data.get("security_answer"), data.get("new_password")
+        if not username or not answer or not new_password: return jsonify(success=False, message="All fields required"), 400
         user = User.query.filter_by(username=username).first()
-
-        if not user:
-            # Security best practice: don't reveal if username exists
-            return jsonify({"success": False, "message": "Invalid credentials"}), 400
-
-        # Verify security answer
-        if not user.check_security_answer(answer):
-            return jsonify({"success": False, "message": "Security answer is incorrect"}), 401
-
-        # Validate new password strength
-        if not is_strong_password(new_password):
-            return jsonify({"success": False, "message": "New password is too weak"}), 400
-
-        # Reset password and update timestamp
+        if not user: return jsonify(success=False, message="Invalid credentials"), 400
+        if not user.check_security_answer(answer): return jsonify(success=False, message="Security answer incorrect"), 401
+        if not is_strong_password(new_password): return jsonify(success=False, message="Weak password"), 400
         user.set_password(new_password)
         user.last_password_reset = datetime.utcnow()
         db.session.commit()
-
-        return jsonify({"success": True, "message": "Password reset successfully"}), 200
-    
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
-
+        return jsonify(success=True, message="Password reset successfully"), 200
+    except Exception as e: db.session.rollback(); return jsonify(success=False, message=f"Server error: {e}"), 500
 
 @app.route("/explore", methods=["GET", "OPTIONS"])
 @jwt_required()
 @cross_origin(supports_credentials=True)
-def explore():
+def explore_profiles():
     """
-    Explore endpoint - requires authentication
+    Get all user profiles except the current user for explore page
     """
     if request.method == "OPTIONS":
         return jsonify({"success": True}), 200
         
     try:
-        user_id = get_jwt_identity()
-        return jsonify({"success": True, "message": f"Hello user {user_id}, welcome to Explore!"}), 200
+        # Get current user's identity from JWT
+        current_user_id = get_jwt_identity()
+        current_user = User.query.filter_by(public_id=current_user_id).first()
+
+        if not current_user:
+            return jsonify({
+                "success": False, 
+                "message": "User not found",
+                "profiles": [],
+                "total_profiles": 0
+            }), 404
+
+        # Get all users except current user
+        other_users = User.query.filter(User.public_id != current_user_id).all()
+        
+        print(f"🔍 Found {len(other_users)} other users for explore page")
+
+        # Convert users to dictionary format for explore page
+        explore_profiles = []
+        for user in other_users:
+            # Extract interests from bio
+            interests = extract_interests_from_bio(user.bio)
+            
+            # Calculate compatibility
+            compatibility = calculate_compatibility(current_user, user)
+            
+            # Calculate random distance
+            distance = calculate_random_distance()
+            
+            profile_data = {
+                "id": user.public_id,
+                "username": user.username,
+                "name": user.name or user.username,
+                "age": int(user.age) if user.age else 0,
+                "bio": user.bio or "",
+                "images": [pic.image for pic in user.pictures],
+                "category": user.category,
+                "isAnonymous": user.is_anonymous,
+                "department": user.department or "",
+                "interests": interests,
+                "distance": distance,
+                "compatibility": compatibility,
+                "level": user.level or "",
+                "gender": user.gender,
+                "interestedIn": user.interested_in or "",
+                "religious": user.religious or "",
+                "genotype": user.genotype or "",
+                "timestamp": user.timestamp.isoformat() + "Z" if user.timestamp else None
+            }
+            explore_profiles.append(profile_data)
+
+        response_data = {
+            "success": True,
+            "profiles": explore_profiles,
+            "total_profiles": len(explore_profiles)
+        }
+        
+        print(f"✅ Sending {len(explore_profiles)} profiles to explore page")
+        
+        return jsonify(response_data), 200
+    
     except Exception as e:
-        return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
+        print(f"❌ Error in explore endpoint: {str(e)}")
+        return jsonify({
+            "success": False, 
+            "message": f"Server error: {str(e)}",
+            "profiles": [],
+            "total_profiles": 0
+        }), 500
+def extract_interests_from_bio(bio):
+    """Extract potential interests from user bio"""
+    if not bio:
+        return []
+    
+    # Common interests/keywords to look for
+    interest_keywords = [
+        'music', 'sports', 'art', 'reading', 'travel', 'food', 'fitness',
+        'gaming', 'movies', 'photography', 'dancing', 'hiking', 'coffee',
+        'technology', 'science', 'fashion', 'animals', 'cooking', 'writing',
+        'dancing', 'singing', 'painting', 'drawing', 'coding', 'programming',
+        'basketball', 'football', 'soccer', 'tennis', 'swimming', 'running',
+        'gym', 'yoga', 'meditation', 'netflix', 'anime', 'manga', 'comics',
+        'books', 'poetry', 'blogging', 'vlogging', 'podcasts', 'music production',
+        'guitar', 'piano', 'violin', 'drums', 'singing', 'dj', 'clubbing',
+        'parties', 'socializing', 'volunteering', 'activism', 'politics',
+        'business', 'entrepreneurship', 'investing', 'stocks', 'crypto',
+        'fashion', 'makeup', 'skincare', 'shopping', 'thrifting', 'design',
+        'architecture', 'interior design', 'graphic design', 'web design',
+        'video games', 'board games', 'card games', 'chess', 'puzzles',
+        'camping', 'adventure', 'exploring', 'road trips', 'beach', 'mountains',
+        'nature', 'animals', 'pets', 'dogs', 'cats', 'birds', 'fish',
+        'cooking', 'baking', 'grilling', 'wine', 'beer', 'cocktails', 'coffee',
+        'tea', 'foodie', 'restaurants', 'culture', 'history', 'languages'
+    ]
+    
+    found_interests = []
+    bio_lower = bio.lower()
+    
+    for interest in interest_keywords:
+        if interest in bio_lower:
+            found_interests.append(interest.capitalize())
+            if len(found_interests) >= 8:  # Limit to 8 interests max
+                break
+    
+    return found_interests
+
+def calculate_random_distance():
+    """Calculate random distance for demo (in kilometers)"""
+    import random
+    return round(random.uniform(0.5, 5.0), 1)
+
+def calculate_compatibility(current_user, other_user):
+    """Calculate compatibility score between users"""
+    score = 50  # Base score
+    
+    # Department match
+    if current_user.department and other_user.department:
+        if current_user.department.lower() == other_user.department.lower():
+            score += 15
+    
+    # Level match
+    if current_user.level and other_user.level:
+        if current_user.level == other_user.level:
+            score += 10
+    
+    # Interested in match
+    if current_user.interested_in and other_user.gender:
+        current_interested = current_user.interested_in.lower()
+        other_gender = other_user.gender.lower()
+        
+        if (current_interested == 'both' or 
+            current_interested == other_gender or
+            (current_interested == 'male' and other_gender == 'male') or
+            (current_interested == 'female' and other_gender == 'female')):
+            score += 20
+    
+    # Category match
+    if current_user.category and other_user.category:
+        if current_user.category == other_user.category:
+            score += 15
+    
+    # Age compatibility (within 5 years)
+    if current_user.age and other_user.age:
+        age_diff = abs(int(current_user.age) - int(other_user.age))
+        if age_diff <= 5:
+            score += 10
+        elif age_diff <= 10:
+            score += 5
+    
+    # Ensure score is between 0-100
+    return min(100, max(0, score))
 
 
 @app.route("/profile", methods=["GET", "OPTIONS"])
-@jwt_required()  # Require valid JWT token to access this endpoint
+@jwt_required()
 @cross_origin(supports_credentials=True)
 def get_my_profile():
-    """
-    Get current user's profile information
-    Requires authentication via JWT
-    """
-    if request.method == "OPTIONS":
-        return jsonify({"success": True}), 200
-        
+    if request.method == "OPTIONS": return jsonify(success=True), 200
     try:
-        # Get user identity from JWT token
         public_id = get_jwt_identity()
-
-        # Find user by public_id
         user = User.query.filter_by(public_id=public_id).first()
-
-        if not user:
-            return jsonify({"success": False, "message": "User not found"}), 404
-
-        # Return user profile data
-        return jsonify({
-            "success": True,
-            "user": user.to_dict()
-        }), 200
-    
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
-
+        if not user: return jsonify(success=False, message="User not found"), 404
+        return jsonify(success=True, user=user.to_dict()), 200
+    except Exception as e: return jsonify(success=False, message=f"Server error: {e}"), 500
 
 @app.route("/profile", methods=["PUT", "OPTIONS"])
-@jwt_required()  # Require valid JWT token to access this endpoint
+@jwt_required()
 @cross_origin(supports_credentials=True)
 def update_my_profile():
-    """
-    Update current user's profile information
-    Requires authentication via JWT
-    """
-    if request.method == "OPTIONS":
-        return jsonify({"success": True}), 200
-        
+    if request.method == "OPTIONS": return jsonify(success=True), 200
     try:
-        # Get user identity from JWT token
         public_id = get_jwt_identity()
-
-        # Find user by public_id
         user = User.query.filter_by(public_id=public_id).first()
-
-        if not user:
-            return jsonify({"success": False, "message": "User not found"}), 404
-
-        data = request.json or {}  # Get update data from request
-
-        # Update allowed fields with new values or keep existing ones
-        if "username" in data:
-            user.username = data.get("username")
-        if "bio" in data:
-            user.bio = data.get("bio")
-        if "department" in data:
-            user.department = data.get("department")
-        if "category" in data:
-            user.category = data.get("category")
-        if "gender" in data:
-            user.gender = data.get("gender")
-        if "interestedIn" in data:
-            user.interested_in = data.get("interestedIn")
-        if "level" in data:
-            user.level = data.get("level")
-        if "isAnonymous" in data:
-            user.is_anonymous = data.get("isAnonymous")
-
-        # Validate bio length (prevent excessively long bios)
-        if user.bio and len(user.bio) > 500:
-            return jsonify({"success": False, "message": "Bio too long (max 500 chars)"}), 400
-
-        # Validate gender value
-        if user.gender and not validate_gender(user.gender):
-            return jsonify({"success": False, "message": "Invalid gender"}), 400
-
-        # Save changes to database
+        if not user: return jsonify(success=False, message="User not found"), 404
+        data = request.json or {}
+        if "username" in data: user.username = data.get("username")
+        if "bio" in data: user.bio = data.get("bio")
+        if "department" in data: user.department = data.get("department")
+        if "category" in data: user.category = data.get("category")
+        if "gender" in data: user.gender = data.get("gender")
+        if "interestedIn" in data: user.interested_in = data.get("interestedIn")
+        if "level" in data: user.level = data.get("level")
+        if "isAnonymous" in data: user.is_anonymous = data.get("isAnonymous")
+        if user.bio and len(user.bio) > 500: return jsonify(success=False, message="Bio too long (max 500 chars)"), 400
+        if user.gender and not validate_gender(user.gender): return jsonify(success=False, message="Invalid gender"), 400
         db.session.commit()
-
-        # Return updated user data
-        return jsonify({
-            "success": True,
-            "message": "Profile updated successfully",
-            "user": user.to_dict()
-        }), 200
-    
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
-
+        return jsonify(success=True, message="Profile updated", user=user.to_dict()), 200
+    except Exception as e: db.session.rollback(); return jsonify(success=False, message=f"Server error: {e}"), 500
 
 @app.route("/admin/users", methods=["GET", "OPTIONS"])
-@jwt_required()  # Require JWT token
+@jwt_required()
 @cross_origin(supports_credentials=True)
 def get_all_users():
-    """
-    Admin: Fetch all registered users
-    Only accessible if the current user is an admin
-    """
     if request.method == "OPTIONS":
         return jsonify({"success": True}), 200
         
@@ -494,62 +531,31 @@ def get_all_users():
     except Exception as e:
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
 
-
 @app.route("/protected", methods=["GET", "OPTIONS"])
-@jwt_required()  # Require valid JWT token to access this endpoint
+@jwt_required()
 @cross_origin(supports_credentials=True)
 def protected():
-    """
-    Protected endpoint example - requires authentication
-    Useful for testing if JWT authentication is working
-    """
-    if request.method == "OPTIONS":
-        return jsonify({"success": True}), 200
-        
+    if request.method == "OPTIONS": return jsonify(success=True), 200
     try:
         public_id = get_jwt_identity()
         user = User.query.filter_by(public_id=public_id).first()
-
-        if not user:
-            return jsonify({"success": False, "message": "User not found"}), 404
-
-        return jsonify({"success": True, "user": user.to_dict()})
-    
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
-
+        if not user: return jsonify(success=False, message="User not found"), 404
+        return jsonify(success=True, user=user.to_dict())
+    except Exception as e: return jsonify(success=False, message=f"Server error: {e}"), 500
 
 @app.route("/refresh", methods=["POST", "OPTIONS"])
 @jwt_required(refresh=True)
 @cross_origin(supports_credentials=True)
 def refresh():
-    """
-    Refresh access token using refresh token
-    """
-    if request.method == "OPTIONS":
-        return jsonify({"success": True}), 200
-        
+    if request.method == "OPTIONS": return jsonify(success=True), 200
     try:
         identity = get_jwt_identity()
         access_token = create_access_token(identity=identity)
-        
-        response = jsonify({
-            "success": True,
-            "access_token": access_token
-        })
+        response = jsonify(success=True, access_token=access_token)
         set_access_cookies(response, access_token)
         return response
-    
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
-
+    except Exception as e: return jsonify(success=False, message=f"Server error: {e}"), 500
 
 # Application entry point
 if __name__ == "__main__":
-    # Ensure database tables are created before running the app
-    with app.app_context():
-        db.create_all()
-
-    # Start the Flask development server
-    # debug=True enables auto-reload and detailed error pages (disable in production!)
     app.run(debug=False, host="0.0.0.0", port=5000)

@@ -1,13 +1,26 @@
 // pages/api/auth/logout.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 
-const BACKEND_URL = process.env.BACKEND_URL || 
-  (process.env.NODE_ENV === "development" ? "http://localhost:5000" : "https://laumeet.onrender.com");
+const getBackendUrl = () => {
+  // Always use environment variable if set
+  if (process.env.BACKEND_URL) {
+    return process.env.BACKEND_URL;
+  }
+  
+  // In production, don't fall back to localhost
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("BACKEND_URL environment variable is required in production");
+  }
+  
+  // Only use localhost in development
+  return "http://localhost:5000";
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method not allowed" });
   }
+const BACKEND_URL = getBackendUrl()
 
   // Get all cookies from the incoming request
   const cookies = req.headers.cookie || "";

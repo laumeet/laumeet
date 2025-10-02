@@ -87,7 +87,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
       {/* Main Content Area */}
       <div className="relative">
-        <main className="max-w-md mx-auto min-h-[calc(100vh-140px)]">
+        <main className="max-w-md mx-auto pb-32 min-h-[calc(100vh-140px)]">
           {children}
         </main>
       </div>

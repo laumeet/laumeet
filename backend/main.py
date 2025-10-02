@@ -538,14 +538,13 @@ def login():
     return response, 200
 
 
-@app.route("/logout", methods=["POST"])
-@jwt_required(verify_type=False)  # allow both access and refresh tokens
+
 @app.route("/logout", methods=["POST"])
 @jwt_required(verify_type=False)  # allow both access and refresh tokens
 def logout():
     """
     Logout endpoint
-    Revokes the current JWT (access or refresh) and clears cookies.
+    Revokes the current JWT (access orn refresh) and clears cookies.
     """
     jti = get_jwt()["jti"]             # Unique token ID
     token_type = get_jwt()["type"]     # "access" or "refresh"

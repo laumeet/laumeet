@@ -1,9 +1,0 @@
-<changelist name="Uncommitted_changes_before_Update_at_22_09_2025_22_21_[Changes]" date="1758576325728" recycled="true" deleted="true">
-  <option name="PATH" value="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_22_09_2025_22_21_[Changes]/shelved.patch" />
-  <option name="DESCRIPTION" value="Uncommitted changes before Update at 22/09/2025 22:21 [Changes]" />
-  <binary>
-    <option name="BEFORE_PATH" value="backend/instance/lausers.db" />
-    <option name="AFTER_PATH" value="backend/instance/lausers.db" />
-    <option name="SHELVED_PATH" value="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_22_09_2025_22_21_[Changes]/lausers.db" />
-  </binary>
-</changelist>

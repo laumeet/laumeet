@@ -21,9 +21,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
   // Determine active tab based on current pathname
   useEffect(() => {
     if (pathname) {
-      let newActiveTab = 'feed'; // default
-
-      if (pathname === '/' || pathname.startsWith('/feed')) {
+      if (pathname.startsWith('/feed')) {
         newActiveTab = 'feed';
       } else if (pathname.startsWith('/explore')) {
         newActiveTab = 'explore';
@@ -57,7 +55,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
       create: '/create-post' // Default create option
     };
 
-    const route = routeMap[tab] || '/feed';
+    const route = routeMap[tab];
     
     // Simulate navigation delay for better UX
     setTimeout(() => {

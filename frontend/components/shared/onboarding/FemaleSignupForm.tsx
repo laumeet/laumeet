@@ -15,16 +15,22 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import ImageUploader from './ImageUploader';
-import { Shield, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Shield, Loader2, AlertCircle, Eye, EyeOff, Info } from 'lucide-react';
 import { getFaceBlurProcessor } from '@/lib/faceBlur';
 import { toast } from 'sonner';
-import axios from 'axios'
 import api from '@/lib/axio';
 
 interface FemaleSignupFormProps {
   isAnonymous: boolean | null;
   onBack: () => void;
   onNext: () => void;
+}
+
+interface ProcessingImage {
+  file: File;
+  previewUrl: string;
+  status: 'pending' | 'processing' | 'completed' | 'error';
+  processedUrl?: string;
 }
 
 export default function FemaleSignupForm({
@@ -39,7 +45,6 @@ export default function FemaleSignupForm({
     username: '',
     bio: '',
     interests: '',
-    relationshipGoal: '',
     password: '',
     confirmPassword: '',
     securityQuestion: '',
@@ -50,17 +55,17 @@ export default function FemaleSignupForm({
     religious: '',
     name: ''
   });
-  
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+
+  const [processingImages, setProcessingImages] = useState<ProcessingImage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [modelsLoading, setModelsLoading] = useState(true);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [suggestedUsernames, setSuggestedUsernames] = useState<string[]>([]);
-  
+  const [isProcessingImages, setIsProcessingImages] = useState(false);
+
   // Refs for scrolling to errors
   const usernameInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
@@ -70,7 +75,7 @@ export default function FemaleSignupForm({
 
   const generateSuggestions = (baseName: string): string[] => {
     const randomNumbers = () =>
-      Math.floor(100 + Math.random() * 900).toString(); // 3-digit numbers
+      Math.floor(100 + Math.random() * 900).toString();
     return [
       `${baseName}${randomNumbers()}`,
       `${baseName}_${randomNumbers()}`,
@@ -113,6 +118,20 @@ export default function FemaleSignupForm({
     }
   };
 
+  const processSingleImage = async (file: File): Promise<string> => {
+    const processor = getFaceBlurProcessor();
+    await processor.ensureModelsLoaded();
+
+    if (isAnonymous && ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category)) {
+      const emojiBlob = await processor.maskFacesWithEmojis(file);
+      if (emojiBlob) {
+        return await blobToBase64(emojiBlob);
+      }
+    }
+    
+    return await fileToBase64(file);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -145,6 +164,12 @@ export default function FemaleSignupForm({
     // Validate passwords
     if (!formData.password) {
       toast.error("Password is required");
+      scrollToElement(passwordInputRef.current);
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      toast.error("Password must be at least 6 characters long");
       scrollToElement(passwordInputRef.current);
       return;
     }
@@ -193,31 +218,15 @@ export default function FemaleSignupForm({
     setIsProcessing(true);
 
     try {
-      const processor = getFaceBlurProcessor();
-      await processor.ensureModelsLoaded();
-
+      // Process all images for final submission
       const processedImagesData: string[] = [];
-
-      for (const image of formData.pictures) {
-        let base64: string;
-
-        if (
-          isAnonymous &&
-          ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category)
-        ) {
-          const emojiBlob = await processor.maskFacesWithEmojis(image);
-          if (emojiBlob) {
-            base64 = await blobToBase64(emojiBlob);
-          } else {
-            base64 = await fileToBase64(image);
-          }
-        } else {
-          base64 = await fileToBase64(image);
-        }
-
+      
+      for (let i = 0; i < formData.pictures.length; i++) {
+        const file = formData.pictures[i];
+        const base64 = await processSingleImage(file);
         processedImagesData.push(base64);
       }
-    
+
       const payload = {
         username: formData.username,
         password: formData.password,
@@ -237,28 +246,24 @@ export default function FemaleSignupForm({
         name: formData.name
       };
 
-      const res = await api.post('/signup', payload);
- 
-      if (res.status === 200 || res.status === 201) {
-             if (res.data.access_token) {
-        sessionStorage.setItem('access_token', res.data.access_token);
-      }
-      
+      const res = await api.post('/auth/signup', payload);
+      if(res.data){
         toast.success('Profile created successfully!');
         onNext();
-      } else if (res.data?.message?.includes("Username already taken")) {
-        setUsernameError("This username is already taken.");
-        setSuggestedUsernames(generateSuggestions(formData.username));
-        scrollToElement(usernameInputRef.current);
-      } else {
-        toast.error(res.data?.message || "Signup failed");
       }
 
-    } catch (err) {
-      if (axios.isAxiosError(err)) {
-        toast.error(err.response?.data?.message || err.message);
+    } catch (error: unknown) {
+      console.error('Signup error:', error);
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as { response?: { data?: { message?: string } } };
+        if (apiError.response?.data?.message === "Username already taken") {
+          setUsernameError("This username is already taken.");
+          setSuggestedUsernames(generateSuggestions(formData.username));
+          scrollToElement(usernameInputRef.current);
+        }
+        toast.error(apiError.response?.data?.message || 'An error occurred');
       } else {
-        toast.error("An unexpected error occurred.");
+        toast.error('An unexpected error occurred');
       }
     } finally {
       setIsProcessing(false);
@@ -298,90 +303,110 @@ export default function FemaleSignupForm({
   };
 
   const handleImageUpload = async (files: FileList) => {
-    const newPictures = Array.from(files);
+    const newFiles = Array.from(files);
     
-    if (isAnonymous && ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category)) {
-      try {
-        const processor = getFaceBlurProcessor();
-        await processor.ensureModelsLoaded();
-        
-        const processedPreviewUrls: string[] = [];
-        
-        for (const file of newPictures) {
-          const emojiBlob = await processor.maskFacesWithEmojis(file);
-          if (emojiBlob) {
-            const previewUrl = URL.createObjectURL(emojiBlob);
-            processedPreviewUrls.push(previewUrl);
-          } else {
-            processedPreviewUrls.push(URL.createObjectURL(file));
-          }
-        }
-        
-        setUploadedImages(prev => [...prev, ...processedPreviewUrls]);
-        setFormData(prev => ({
-          ...prev,
-          pictures: [...prev.pictures, ...newPictures],
-        }));
-        
-      } catch (error) {
-        const originalPreviewUrls = newPictures.map(file => URL.createObjectURL(file));
-        setUploadedImages(prev => [...prev, ...originalPreviewUrls]);
-        setFormData(prev => ({
-          ...prev,
-          pictures: [...prev.pictures, ...newPictures],
-        }));
-      }
-    } else {
-      const newPreviewUrls = newPictures.map(file => URL.createObjectURL(file));
-      setUploadedImages(prev => [...prev, ...newPreviewUrls]);
-      setFormData(prev => ({
-        ...prev,
-        pictures: [...prev.pictures, ...newPictures],
-      }));
+    // Check if adding new files would exceed the limit
+    if (formData.pictures.length + newFiles.length > 5) {
+      toast.error(`You can only upload up to 5 photos. You already have ${formData.pictures.length}.`);
+      return;
     }
+
+    setIsProcessingImages(true);
+
+    // Add new files to processing queue
+    const newProcessingImages: ProcessingImage[] = newFiles.map(file => ({
+      file,
+      previewUrl: URL.createObjectURL(file),
+      status: 'pending'
+    }));
+
+    setProcessingImages(prev => [...prev, ...newProcessingImages]);
+    setFormData(prev => ({
+      ...prev,
+      pictures: [...prev.pictures, ...newFiles],
+    }));
+
+    // Process images one by one
+    for (let i = 0; i < newProcessingImages.length; i++) {
+      const index = processingImages.length + i;
+      
+      // Update status to processing
+      setProcessingImages(prev => 
+        prev.map((img, idx) => 
+          idx === index ? { ...img, status: 'processing' } : img
+        )
+      );
+
+      try {
+        const processedUrl = await processSingleImage(newFiles[i]);
+        
+        // Update status to completed with processed URL
+        setProcessingImages(prev => 
+          prev.map((img, idx) => 
+            idx === index ? { ...img, status: 'completed', processedUrl } : img
+          )
+        );
+      } catch (error) {
+        console.error('Error processing image:', error);
+        // Update status to error
+        setProcessingImages(prev => 
+          prev.map((img, idx) => 
+            idx === index ? { ...img, status: 'error' } : img
+          )
+        );
+        toast.error(`Failed to process image ${i + 1}. Using original image.`);
+      }
+    }
+
+    setIsProcessingImages(false);
   };
 
   const removeImage = (index: number) => {
-    if (uploadedImages[index]) {
-      URL.revokeObjectURL(uploadedImages[index]);
+    // Clean up URLs
+    if (processingImages[index]?.previewUrl) {
+      URL.revokeObjectURL(processingImages[index].previewUrl);
     }
-    
+
     setFormData(prev => ({
       ...prev,
       pictures: prev.pictures.filter((_, i) => i !== index),
     }));
-    setUploadedImages(prev => prev.filter((_, i) => i !== index));
+    setProcessingImages(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Clean up URLs on unmount
   useEffect(() => {
     return () => {
-      uploadedImages.forEach(url => URL.revokeObjectURL(url));
+      processingImages.forEach(img => {
+        if (img.previewUrl) {
+          URL.revokeObjectURL(img.previewUrl);
+        }
+      });
     };
-  }, []);
+  }, [processingImages]);
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    
+
     if (field === 'username' && usernameError) {
       setUsernameError(null);
       setSuggestedUsernames([]);
     }
-    
-    if (field === 'category' && isAnonymous) {
+
+    // If category changes and we have images, reprocess them
+    if (field === 'category' && isAnonymous && formData.pictures.length > 0) {
       const isSensitiveCategory = ["Hook Up", "Sex Chat", "Fuck Mate"].includes(value);
       const wasSensitiveCategory = ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category);
-      
-      if (isSensitiveCategory !== wasSensitiveCategory && formData.pictures.length > 0) {
-        handleImageUpload(arrayToFileList(formData.pictures));
+
+      if (isSensitiveCategory !== wasSensitiveCategory) {
+        toast.info("Reprocessing images for new privacy settings...");
+        // Trigger reprocessing by re-uploading current files
+        const dataTransfer = new DataTransfer();
+        formData.pictures.forEach(file => dataTransfer.items.add(file));
+        handleImageUpload(dataTransfer.files);
       }
     }
   };
-
-  function arrayToFileList(files: File[]): FileList {
-    const dataTransfer = new DataTransfer();
-    files.forEach(file => dataTransfer.items.add(file));
-    return dataTransfer.files;
-  }
 
   const categories = isAnonymous
     ? [
@@ -407,6 +432,8 @@ export default function FemaleSignupForm({
     "What is your favorite book?"
   ];
 
+  const interestsOptions = ["male", "female", "both"];
+
   const academicLevels = [
     "100 Level",
     "200 Level", 
@@ -424,13 +451,36 @@ export default function FemaleSignupForm({
     "Christianity", "Islam", "Traditional", "Other", "Atheist"
   ];
 
+  const getImageDisplayUrl = (img: ProcessingImage): string => {
+    return img.processedUrl || img.previewUrl;
+  };
+
+  const getStatusColor = (status: ProcessingImage['status']): string => {
+    switch (status) {
+      case 'processing': return 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20';
+      case 'completed': return 'border-green-400 bg-green-50 dark:bg-green-900/20';
+      case 'error': return 'border-red-400 bg-red-50 dark:bg-red-900/20';
+      default: return 'border-gray-200 dark:border-gray-700';
+    }
+  };
+
+  const getStatusText = (status: ProcessingImage['status']): string => {
+    switch (status) {
+      case 'pending': return 'Pending';
+      case 'processing': return 'Processing...';
+      case 'completed': return 'Ready';
+      case 'error': return 'Error';
+      default: return '';
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Complete Your Profile</h2>
         <p className="text-gray-600 dark:text-gray-300 mt-1">Help others get to know you better</p>
       </div>
-      
+
       {modelsLoading && (
         <Alert className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
           <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
@@ -439,7 +489,7 @@ export default function FemaleSignupForm({
           </AlertDescription>
         </Alert>
       )}
-      
+
       {modelsError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -453,6 +503,7 @@ export default function FemaleSignupForm({
             What are you looking for?
           </Label>
           <Select
+            value={formData.category}
             onValueChange={(value) => handleChange('category', value)}
             required
           >
@@ -470,22 +521,43 @@ export default function FemaleSignupForm({
         </div>
 
         <div className="space-y-2">
-          <Label className="text-gray-700 dark:text-gray-300">Upload Photos</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-gray-700 dark:text-gray-300">Upload Photos</Label>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {formData.pictures.length}/5 photos
+            </span>
+          </div>
+          
           <ImageUploader
             onImageUpload={handleImageUpload}
-            uploadedImages={uploadedImages}
+            processingImages={processingImages}
             onRemoveImage={removeImage}
-            ref={fileInputRef}
+            isProcessingImages={isProcessingImages}
+            getImageDisplayUrl={getImageDisplayUrl}
+            getStatusColor={getStatusColor}
+            getStatusText={getStatusText}
           />
 
           {isAnonymous &&
             ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category) && (
-              <p className="text-amber-600 dark:text-amber-400 text-xs mt-2">
-                Note: Your face will be automatically covered with emojis for privacy.
-              </p>
+              <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                <p className="text-amber-700 dark:text-amber-300 text-xs">
+                  <strong>Privacy Note:</strong> Your face will be automatically covered with emojis for privacy. 
+                  This may take a few moments to process.
+                </p>
+              </div>
             )}
+
+          {isProcessingImages && (
+            <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Processing images... This may take a moment</span>
+            </div>
+          )}
         </div>
 
+        {/* Rest of the form remains the same */}
         <div className="space-y-2">
           <Label htmlFor="age" className="text-gray-700 dark:text-gray-300">Age</Label>
           <Input
@@ -515,7 +587,7 @@ export default function FemaleSignupForm({
             className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
           />
         </div>
-        
+
         <div className="space-y-2">
           <Label htmlFor="username" className="text-gray-700 dark:text-gray-300">User Name</Label>
           <Input
@@ -578,6 +650,7 @@ export default function FemaleSignupForm({
                 Academic Level *
               </Label>
               <Select
+                value={formData.level}
                 onValueChange={(value) => handleChange('level', value)}
                 required={!isAnonymous}
               >
@@ -599,6 +672,7 @@ export default function FemaleSignupForm({
                 Blood Genotype (Optional)
               </Label>
               <Select
+                value={formData.genotype}
                 onValueChange={(value) => handleChange('genotype', value)}
               >
                 <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
@@ -619,6 +693,7 @@ export default function FemaleSignupForm({
                 Religion (Optional)
               </Label>
               <Select
+                value={formData.religious}
                 onValueChange={(value) => handleChange('religious', value)}
               >
                 <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
@@ -635,7 +710,7 @@ export default function FemaleSignupForm({
             </div>
           </>
         )}
-        
+
         {/* Password Fields */}
         <div className="space-y-2">
           <Label htmlFor="password" className="text-gray-700 dark:text-gray-300">Password</Label>
@@ -663,7 +738,7 @@ export default function FemaleSignupForm({
             </button>
           </div>
         </div>
-        
+
         <div className="space-y-2">
           <Label htmlFor="confirmPassword" className="text-gray-700 dark:text-gray-300">Confirm Password</Label>
           <div className="relative">
@@ -690,19 +765,20 @@ export default function FemaleSignupForm({
             </button>
           </div>
         </div>
-        
+
         {/* Security Question Section */}
         <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
           <h3 className="font-medium text-gray-800 dark:text-white">Security Settings</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             These will help you recover your account if you forget your password.
           </p>
-          
+
           <div className="space-y-2">
             <Label htmlFor="securityQuestion" className="text-gray-700 dark:text-gray-300">
               Security Question
             </Label>
             <Select
+              value={formData.securityQuestion}
               onValueChange={(value) => handleChange('securityQuestion', value)}
               required
             >
@@ -721,7 +797,7 @@ export default function FemaleSignupForm({
               </SelectContent>
             </Select>
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="securityAnswer" className="text-gray-700 dark:text-gray-300">
               Security Answer
@@ -738,7 +814,7 @@ export default function FemaleSignupForm({
             />
           </div>
         </div>
-        
+
         <div className="space-y-2">
           <Label htmlFor="bio" className="text-gray-700 dark:text-gray-300">Bio</Label>
           <Textarea
@@ -750,20 +826,29 @@ export default function FemaleSignupForm({
             className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 min-h-[100px]"
           />
         </div>
-        
+
         <div className="space-y-2">
-          <Label htmlFor="interests" className="text-gray-700 dark:text-gray-300">Interests</Label>
-          <Input
-            id="interests"
-            type="text"
-            placeholder="e.g. Music, Travel, Sports"
+          <Label htmlFor="interests" className="text-gray-700 dark:text-gray-300">
+            Interested In
+          </Label>
+          <Select
             value={formData.interests}
-            onChange={(e) => handleChange('interests', e.target.value)}
+            onValueChange={(value) => handleChange('interests', value)}
             required
-            className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
-          />
+          >
+            <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+              <SelectValue placeholder="Who are you interested in?" />
+            </SelectTrigger>
+            <SelectContent>
+              {interestsOptions.map((interest) => (
+                <SelectItem key={interest} value={interest}>
+                  {interest.charAt(0).toUpperCase() + interest.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        
+
         <Alert className="bg-pink-50 dark:bg-pink-900/20 border-pink-200 dark:border-pink-800">
           <Shield className="h-4 w-4 text-pink-600 dark:text-pink-400" />
           <AlertDescription className="text-pink-800 dark:text-pink-200">
@@ -771,7 +856,7 @@ export default function FemaleSignupForm({
             We have zero tolerance for harassment or harmful activities.
           </AlertDescription>
         </Alert>
-        
+
         <div className="flex space-x-4">
           <Button
             type="button"
@@ -784,7 +869,7 @@ export default function FemaleSignupForm({
           <Button
             type="submit"
             className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white py-3"
-            disabled={isProcessing || modelsLoading}
+            disabled={isProcessing || modelsLoading || isProcessingImages}
           >
             {isProcessing ? (
               <>

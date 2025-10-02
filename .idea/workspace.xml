@@ -5,15 +5,41 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="now">
-      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_22_09_2025_15_56_[Changes]/shelved.patch" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_22_09_2025_15_56__Changes_.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_22_09_2025_22_21_[Changes]/lausers.db" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_22_09_2025_22_21_[Changes]/shelved.patch" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_22_09_2025_22_21__Changes_.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_22_09_2025_23_21_[Changes]1/shelved.patch" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_22_09_2025_23_21__Changes_1.xml" beforeDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/(main)/chat/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/(main)/create-post/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/(main)/feed/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/test-cookies/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/hooks/get-profile.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/hooks/use-admin-users.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/hooks/use-explore-profiles.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/pages/api/admin/user.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/pages/api/auth/login.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/pages/api/auth/logout.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/pages/api/auth/refresh.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/pages/api/auth/signup.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/pages/api/explore/profiles.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/pages/api/page/profile.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/pages/api/page/update-profile.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/calling.rest" beforeDir="false" afterPath="$PROJECT_DIR$/calling.rest" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/(main)/explore/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/(main)/explore/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/(main)/layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/(main)/layout.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/(main)/profile/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/(main)/profile/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/admin/users/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/admin/users/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/professional/AdvancedBottomNav.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/professional/AdvancedBottomNav.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/professional/ProfessionalHeader.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/professional/ProfessionalHeader.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/shared/auth/LoginForm.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/shared/auth/LoginForm.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/shared/onboarding/FemaleSignupForm.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/shared/onboarding/FemaleSignupForm.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/shared/onboarding/ImageUploader.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/shared/onboarding/ImageUploader.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/shared/onboarding/MaleSignupForm.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/shared/onboarding/MaleSignupForm.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/shared/onboarding/OnboardingStep.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/shared/onboarding/OnboardingStep.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/axio.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/axio.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/middleware.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/middleware.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/next.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/next.config.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/instance/lausers.db" beforeDir="false" afterPath="$PROJECT_DIR$/instance/lausers.db" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -38,17 +64,17 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Python.main.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;vcs.Git&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.main.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "Merging main",
+    "settings.editor.selected.configurable": "vcs.Git"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="C:\Users\Samuel\Desktop\kwp\SchoolProjectBackend\backend" />
@@ -270,7 +296,15 @@
       <option name="project" value="LOCAL" />
       <updated>1758980911677</updated>
     </task>
-    <option name="localTasksCounter" value="23" />
+    <task id="LOCAL-00023" summary="now">
+      <option name="closed" value="true" />
+      <created>1759408860019</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1759408860019</updated>
+    </task>
+    <option name="localTasksCounter" value="24" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

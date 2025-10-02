@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import api from '@/lib/axio';
 import { toast } from 'sonner';
+import { useProfile } from '@/hooks/get-profile';
 
 interface UserProfile {
   id: string;
@@ -36,12 +37,11 @@ interface UserProfile {
 }
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const { profile, loading, error, refetch } = useProfile();
   const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Form fields
+  // Form fields - initialize with profile data
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [department, setDepartment] = useState('');
@@ -50,32 +50,18 @@ export default function ProfilePage() {
   const [interestedIn, setInterestedIn] = useState('');
   const [level, setLevel] = useState('');
 
+  // Initialize form fields when profile data is available
   useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
-    try {
-      setIsLoading(true);
-      const res = await api.get("/profile");
-      setUser(res.data.user);
-
-      if (res.data.user) {
-        setUsername(res.data.user.username);
-        setBio(res.data.user.bio || '');
-        setDepartment(res.data.user.department || '');
-        setCategory(res.data.user.category || '');
-        setGender(res.data.user.gender || '');
-        setInterestedIn(res.data.user.interestedIn || '');
-        setLevel(res.data.user.level || '');
-      }
-    } catch (err) {
-      console.error("Failed to fetch profile:", err);
-      toast.error("Failed to load profile");
-    } finally {
-      setIsLoading(false);
+    if (profile) {
+      setUsername(profile.username || '');
+      setBio(profile.bio || '');
+      setDepartment(profile.department || '');
+      setCategory(profile.category || '');
+      setGender(profile.gender || '');
+      setInterestedIn(profile.interestedIn || '');
+      setLevel(profile.level || '');
     }
-  };
+  }, [profile]);
 
   const handleSave = async () => {
     try {
@@ -86,15 +72,12 @@ export default function ProfilePage() {
         bio,
         department,
         category,
-        gender,
         interestedIn,
         level
       };
-
-      const res = await api.put("/profile", updateData);
-
+      const res = await api.put('/page/update-profile', updateData);
       if (res.data.success) {
-        setUser(res.data.user);
+        await refetch(); // Refresh the profile data
         setIsEditing(false);
         toast.success("Profile updated successfully");
       }
@@ -107,19 +90,21 @@ export default function ProfilePage() {
   };
 
   const handleCancel = () => {
-    if (user) {
-      setUsername(user.username);
-      setBio(user.bio || '');
-      setDepartment(user.department || '');
-      setCategory(user.category || '');
-      setGender(user.gender || '');
-      setInterestedIn(user.interestedIn || '');
-      setLevel(user.level || '');
+    // Reset form fields to current profile data
+    if (profile) {
+      setUsername(profile.username || '');
+      setBio(profile.bio || '');
+      setDepartment(profile.department || '');
+      setCategory(profile.category || '');
+      setGender(profile.gender || '');
+      setInterestedIn(profile.interestedIn || '');
+      setLevel(profile.level || '');
     }
     setIsEditing(false);
   };
 
-  if (isLoading || !user) {
+  // Show loading state
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
@@ -130,8 +115,36 @@ export default function ProfilePage() {
     );
   }
 
-  const joinDate = user.timestamp
-    ? new Date(user.timestamp).toLocaleDateString('en-US', {
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">Error loading profile: {error}</p>
+          <Button onClick={refetch} variant="outline">
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show no profile state
+  if (!profile) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">No profile found</p>
+          <Button onClick={refetch} variant="outline">
+            Refresh
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const joinDate = profile.timestamp
+    ? new Date(profile.timestamp).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
       })
@@ -157,20 +170,20 @@ export default function ProfilePage() {
         <div className="relative inline-block mb-4">
           <div className="w-24 h-24 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 p-1">
             <div className="w-full h-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center">
-              {user.pictures && user.pictures.length > 0 ? (
+              {profile.pictures && profile.pictures.length > 0 ? (
                 <img
-                  src={user.pictures[0]}
+                  src={profile.pictures[0]}
                   alt="Profile"
                   className="w-full h-full rounded-full object-cover"
                 />
               ) : (
                 <span className="text-2xl font-bold text-pink-500">
-                  {user.username.charAt(0).toUpperCase()}
+                  {profile.username?.charAt(0).toUpperCase() || 'U'}
                 </span>
               )}
             </div>
           </div>
-          {user.isAnonymous && (
+          {profile.isAnonymous && (
             <div className="absolute bottom-0 right-0 bg-purple-500 rounded-full p-1">
               <Shield className="h-4 w-4 text-white" />
             </div>
@@ -185,24 +198,24 @@ export default function ProfilePage() {
               placeholder="Username"
               className="text-center text-lg font-bold"
             />
-            <p className="text-gray-600 dark:text-gray-400">{user.age} years old</p>
+            <p className="text-gray-600 dark:text-gray-400">{profile.age} years old</p>
           </div>
         ) : (
           <>
-            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
-              {user.name || user.username}, {user.age}
+            <h2 className="text-2xl font-bold text-gray-800 capitalize dark:text-white">
+              {profile.name || profile.username}, {profile.age}
             </h2>
             <p className="text-gray-600 dark:text-gray-400 capitalize">
-              @{user.username} • {user.age} years old
+              @{profile.username} • {profile.age} years old
             </p>
-            <p className="text-gray-600 dark:text-gray-400 capitalize">{user.category}</p>
+            <p className="text-gray-600 dark:text-gray-400 capitalize">{profile.category}</p>
           </>
         )}
 
         <div className="flex justify-center space-x-4 mt-3">
           <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
             <MapPin className="h-4 w-4 mr-1" />
-            {user.department || 'Campus'}
+            {profile.department || 'Campus'}
           </div>
           <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
             <Calendar className="h-4 w-4 mr-1" />
@@ -264,7 +277,7 @@ export default function ProfilePage() {
                   </SelectTrigger>
                   <SelectContent>
                     {genders.map((gen) => (
-                      <SelectItem key={gen} value={gen} className="capitalize">
+                      <SelectItem key={gen} disabled value={gen} className="capitalize">
                         {gen}
                       </SelectItem>
                     ))}
@@ -275,7 +288,7 @@ export default function ProfilePage() {
                   <div className="p-2 rounded-full bg-pink-100 dark:bg-pink-900/30">
                     <Heart className="h-4 w-4 text-pink-600 dark:text-pink-400" />
                   </div>
-                  <p className="font-medium capitalize">{user.gender}</p>
+                  <p className="font-medium capitalize">{profile.gender}</p>
                 </div>
               )}
             </div>
@@ -290,12 +303,12 @@ export default function ProfilePage() {
                   onChange={(e) => setDepartment(e.target.value)}
                   placeholder="Your department"
                 />
-              ) : user.department ? (
+              ) : profile.department ? (
                 <div className="flex items-center space-x-2">
                   <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
                     <Book className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <p className="font-medium">{user.department}</p>
+                  <p className="font-medium">{profile.department}</p>
                 </div>
               ) : (
                 <p className="text-gray-500">Not set</p>
@@ -318,12 +331,12 @@ export default function ProfilePage() {
                     ))}
                   </SelectContent>
                 </Select>
-              ) : user.level ? (
+              ) : profile.level ? (
                 <div className="flex items-center space-x-2">
                   <div className="p-2 rounded-full bg-green-100 dark:bg-green-900/30">
                     <GraduationCap className="h-4 w-4 text-green-600 dark:text-green-400" />
                   </div>
-                  <p className="font-medium">{user.level}</p>
+                  <p className="font-medium">{profile.level}</p>
                 </div>
               ) : (
                 <p className="text-gray-500">Not set</p>
@@ -346,8 +359,8 @@ export default function ProfilePage() {
                     ))}
                   </SelectContent>
                 </Select>
-              ) : user.interestedIn ? (
-                <p className="text-gray-600 dark:text-gray-400 capitalize">{user.interestedIn}</p>
+              ) : profile.interestedIn ? (
+                <p className="text-gray-600 dark:text-gray-400 capitalize">{profile.interestedIn}</p>
               ) : (
                 <p className="text-gray-500">Not set</p>
               )}
@@ -370,7 +383,7 @@ export default function ProfilePage() {
                   </SelectContent>
                 </Select>
               ) : (
-                <p className="text-gray-600 dark:text-gray-400 capitalize">{user.category}</p>
+                <p className="text-gray-600 dark:text-gray-400 capitalize">{profile.category}</p>
               )}
             </div>
           </div>
@@ -389,8 +402,8 @@ export default function ProfilePage() {
               rows={4}
               maxLength={500}
             />
-          ) : user.bio ? (
-            <p className="text-gray-600 dark:text-gray-400 whitespace-pre-line">{user.bio}</p>
+          ) : profile.bio ? (
+            <p className="text-gray-600 dark:text-gray-400 whitespace-pre-line">{profile.bio}</p>
           ) : (
             <p className="text-gray-500 italic">No bio yet</p>
           )}
@@ -403,7 +416,7 @@ export default function ProfilePage() {
       {/* Display-only fields */}
       {!isEditing && (
         <>
-          {user.genotype && (
+          {profile.genotype && (
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center space-x-2">
@@ -412,14 +425,14 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Genotype</p>
-                    <p className="font-medium">{user.genotype}</p>
+                    <p className="font-medium">{profile.genotype}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {user.religious && (
+          {profile.religious && (
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center space-x-2">
@@ -428,21 +441,21 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Religion</p>
-                    <p className="font-medium">{user.religious}</p>
+                    <p className="font-medium">{profile.religious}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {user.pictures && user.pictures.length > 0 && (
+          {profile.pictures && profile.pictures.length > 0 && (
             <Card>
               <CardContent className="p-4">
                 <h3 className="font-semibold text-gray-800 dark:text-white mb-3">
-                  Photos ({user.pictures.length})
+                  Photos ({profile.pictures.length})
                 </h3>
                 <div className="grid grid-cols-3 gap-2">
-                  {user.pictures.map((image, index) => (
+                  {profile.pictures.map((image, index) => (
                     <div key={index} className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
                       <img
                         src={image}

@@ -1,33 +1,49 @@
-// middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
-  // Use a lightweight, non-HttpOnly cookie to detect login status
-  const isLoggedIn = req.cookies.get("is_logged_in")?.value === "true";
+  // Flask-JWT-Extended sets these cookie names by default
+  const accessToken = req.cookies.get("access_token_cookie")?.value;
+  const refreshToken = req.cookies.get("refresh_token_cookie")?.value;
 
-  // Public pages that don't require authentication
-  const isPublicPage =
-    req.nextUrl.pathname === "/" ||
-    req.nextUrl.pathname === "/login" ||
-    req.nextUrl.pathname === "/signup" ||
-    req.nextUrl.pathname === "/forgot-password";
+  // Debug logging
+  console.log("🔐 Middleware Debug:", {
+    path: req.nextUrl.pathname,
+    hasAccessToken: !!accessToken,
+    accessTokenLength: accessToken?.length,
+    hasRefreshToken: !!refreshToken,
+    allCookies: Object.fromEntries(
+      req.cookies.getAll().map((c) => [c.name, c.value.length])
+    ),
+  });
 
-  // If user is NOT logged in and trying to access a protected page -> redirect to /login
-  if (!isLoggedIn && !isPublicPage) {
+  const publicPages = [
+    "/",
+    "/login",
+    "/signup",
+    "/forgot-password",
+    "/reset-password",
+  ];
+
+  const isPublicPage = publicPages.includes(req.nextUrl.pathname);
+
+  // Not logged in and trying to access protected page → redirect to login
+  if (!accessToken && !isPublicPage) {
+    console.log("🚫 Redirecting to login: No access token");
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  // If user IS logged in and visiting a public page -> redirect to /explore
-  if (isLoggedIn && isPublicPage) {
+  // Logged in but visiting login/signup → redirect to explore
+  if (
+    accessToken && isPublicPage
+  ) {
+    console.log("✅ Redirecting to explore: Already logged in");
     return NextResponse.redirect(new URL("/explore", req.url));
   }
 
-  // Otherwise, allow the request to continue
   return NextResponse.next();
 }
 
-// Apply middleware to all routes except _next, static files, favicon, etc.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|models).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|models|api).*)"],
 };

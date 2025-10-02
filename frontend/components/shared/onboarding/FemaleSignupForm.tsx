@@ -196,7 +196,7 @@ export default function FemaleSignupForm({
 
     if (formData.password !== formData.confirmPassword) {
       toast.error("Passwords don't match!");
-      scrollToElement(confirmPasswordRef.current);
+      scrollToElement(confirmPasswordInputRef.current);
       return;
     }
 

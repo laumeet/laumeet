@@ -2,21 +2,21 @@ import * as faceapi from "face-api.js";
 
 class FaceEmojiProcessor {
   private modelsLoaded = false;
+  
   private emojis = [
-    "😅", "🥵", "😂", "🤣", "🙈", "😎", "🥳", "🤯", 
+    "😅", "🥵", "😂", "🤣", "🙈", "😎", "🥳", "🤯",
     "😇", "🤠", "😜", "🤪", "😏", "😤", "🤓", "🥺", "🤑", "🤫",
-    "😱", "😴", "🤧", "🤕", "👽",  "🤖", "💀",
+    "😱", "😴", "🤧", "🤕", "👽", "🤖", "💀",
   ]; // 30 emojis
 
   async ensureModelsLoaded() {
     if (this.modelsLoaded) return;
-
+    
     const MODEL_URL = "/models"; // ✅ from public/models
     await Promise.all([
       faceapi.nets.tinyFaceDetector.loadFromUri(`${MODEL_URL}/tiny_face_detector`),
       faceapi.nets.faceLandmark68Net.loadFromUri(`${MODEL_URL}/face_landmark_68`),
     ]);
-
     this.modelsLoaded = true;
   }
 
@@ -26,9 +26,9 @@ class FaceEmojiProcessor {
 
   async maskFacesWithEmojis(file: File): Promise<Blob | null> {
     await this.ensureModelsLoaded();
-
+    
     const img = await this.fileToImage(file);
-
+    
     // Detect faces + landmarks
     const detections = await faceapi
       .detectAllFaces(img, new faceapi.TinyFaceDetectorOptions())
@@ -36,7 +36,7 @@ class FaceEmojiProcessor {
 
     if (!detections.length) {
       console.log("⚠️ No faces detected in", file.name);
-      return null;
+      return null; // Return null when no faces found
     }
 
     // Prepare canvas
@@ -48,27 +48,27 @@ class FaceEmojiProcessor {
 
     detections.forEach((det) => {
       const landmarks = det.landmarks;
-
+      
       // get bounding box of face landmarks (jaw, cheeks, forehead, etc.)
       const points = landmarks.positions;
       const minX = Math.min(...points.map((p) => p.x));
       const maxX = Math.max(...points.map((p) => p.x));
       const minY = Math.min(...points.map((p) => p.y));
       const maxY = Math.max(...points.map((p) => p.y));
-
+      
       const faceWidth = maxX - minX;
       const faceHeight = maxY - minY;
 
       // choose random emoji
       const emoji = this.emojis[Math.floor(Math.random() * this.emojis.length)];
-
+      
       // scale emoji to cover face (make a bit bigger than face size)
       const emojiSize = Math.max(faceWidth, faceHeight) * 1.4;
-
+      
       // draw emoji at face center
       const centerX = minX + faceWidth / 2;
       const centerY = minY + faceHeight / 2;
-
+      
       ctx.font = `${emojiSize}px serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -91,6 +91,7 @@ class FaceEmojiProcessor {
 }
 
 let instance: FaceEmojiProcessor | null = null;
+
 export const getFaceBlurProcessor = () => {
   if (!instance) instance = new FaceEmojiProcessor();
   return instance;

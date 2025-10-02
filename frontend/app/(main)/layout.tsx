@@ -17,7 +17,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const [isNavigating, setIsNavigating] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-
+ let newActiveTab =""
   // Determine active tab based on current pathname
   useEffect(() => {
     if (pathname) {

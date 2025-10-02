@@ -35,8 +35,7 @@ export function middleware(req: NextRequest) {
 
   // Logged in but visiting login/signup → redirect to explore
   if (
-    accessToken &&
-    (req.nextUrl.pathname === "/login" || req.nextUrl.pathname === "/signup")
+    accessToken && isPublicPage
   ) {
     console.log("✅ Redirecting to explore: Already logged in");
     return NextResponse.redirect(new URL("/explore", req.url));

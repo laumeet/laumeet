@@ -29,7 +29,7 @@ interface FemaleSignupFormProps {
 interface ProcessingImage {
   file: File;
   previewUrl: string;
-  status: 'pending' | 'processing' | 'completed' | 'error';
+  status: 'pending' | 'processing' | 'completed' | 'error' | 'no-face';
   processedUrl?: string;
 }
 
@@ -100,9 +100,9 @@ export default function FemaleSignupForm({
   // Scroll to error field when error occurs
   useEffect(() => {
     if (usernameError && usernameInputRef.current) {
-      usernameInputRef.current.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center' 
+      usernameInputRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
       });
       usernameInputRef.current.focus();
     }
@@ -110,9 +110,9 @@ export default function FemaleSignupForm({
 
   const scrollToElement = (element: HTMLElement | null) => {
     if (element) {
-      element.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center' 
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
       });
       element.focus();
     }
@@ -121,11 +121,13 @@ export default function FemaleSignupForm({
   const processSingleImage = async (file: File): Promise<string> => {
     const processor = getFaceBlurProcessor();
     await processor.ensureModelsLoaded();
-
+    
     if (isAnonymous && ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category)) {
       const emojiBlob = await processor.maskFacesWithEmojis(file);
       if (emojiBlob) {
         return await blobToBase64(emojiBlob);
+      } else {
+        throw new Error('NO_FACE_DETECTED');
       }
     }
     
@@ -134,7 +136,7 @@ export default function FemaleSignupForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     // Reset errors
     setUsernameError(null);
     setSuggestedUsernames([]);
@@ -147,6 +149,24 @@ export default function FemaleSignupForm({
 
     if (formData.pictures.length === 0) {
       toast.error("Please upload at least one photo");
+      return;
+    }
+
+    // Check if any image is still processing or has no face
+    const hasProcessingImages = processingImages.some(img => 
+      img.status === 'processing' || img.status === 'pending'
+    );
+    const hasNoFaceImages = processingImages.some(img => 
+      img.status === 'no-face'
+    );
+
+    if (hasProcessingImages) {
+      toast.error("Please wait for all images to finish processing");
+      return;
+    }
+
+    if (hasNoFaceImages) {
+      toast.error("Please replace images where no face was detected");
       return;
     }
 
@@ -176,7 +196,7 @@ export default function FemaleSignupForm({
 
     if (formData.password !== formData.confirmPassword) {
       toast.error("Passwords don't match!");
-      scrollToElement(confirmPasswordInputRef.current);
+      scrollToElement(confirmPasswordRef.current);
       return;
     }
 
@@ -218,13 +238,14 @@ export default function FemaleSignupForm({
     setIsProcessing(true);
 
     try {
-      // Process all images for final submission
+      // Process all images for final submission using processed URLs
       const processedImagesData: string[] = [];
       
-      for (let i = 0; i < formData.pictures.length; i++) {
-        const file = formData.pictures[i];
-        const base64 = await processSingleImage(file);
-        processedImagesData.push(base64);
+      for (let i = 0; i < processingImages.length; i++) {
+        const img = processingImages[i];
+        if (img.status === 'completed' && img.processedUrl) {
+          processedImagesData.push(img.processedUrl);
+        }
       }
 
       const payload = {
@@ -251,7 +272,6 @@ export default function FemaleSignupForm({
         toast.success('Profile created successfully!');
         onNext();
       }
-
     } catch (error: unknown) {
       console.error('Signup error:', error);
       if (error && typeof error === 'object' && 'response' in error) {
@@ -303,62 +323,72 @@ export default function FemaleSignupForm({
   };
 
   const handleImageUpload = async (files: FileList) => {
-    const newFiles = Array.from(files);
+    if (files.length === 0) return;
+
+    const file = files[0]; // Only take the first file
     
-    // Check if adding new files would exceed the limit
-    if (formData.pictures.length + newFiles.length > 5) {
+    // Check if adding new file would exceed the limit
+    if (formData.pictures.length >= 5) {
       toast.error(`You can only upload up to 5 photos. You already have ${formData.pictures.length}.`);
       return;
     }
 
     setIsProcessingImages(true);
 
-    // Add new files to processing queue
-    const newProcessingImages: ProcessingImage[] = newFiles.map(file => ({
+    // Add new file to processing queue
+    const newProcessingImage: ProcessingImage = {
       file,
       previewUrl: URL.createObjectURL(file),
       status: 'pending'
-    }));
+    };
 
-    setProcessingImages(prev => [...prev, ...newProcessingImages]);
+    setProcessingImages(prev => [...prev, newProcessingImage]);
     setFormData(prev => ({
       ...prev,
-      pictures: [...prev.pictures, ...newFiles],
+      pictures: [...prev.pictures, file],
     }));
 
-    // Process images one by one
-    for (let i = 0; i < newProcessingImages.length; i++) {
-      const index = processingImages.length + i;
+    const index = processingImages.length;
+
+    // Update status to processing
+    setProcessingImages(prev =>
+      prev.map((img, idx) =>
+        idx === index ? { ...img, status: 'processing' } : img
+      )
+    );
+
+    try {
+      const processedUrl = await processSingleImage(file);
       
-      // Update status to processing
-      setProcessingImages(prev => 
-        prev.map((img, idx) => 
-          idx === index ? { ...img, status: 'processing' } : img
+      // Update status to completed with processed URL
+      setProcessingImages(prev =>
+        prev.map((img, idx) =>
+          idx === index ? { ...img, status: 'completed', processedUrl } : img
         )
       );
-
-      try {
-        const processedUrl = await processSingleImage(newFiles[i]);
-        
-        // Update status to completed with processed URL
-        setProcessingImages(prev => 
-          prev.map((img, idx) => 
-            idx === index ? { ...img, status: 'completed', processedUrl } : img
+    } catch (error) {
+      console.error('Error processing image:', error);
+      
+      if (error instanceof Error && error.message === 'NO_FACE_DETECTED') {
+        // Update status to no-face
+        setProcessingImages(prev =>
+          prev.map((img, idx) =>
+            idx === index ? { ...img, status: 'no-face' } : img
           )
         );
-      } catch (error) {
-        console.error('Error processing image:', error);
+        toast.error("No face detected in the image. Please select another image.");
+      } else {
         // Update status to error
-        setProcessingImages(prev => 
-          prev.map((img, idx) => 
+        setProcessingImages(prev =>
+          prev.map((img, idx) =>
             idx === index ? { ...img, status: 'error' } : img
           )
         );
-        toast.error(`Failed to process image ${i + 1}. Using original image.`);
+        toast.error("Failed to process image. Using original image.");
       }
+    } finally {
+      setIsProcessingImages(false);
     }
-
-    setIsProcessingImages(false);
   };
 
   const removeImage = (index: number) => {
@@ -371,6 +401,7 @@ export default function FemaleSignupForm({
       ...prev,
       pictures: prev.pictures.filter((_, i) => i !== index),
     }));
+    
     setProcessingImages(prev => prev.filter((_, i) => i !== index));
   };
 
@@ -387,7 +418,6 @@ export default function FemaleSignupForm({
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-
     if (field === 'username' && usernameError) {
       setUsernameError(null);
       setSuggestedUsernames([]);
@@ -397,13 +427,15 @@ export default function FemaleSignupForm({
     if (field === 'category' && isAnonymous && formData.pictures.length > 0) {
       const isSensitiveCategory = ["Hook Up", "Sex Chat", "Fuck Mate"].includes(value);
       const wasSensitiveCategory = ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category);
-
+      
       if (isSensitiveCategory !== wasSensitiveCategory) {
         toast.info("Reprocessing images for new privacy settings...");
         // Trigger reprocessing by re-uploading current files
         const dataTransfer = new DataTransfer();
         formData.pictures.forEach(file => dataTransfer.items.add(file));
-        handleImageUpload(dataTransfer.files);
+        if (dataTransfer.files.length > 0) {
+          handleImageUpload(dataTransfer.files);
+        }
       }
     }
   };
@@ -436,7 +468,7 @@ export default function FemaleSignupForm({
 
   const academicLevels = [
     "100 Level",
-    "200 Level", 
+    "200 Level",
     "300 Level",
     "400 Level",
     "500 Level",
@@ -460,6 +492,7 @@ export default function FemaleSignupForm({
       case 'processing': return 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20';
       case 'completed': return 'border-green-400 bg-green-50 dark:bg-green-900/20';
       case 'error': return 'border-red-400 bg-red-50 dark:bg-red-900/20';
+      case 'no-face': return 'border-orange-400 bg-orange-50 dark:bg-orange-900/20';
       default: return 'border-gray-200 dark:border-gray-700';
     }
   };
@@ -470,6 +503,7 @@ export default function FemaleSignupForm({
       case 'processing': return 'Processing...';
       case 'completed': return 'Ready';
       case 'error': return 'Error';
+      case 'no-face': return 'No Face';
       default: return '';
     }
   };
@@ -538,16 +572,16 @@ export default function FemaleSignupForm({
             getStatusText={getStatusText}
           />
 
-          {isAnonymous &&
-            ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category) && (
-              <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                <p className="text-amber-700 dark:text-amber-300 text-xs">
-                  <strong>Privacy Note:</strong> Your face will be automatically covered with emojis for privacy. 
-                  This may take a few moments to process.
-                </p>
-              </div>
-            )}
+          {isAnonymous && 
+           ["Hook Up", "Sex Chat", "Fuck Mate"].includes(formData.category) && (
+            <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <p className="text-amber-700 dark:text-amber-300 text-xs">
+                <strong>Privacy Note:</strong> Your face will be automatically covered with emojis for privacy.
+                This may take a few moments to process.
+              </p>
+            </div>
+          )}
 
           {isProcessingImages && (
             <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
@@ -556,6 +590,7 @@ export default function FemaleSignupForm({
             </div>
           )}
         </div>
+
 
         {/* Rest of the form remains the same */}
         <div className="space-y-2">

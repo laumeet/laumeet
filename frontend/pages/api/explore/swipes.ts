@@ -1,61 +1,41 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// pages/api/explore/swipe.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 
-const getBackendUrl = () => {
-  if (process.env.NODE_ENV === "production" && process.env.BACKEND_URL) {
-    return process.env.BACKEND_URL;
-  }
-  
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("BACKEND_URL environment variable is required in production");
-  }
-  
-  return "http://127.0.0.1:5000";
-};
+const BACKEND_URL = process.env.NODE_ENV === "development" 
+  ? "http://localhost:5000" 
+  : "https://laumeet.onrender.com";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method === "OPTIONS") {
-    return res.status(200).json({ success: true });
-  }
-
   if (req.method !== "POST") {
-    return res.status(405).json({ message: "Method not allowed" });
+    return res.status(405).json({ success: false, message: "Method not allowed" });
   }
 
   try {
-    const BACKEND_URL = getBackendUrl();
-    console.log(`🔧 Forwarding login request to: ${BACKEND_URL}/swipe`);
-    
+    console.log("🔧 Swipe request received. Cookie:", req.headers.cookie);
+
     const backendRes = await fetch(`${BACKEND_URL}/swipe`, {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
-        "Accept": "application/json"
+        // Pass the original cookie from the browser for session/auth
+        Cookie: req.headers.cookie || "",
       },
+      // Make sure cookies are included
+      credentials: "include",
       body: JSON.stringify(req.body),
     });
 
     const data = await backendRes.json();
-    const setCookie = backendRes.headers.get("set-cookie");
-    
-    if (setCookie) {
-      res.setHeader("set-cookie", setCookie);
-    }
+
+    console.log("✅ Backend swipe response:", backendRes.status, data);
 
     return res.status(backendRes.status).json(data);
-    
   } catch (err: any) {
-    console.error("❌ Login proxy error:", err);
-    
-    let errorMessage = "Unable to login. Please try again later.";
-    
-    if (err.message?.includes("ECONNREFUSED") || err.message?.includes("fetch failed")) {
-      errorMessage = "Cannot connect to authentication service. Please check if the backend server is running.";
-    }
-    
-    return res.status(500).json({ 
+    console.error("❌ Swipe proxy error:", err.message);
+    return res.status(500).json({
       success: false,
-      message: errorMessage
+      message: "Unable to reach swipe service",
     });
   }
 }

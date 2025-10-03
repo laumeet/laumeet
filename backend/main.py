@@ -378,6 +378,28 @@ def user_identity_lookup(user):
     return user  # Return as-is if already a string (public_id)
 
 
+
+
+
+def build_image_url(image_path: str) -> str:
+    """
+    Convert stored image string into a proper URL or base64 string
+    - If it's already base64 (starts with 'data:image/'), return as is
+    - If it's a full http/https URL, return as is
+    - If it's just a filename/path, build a full URL
+    """
+    if not image_path:
+        return None
+
+    if image_path.startswith(("http://", "https://", "data:image/")):
+        return image_path
+
+    # Assume it's a local file in static/uploads
+    return url_for("static", filename=f"uploads/{image_path}", _external=True)
+
+
+
+
 import base64
 from PIL import Image
 import io

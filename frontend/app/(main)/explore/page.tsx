@@ -78,7 +78,7 @@ export default function ExplorePage() {
         
         if (result.match) {
           const matchedUser = profiles.find((profile) => profile.id === result.matched_with)
-          toast(`It's a match with ${matchedUser.username}! 🎉`, {
+          toast(`It's a match with ${matchedUser?.username}! 🎉`, {
             icon: '💖',
             duration: 8000
           });

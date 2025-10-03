@@ -66,6 +66,487 @@ jwt = JWTManager(app)  # JWT manager for authentication
 reset_attempts = {}
 
 
+
+
+
+
+
+
+
+
+
+
+# Initialize SocketIO after your app configuration
+socketio = SocketIO(app, cors_allowed_origins=[
+    "https://laumeet.vercel.app",
+    "http://localhost:3000", 
+    "http://127.0.0.1:3000"
+], async_mode='eventlet')
+
+# Store online users (in production, use Redis instead)
+online_users = {}
+
+# SocketIO Authentication Middleware
+@socketio.on('connect')
+def handle_connect():
+    """
+    Handle user connection with JWT authentication
+    Update user's online status
+    """
+    try:
+        # Get token from query string or headers
+        token = flask_request.args.get('token') or flask_request.headers.get('Authorization')
+        
+        if not token:
+            print("DEBUG: No token provided for SocketIO connection")
+            return False
+        
+        # Remove 'Bearer ' prefix if present
+        if token.startswith('Bearer '):
+            token = token[7:]
+        
+        # Verify JWT token
+        from flask_jwt_extended import decode_token
+        try:
+            decoded_token = decode_token(token)
+            user_public_id = decoded_token['sub']
+            
+            # Find user in database
+            user = User.query.filter_by(public_id=user_public_id).first()
+            if not user:
+                print(f"DEBUG: User not found for public_id: {user_public_id}")
+                return False
+            
+            # Store user connection info
+            online_users[user.id] = {
+                'public_id': user.public_id,
+                'username': user.username,
+                'sid': flask_request.sid,
+                'is_online': True
+            }
+            
+            # Join user to their personal room for private notifications
+            join_room(f"user_{user.id}")
+            
+            # Broadcast online status to user's conversations
+            broadcast_online_status(user.id, True)
+            
+            print(f"DEBUG: User {user.username} connected with SID: {flask_request.sid}")
+            
+        except Exception as e:
+            print(f"DEBUG: JWT decode error: {str(e)}")
+            return False
+            
+    except Exception as e:
+        print(f"DEBUG: Connection error: {str(e)}")
+        return False
+    
+    return True
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """
+    Handle user disconnection
+    Update user's online status
+    """
+    try:
+        # Find user by socket ID
+        user_id = None
+        for uid, user_data in online_users.items():
+            if user_data['sid'] == flask_request.sid:
+                user_id = uid
+                break
+        
+        if user_id:
+            # Remove from online users
+            user_data = online_users.pop(user_id, None)
+            
+            if user_data:
+                # Broadcast offline status to user's conversations
+                broadcast_online_status(user_id, False)
+                
+                print(f"DEBUG: User {user_data['username']} disconnected")
+                
+    except Exception as e:
+        print(f"DEBUG: Disconnect error: {str(e)}")
+
+
+def broadcast_online_status(user_id, is_online):
+    """
+    Broadcast user's online status to all their conversations
+    """
+    try:
+        # Find all conversations for this user
+        conversations = Conversation.query.filter(
+            or_(
+                Conversation.user1_id == user_id,
+                Conversation.user2_id == user_id
+            )
+        ).all()
+        
+        for conversation in conversations:
+            # Determine the other user in the conversation
+            other_user_id = conversation.user2_id if conversation.user1_id == user_id else conversation.user1_id
+            
+            # Emit online status to the other user
+            emit('user_online_status', {
+                'user_id': user_id,
+                'is_online': is_online,
+                'timestamp': datetime.utcnow().isoformat() + "Z"
+            }, room=f"user_{other_user_id}")
+            
+    except Exception as e:
+        print(f"DEBUG: Online status broadcast error: {str(e)}")
+
+
+@socketio.on('join_conversation')
+def handle_join_conversation(data):
+    """
+    Join a specific conversation room
+    Room name: conversation_<conversation_id>
+    """
+    try:
+        conversation_id = data.get('conversation_id')
+        if not conversation_id:
+            emit('error', {'message': 'Conversation ID is required'})
+            return
+        
+        # Get user from online users
+        user_id = None
+        for uid, user_data in online_users.items():
+            if user_data['sid'] == flask_request.sid:
+                user_id = uid
+                break
+        
+        if not user_id:
+            emit('error', {'message': 'User not authenticated'})
+            return
+        
+        # Verify user has access to this conversation
+        conversation = Conversation.query.get(conversation_id)
+        if not conversation:
+            emit('error', {'message': 'Conversation not found'})
+            return
+        
+        if user_id not in [conversation.user1_id, conversation.user2_id]:
+            emit('error', {'message': 'Access denied to conversation'})
+            return
+        
+        # Join the conversation room
+        room_name = f"conversation_{conversation_id}"
+        join_room(room_name)
+        
+        # Mark messages as read when joining conversation
+        unread_messages = Message.query.filter(
+            Message.conversation_id == conversation_id,
+            Message.sender_id != user_id,
+            Message.is_read == False
+        ).all()
+        
+        for msg in unread_messages:
+            msg.is_read = True
+        
+        if unread_messages:
+            db.session.commit()
+            
+            # Notify sender that messages were read
+            for msg in unread_messages:
+                emit('messages_read', {
+                    'conversation_id': conversation_id,
+                    'message_ids': [msg.id],
+                    'read_by': user_id,
+                    'timestamp': datetime.utcnow().isoformat() + "Z"
+                }, room=f"user_{msg.sender_id}")
+        
+        print(f"DEBUG: User {user_id} joined conversation room: {room_name}")
+        emit('joined_conversation', {
+            'conversation_id': conversation_id,
+            'message': 'Successfully joined conversation'
+        })
+        
+    except Exception as e:
+        print(f"DEBUG: Join conversation error: {str(e)}")
+        emit('error', {'message': 'Failed to join conversation'})
+
+
+@socketio.on('leave_conversation')
+def handle_leave_conversation(data):
+    """
+    Leave a specific conversation room
+    """
+    try:
+        conversation_id = data.get('conversation_id')
+        if not conversation_id:
+            emit('error', {'message': 'Conversation ID is required'})
+            return
+        
+        room_name = f"conversation_{conversation_id}"
+        leave_room(room_name)
+        
+        print(f"DEBUG: User left conversation room: {room_name}")
+        emit('left_conversation', {
+            'conversation_id': conversation_id,
+            'message': 'Successfully left conversation'
+        })
+        
+    except Exception as e:
+        print(f"DEBUG: Leave conversation error: {str(e)}")
+        emit('error', {'message': 'Failed to leave conversation'})
+
+
+@socketio.on('send_message')
+def handle_send_message(data):
+    """
+    Send a message in real-time
+    Save to database and broadcast to conversation room
+    """
+    try:
+        conversation_id = data.get('conversation_id')
+        content = data.get('content', '').strip()
+        
+        if not conversation_id:
+            emit('error', {'message': 'Conversation ID is required'})
+            return
+        
+        if not content:
+            emit('error', {'message': 'Message content cannot be empty'})
+            return
+        
+        if len(content) > 1000:
+            emit('error', {'message': 'Message too long (max 1000 characters)'})
+            return
+        
+        # Get sender from online users
+        sender_id = None
+        sender_data = None
+        for uid, user_data in online_users.items():
+            if user_data['sid'] == flask_request.sid:
+                sender_id = uid
+                sender_data = user_data
+                break
+        
+        if not sender_id:
+            emit('error', {'message': 'User not authenticated'})
+            return
+        
+        # Verify conversation exists and user has access
+        conversation = Conversation.query.get(conversation_id)
+        if not conversation:
+            emit('error', {'message': 'Conversation not found'})
+            return
+        
+        if sender_id not in [conversation.user1_id, conversation.user2_id]:
+            emit('error', {'message': 'Access denied to conversation'})
+            return
+        
+        # Determine recipient
+        recipient_id = conversation.user2_id if conversation.user1_id == sender_id else conversation.user1_id
+        
+        # Create and save message
+        new_message = Message(
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+            content=content,
+            is_read=False,
+            timestamp=datetime.utcnow()
+        )
+        
+        # Update conversation's last message
+        conversation.last_message = content
+        conversation.last_message_at = datetime.utcnow()
+        
+        db.session.add(new_message)
+        db.session.commit()
+        
+        # Prepare message data for broadcast
+        message_data = {
+            'id': new_message.id,
+            'conversation_id': conversation_id,
+            'sender_id': sender_data['public_id'],
+            'sender_username': sender_data['username'],
+            'content': content,
+            'is_read': False,
+            'timestamp': new_message.timestamp.isoformat() + "Z"
+        }
+        
+        # Broadcast to conversation room
+        room_name = f"conversation_{conversation_id}"
+        emit('new_message', message_data, room=room_name)
+        
+        # Also send to recipient's personal room if they're not in conversation room
+        emit('new_message', message_data, room=f"user_{recipient_id}")
+        
+        print(f"DEBUG: Message sent in conversation {conversation_id} by user {sender_id}")
+        
+    except Exception as e:
+        print(f"DEBUG: Send message error: {str(e)}")
+        emit('error', {'message': 'Failed to send message'})
+
+
+@socketio.on('typing')
+def handle_typing(data):
+    """
+    Notify other users in conversation that someone is typing
+    """
+    try:
+        conversation_id = data.get('conversation_id')
+        is_typing = data.get('is_typing', True)
+        
+        if not conversation_id:
+            emit('error', {'message': 'Conversation ID is required'})
+            return
+        
+        # Get sender from online users
+        sender_id = None
+        sender_data = None
+        for uid, user_data in online_users.items():
+            if user_data['sid'] == flask_request.sid:
+                sender_id = uid
+                sender_data = user_data
+                break
+        
+        if not sender_id:
+            emit('error', {'message': 'User not authenticated'})
+            return
+        
+        # Verify conversation exists and user has access
+        conversation = Conversation.query.get(conversation_id)
+        if not conversation:
+            emit('error', {'message': 'Conversation not found'})
+            return
+        
+        if sender_id not in [conversation.user1_id, conversation.user2_id]:
+            emit('error', {'message': 'Access denied to conversation'})
+            return
+        
+        # Determine recipient
+        recipient_id = conversation.user2_id if conversation.user1_id == sender_id else conversation.user1_id
+        
+        # Broadcast typing indicator to conversation room (excluding sender)
+        room_name = f"conversation_{conversation_id}"
+        emit('user_typing', {
+            'conversation_id': conversation_id,
+            'user_id': sender_data['public_id'],
+            'username': sender_data['username'],
+            'is_typing': is_typing,
+            'timestamp': datetime.utcnow().isoformat() + "Z"
+        }, room=room_name, include_self=False)
+        
+        # Also send to recipient's personal room
+        emit('user_typing', {
+            'conversation_id': conversation_id,
+            'user_id': sender_data['public_id'],
+            'username': sender_data['username'],
+            'is_typing': is_typing,
+            'timestamp': datetime.utcnow().isoformat() + "Z"
+        }, room=f"user_{recipient_id}")
+        
+    except Exception as e:
+        print(f"DEBUG: Typing indicator error: {str(e)}")
+        emit('error', {'message': 'Failed to send typing indicator'})
+
+
+@socketio.on('read_messages')
+def handle_read_messages(data):
+    """
+    Mark messages as read in real-time
+    """
+    try:
+        conversation_id = data.get('conversation_id')
+        message_ids = data.get('message_ids', [])
+        
+        if not conversation_id:
+            emit('error', {'message': 'Conversation ID is required'})
+            return
+        
+        # Get reader from online users
+        reader_id = None
+        for uid, user_data in online_users.items():
+            if user_data['sid'] == flask_request.sid:
+                reader_id = uid
+                break
+        
+        if not reader_id:
+            emit('error', {'message': 'User not authenticated'})
+            return
+        
+        # Verify conversation exists and user has access
+        conversation = Conversation.query.get(conversation_id)
+        if not conversation:
+            emit('error', {'message': 'Conversation not found'})
+            return
+        
+        if reader_id not in [conversation.user1_id, conversation.user2_id]:
+            emit('error', {'message': 'Access denied to conversation'})
+            return
+        
+        # Mark specific messages as read, or all unread messages in conversation
+        if message_ids:
+            messages = Message.query.filter(
+                Message.id.in_(message_ids),
+                Message.conversation_id == conversation_id,
+                Message.sender_id != reader_id  # Only mark others' messages as read
+            ).all()
+        else:
+            messages = Message.query.filter(
+                Message.conversation_id == conversation_id,
+                Message.sender_id != reader_id,
+                Message.is_read == False
+            ).all()
+        
+        message_ids_updated = []
+        for msg in messages:
+            msg.is_read = True
+            message_ids_updated.append(msg.id)
+        
+        if message_ids_updated:
+            db.session.commit()
+            
+            # Notify sender that messages were read
+            for msg in messages:
+                emit('messages_read', {
+                    'conversation_id': conversation_id,
+                    'message_ids': message_ids_updated,
+                    'read_by': reader_id,
+                    'timestamp': datetime.utcnow().isoformat() + "Z"
+                }, room=f"user_{msg.sender_id}")
+            
+            print(f"DEBUG: User {reader_id} marked {len(message_ids_updated)} messages as read in conversation {conversation_id}")
+        
+        emit('messages_read_success', {
+            'conversation_id': conversation_id,
+            'message_ids': message_ids_updated,
+            'count': len(message_ids_updated)
+        })
+        
+    except Exception as e:
+        print(f"DEBUG: Read messages error: {str(e)}")
+        emit('error', {'message': 'Failed to mark messages as read'})
+
+
+# Update your main application entry point to use SocketIO
+if __name__ == "__main__":
+    # Ensure database tables are created before running the app
+    with app.app_context():
+        db.create_all()
+    
+    # Use SocketIO instead of app.run() for WebSocket support
+    socketio.run(
+        app,
+        debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true",
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        allow_unsafe_werkzeug=True
+    )
+
+
+
+
+
+
+
+
 def rate_limit(max_attempts=5, window_seconds=300):
     """
     Decorator function to implement rate limiting on routes

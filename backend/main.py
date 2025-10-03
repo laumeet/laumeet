@@ -1,7 +1,7 @@
 # Import necessary modules and libraries
 from flask import Flask, request, jsonify  # Flask web framework and request/response handling
 from flask_sqlalchemy import SQLAlchemy  # SQLAlchemy for database ORM
-from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey  # SQLAlchemy column types
+from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, func  # SQLAlchemy column types
 from sqlalchemy.orm import mapped_column, Mapped, relationship  # SQLAlchemy ORM features
 from werkzeug.security import generate_password_hash, check_password_hash  # Password hashing utilities
 from flask_jwt_extended import (  # JWT authentication utilities

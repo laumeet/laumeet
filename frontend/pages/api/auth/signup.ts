@@ -3,18 +3,15 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 // Get backend URL from environment variable with proper fallbacks
 const getBackendUrl = () => {
-  // Always use environment variable if set
-  if (process.env.BACKEND_URL) {
+  if (process.env.NODE_ENV === "production" && process.env.BACKEND_URL) {
     return process.env.BACKEND_URL;
   }
   
-  // In production, don't fall back to localhost
   if (process.env.NODE_ENV === "production") {
     throw new Error("BACKEND_URL environment variable is required in production");
   }
   
-  // Only use localhost in development
-  return "http://localhost:5000";
+  return "http://127.0.0.1:5000";
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

@@ -3,7 +3,7 @@
 
 import { Home, Search, MessageCircle, User, Plus, Heart, Image, Calendar } from 'lucide-react';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 interface AdvancedBottomNavProps {
   activeTab: string;
@@ -13,6 +13,8 @@ interface AdvancedBottomNavProps {
 export default function AdvancedBottomNav({ activeTab, onTabChange }: AdvancedBottomNavProps) {
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
+ if (pathname && pathname.startsWith('/chat/') && pathname !== '/chat') return
 
   const navItems = [
     { id: 'feed', icon: Home, label: 'Feed' },

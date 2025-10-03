@@ -164,7 +164,7 @@ export default function ProfilePage() {
   const interests = ["male", "female", "both"];
 
   return (
-    <div className="space-y-6 pb-6">
+    <div className="space-y-6 pb-28">
       {/* Profile Header */}
       <div className="text-center">
         <div className="relative inline-block mb-4">

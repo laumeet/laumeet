@@ -203,7 +203,7 @@ export default function ExplorePage() {
   }
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-28">
       {/* Header with Filters */}
       <div className="flex items-center justify-between">
         <div>

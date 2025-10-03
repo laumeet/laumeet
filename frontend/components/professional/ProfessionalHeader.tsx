@@ -2,11 +2,13 @@
 // components/professional/ProfessionalHeader.tsx
 'use client';
 
-import { Bell, Search, MessageCircle, User, Settings, LogOut, Home, Heart } from 'lucide-react';
+import { Bell, Search, MessageCircle, User, Settings, LogOut, Home, Heart, Loader2 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import api from '@/lib/axio';
+import { useProfile } from '@/hooks/get-profile';
+import { Button } from '../ui/button';
 
 interface ProfessionalHeaderProps {
   activeTab: string;
@@ -14,8 +16,7 @@ interface ProfessionalHeaderProps {
 
 export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProps) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<{ name: string; username: string } | null>(null);
+  const [logoutLoading, setLogoutLoading] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -31,27 +32,8 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
     };
     return config[activeTab as keyof typeof config] || config.feed;
   };
+ const { profile, loading, error, refetch } = useProfile();
 
-  // Fetch user data on component mount
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        // Try to get user data from localStorage or API
-        const userData = localStorage.getItem('currentUser');
-        if (userData) {
-          setUser(JSON.parse(userData));
-        } else {
-          // Fallback to a default user
-          setUser({ name: 'Student', username: 'user' });
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        setUser({ name: 'Student', username: 'user' });
-      }
-    };
-
-    fetchUserData();
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -65,7 +47,7 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
   }, []);
 
   const handleLogout = async () => {
-    setLoading(true);
+    setLogoutLoading(true);
     try {
       const response = await api.post("/auth/logout");
 
@@ -98,7 +80,7 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
       });
       router.push("/login");
     } finally {
-      setLoading(false);
+      setLogoutLoading(false);
     }
   };
 
@@ -111,6 +93,7 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
     setShowProfileMenu(false);
     router.push('/settings');
   };
+
 
   const titleConfig = getTitleConfig();
   const IconComponent = titleConfig.icon;
@@ -128,9 +111,7 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
               <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {titleConfig.title}
               </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {user ? `Welcome, ${user.name}` : 'Campus Vibes'}
-              </p>
+          
             </div>
           </div>
 
@@ -150,10 +131,10 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
                   {/* User Info */}
                   <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {user?.name || 'User'}
+                      {profile?.name || 'User'}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      @{user?.username || 'username'}
+                      @{profile?.username || 'username'}
                     </p>
                   </div>
 
@@ -178,11 +159,11 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
                   <div className="border-t border-gray-100 dark:border-gray-700 mt-1 pt-1">
                     <button 
                       onClick={handleLogout}
-                      disabled={loading}
+                      disabled={logoutLoading}
                       className="w-full px-4 py-3 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center disabled:opacity-50"
                     >
                       <LogOut className="h-4 w-4 mr-3" />
-                      {loading ? 'Signing Out...' : 'Sign Out'}
+                      {logoutLoading ? 'Signing Out...' : 'Sign Out'}
                     </button>
                   </div>
                 </div>

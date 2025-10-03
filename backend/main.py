@@ -25,7 +25,7 @@ app = Flask(__name__)
 CORS(
     app,
     supports_credentials=True,
-    resources={r"/*": {"origins": "https://laumeet.vercel.app"}}
+    resources={r"/*": {"origins": ["https://laumeet.vercel.app","https://localhost:3000","https://127.0.0.1:3000"]}}
 )
 
 import os

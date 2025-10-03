@@ -842,7 +842,7 @@ def explore():
     if not current_user:
         return jsonify({"success": False, "message": "User not found"}), 404
 
-    # Get IDs of users already swiped by current user
+    # Get IDs of users already swiped by current user (liked or passed)
     swiped_ids = db.session.query(Swipe.target_user_id).filter_by(user_id=current_user.id).all()
     swiped_ids = [s[0] for s in swiped_ids]  # Extract IDs from tuples
 
@@ -850,12 +850,12 @@ def explore():
     page = int(request.args.get("page", 1))
     limit = int(request.args.get("limit", 10))
 
-    # Base query (exclude self and already swiped)
+    # Base query (exclude self and already swiped users)
     query = User.query.filter(User.id != current_user.id)
     if swiped_ids:
         query = query.filter(~User.id.in_(swiped_ids))
 
-    # Match logic based on interested_in
+    # Match logic based on 'interested_in'
     if current_user.interested_in == "Male":
         query = query.filter(User.gender == "Male")
     elif current_user.interested_in == "Female":
@@ -863,7 +863,7 @@ def explore():
     elif current_user.interested_in == "Both":
         query = query.filter(User.gender.in_(["Male", "Female"]))
     else:
-        # Default fallback: show all users
+        # Default fallback: show all users (excluding self + swiped)
         query = query.filter(User.gender.in_(["Male", "Female"]))
 
     # Get paginated random users
@@ -874,11 +874,14 @@ def explore():
         .all()
     )
 
-    # Fallback: if no candidates found, show any users except self
+    # Fallback: if no candidates found, still exclude swiped users
     if not candidates:
+        query = User.query.filter(User.id != current_user.id)
+        if swiped_ids:
+            query = query.filter(~User.id.in_(swiped_ids))
+
         candidates = (
-            User.query.filter(User.id != current_user.id)
-            .order_by(func.random())
+            query.order_by(func.random())
             .offset((page - 1) * limit)
             .limit(limit)
             .all()

@@ -266,6 +266,132 @@ class TokenBlocklist(db.Model):
     user = db.relationship('User', lazy='joined')
 
 
+
+
+
+class Conversation(db.Model):
+    """
+    Conversation model for managing chat conversations between two users
+    Each conversation represents a unique chat between two users
+    """
+    __tablename__ = "conversations"  # Database table name
+
+    # Primary key
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    
+    # Foreign keys to users table - represents the two users in the conversation
+    user1_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    user2_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    
+    # Timestamp when conversation was created
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Optional: Store the latest message content for quick access
+    last_message: Mapped[str] = mapped_column(String(500), nullable=True)
+    
+    # Timestamp when the last message was sent
+    last_message_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+
+    # Relationships
+    # Relationship to User model for user1
+    user1 = relationship("User", foreign_keys=[user1_id], backref="conversations_as_user1")
+    
+    # Relationship to User model for user2  
+    user2 = relationship("User", foreign_keys=[user2_id], backref="conversations_as_user2")
+    
+    # Relationship to Message model - one conversation can have many messages
+    # cascade="all, delete-orphan" ensures messages are deleted when conversation is deleted
+    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan", passive_deletes=True)
+
+    def to_dict(self, current_user_id=None):
+        """
+        Convert Conversation object to dictionary for JSON response
+        Args:
+            current_user_id: The ID of the current user to determine the other participant
+        Returns:
+            Dictionary representation of the conversation
+        """
+        # Determine the other participant in the conversation
+        other_user = self.user2 if self.user1_id == current_user_id else self.user1
+        
+        return {
+            "id": self.id,
+            "user1_id": self.user1_id,
+            "user2_id": self.user2_id,
+            "other_user": {
+                "id": other_user.public_id,
+                "username": other_user.username,
+                "name": other_user.name,
+                "avatar": build_image_url(other_user.pictures[0].image) if other_user.pictures else None
+            },
+            "last_message": self.last_message,
+            "last_message_at": self.last_message_at.isoformat() + "Z" if self.last_message_at else None,
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+            "unread_count": len([msg for msg in self.messages if not msg.is_read and msg.sender_id != current_user_id]) if current_user_id else 0
+        }
+
+    def __repr__(self):
+        """String representation of Conversation object for debugging"""
+        return f"<Conversation {self.id} between User{self.user1_id} and User{self.user2_id}>"
+
+
+class Message(db.Model):
+    """
+    Message model for storing individual chat messages
+    Each message belongs to a conversation and has a sender
+    """
+    __tablename__ = "messages"  # Database table name
+
+    # Primary key
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    
+    # Foreign key to conversations table
+    conversation_id: Mapped[int] = mapped_column(Integer, ForeignKey('conversations.id', ondelete='CASCADE'), nullable=False)
+    
+    # Foreign key to users table - who sent the message
+    sender_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    
+    # Message content
+    content: Mapped[str] = mapped_column(String(1000), nullable=False)
+    
+    # Whether the message has been read by the recipient
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    # When the message was sent
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    # Relationship to Conversation model
+    conversation = relationship("Conversation", back_populates="messages")
+    
+    # Relationship to User model - who sent the message
+    sender = relationship("User", backref="sent_messages")
+
+    def to_dict(self):
+        """
+        Convert Message object to dictionary for JSON response
+        Returns:
+            Dictionary representation of the message
+        """
+        return {
+            "id": self.id,
+            "conversation_id": self.conversation_id,
+            "sender_id": self.sender.public_id,  # Use public_id for security
+            "sender_username": self.sender.username,
+            "content": self.content,
+            "is_read": self.is_read,
+            "timestamp": self.timestamp.isoformat() + "Z" if self.timestamp else None
+        }
+
+    def __repr__(self):
+        """String representation of Message object for debugging"""
+        return f"<Message {self.id} in Conversation {self.conversation_id} from User{self.sender_id}>"
+
+
+
+
+
+
 # Validation Functions
 
 def is_valid_username(username):

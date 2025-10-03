@@ -831,7 +831,7 @@ def update_my_profile():
 def explore():
     """
     Explore endpoint for discovering potential matches
-    Returns random users of opposite gender (or both genders for 'other')
+    Returns users based on the current user's 'interested_in' preference
     Excludes users already swiped on by current user
     Includes pagination for performance
     """
@@ -842,9 +842,6 @@ def explore():
     if not current_user:
         return jsonify({"success": False, "message": "User not found"}), 404
 
-    # Enhanced gender matching logic to handle "other" gender
-    opposite_genders = get_opposite_gender(current_user.gender)
-
     # Get IDs of users already swiped by current user
     swiped_ids = db.session.query(Swipe.target_user_id).filter_by(user_id=current_user.id).all()
     swiped_ids = [s[0] for s in swiped_ids]  # Extract IDs from tuples
@@ -853,16 +850,21 @@ def explore():
     page = int(request.args.get("page", 1))
     limit = int(request.args.get("limit", 10))
 
-    # Build query based on gender matching
+    # Base query (exclude self and already swiped)
     query = User.query.filter(User.id != current_user.id)
-
     if swiped_ids:
         query = query.filter(~User.id.in_(swiped_ids))
 
-    if isinstance(opposite_genders, list):
-        query = query.filter(User.gender.in_(opposite_genders))
+    # Match logic based on interested_in
+    if current_user.interested_in == "Male":
+        query = query.filter(User.gender == "Male")
+    elif current_user.interested_in == "Female":
+        query = query.filter(User.gender == "Female")
+    elif current_user.interested_in == "Both":
+        query = query.filter(User.gender.in_(["Male", "Female"]))
     else:
-        query = query.filter(User.gender == opposite_genders)
+        # Default fallback: show all users
+        query = query.filter(User.gender.in_(["Male", "Female"]))
 
     # Get paginated random users
     candidates = (
@@ -872,16 +874,8 @@ def explore():
         .all()
     )
 
-    # Debug logs
-    print("DEBUG: Current user:", current_user.username, "| Gender:", current_user.gender)
-    print("DEBUG: Opposite genders filter:", opposite_genders)
-    print("DEBUG: Already swiped IDs:", swiped_ids)
-    print("DEBUG: Total users in DB:", User.query.count())
-    print("DEBUG: Candidates found:", [u.username for u in candidates])
-
     # Fallback: if no candidates found, show any users except self
     if not candidates:
-        print("DEBUG: No candidates found, falling back to all users except self.")
         candidates = (
             User.query.filter(User.id != current_user.id)
             .order_by(func.random())
@@ -893,9 +887,11 @@ def explore():
     # Format response data
     result = [
         {
-            "id": user.public_id,  # Use public_id for frontend
+            "id": user.public_id,
             "username": user.username,
             "bio": user.bio,
+            "gender": user.gender,
+            "interestedIn": user.interested_in,
             "avatar": user.pictures[0].image if user.pictures else None
         }
         for user in candidates

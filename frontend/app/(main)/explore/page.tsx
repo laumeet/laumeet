@@ -1,9 +1,9 @@
 // app/(main)/explore/page.tsx
 'use client';
 
-import { useState, useRef, useMemo, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { 
-  Heart, X, Shield, Info, Filter, MapPin, Calendar, Users, 
+  Heart, X,Filter, MapPin, Calendar, Users, 
   Loader2, AlertCircle, ChevronLeft, ChevronRight 
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,26 +12,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useExploreProfiles } from '@/hooks/use-explore-profiles';
 import { toast } from 'sonner';
 import TinderCard from 'react-tinder-card';
-
-interface Profile {
-  id: string;
-  username: string;
-  name: string;
-  age: number;
-  bio: string;
-  images: string[];
-  category: string;
-  isAnonymous: boolean;
-  department: string;
-  interests: string[];
-  distance: number;
-  compatibility: number;
-  level: string;
-  gender: string;
-  interestedIn: string;
-  religious: string;
-  genotype: string;
-}
 
 export default function ExplorePage() {
   const { 
@@ -95,26 +75,20 @@ export default function ExplorePage() {
     try {
       const action = direction === 'right' ? 'like' : 'pass';
       const result = await swipeProfile(profileId, action);
-      
-      if (result.success) {
-        if (direction === 'right') {
-          if (result.match) {
-            toast.success(`It's a match with ${profiles[index]?.name}! 🎉`);
-          } else {
-            toast.success(`Liked ${profiles[index]?.name}!`);
-          }
-        } else {
-          toast.info(`Passed on ${profiles[index]?.name}`);
+        toast.success(result.message);
+        if (result.match) {
+          toast(`It's a match with ${result.matched_with}! 🎉`, {
+            icon: '💖',
+            duration: 8000
+          });
         }
-      } else {
-        toast.error(result.message || `Failed to ${action} profile`);
-      }
     } catch (err) {
       toast.error('An error occurred while processing your swipe');
+      updateCurrentIndex(index); // Stay on current card on error
     } finally {
       setIsSwiping(false);
     }
-  }, [profiles, swipeProfile]);
+  }, [swipeProfile]);
 
   const outOfFrame = useCallback((name: string, idx: number) => {
     console.log(`${name} (${idx}) left the screen!`, currentIndexRef.current);
@@ -128,8 +102,7 @@ export default function ExplorePage() {
     await swiped(dir, profile.id, currentIndexRef.current);
   }, [swiped, profiles, currentIndexRef]);
 
-  // Can go back function (optional)
-  const canGoBack = currentIndex < profiles.length - 1;
+
 
   const canSwipe = currentIndex >= 0;
 
@@ -224,13 +197,14 @@ export default function ExplorePage() {
           const currentImageIndex = getCurrentImageIndex(profile.id);
           const hasMultipleImages = profile.images && profile.images.length > 1;
           const totalImages = profile.images?.length || 0;
+          const displayName = profile.name || profile.username;
           
           return (
             <TinderCard
               key={profile.id}
               className="absolute w-full h-full"
               onSwipe={(dir) => swiped(dir, profile.id, index)}
-              onCardLeftScreen={() => outOfFrame(profile.name, index)}
+              onCardLeftScreen={() => outOfFrame(displayName, index)}
               preventSwipe={['up', 'down']}
             >
               <Card className="h-full w-full cursor-grab active:cursor-grabbing shadow-2xl border-0">
@@ -244,7 +218,7 @@ export default function ExplorePage() {
                           {/* Current Image */}
                           <img 
                             src={profile.images[currentImageIndex] || '/api/placeholder/400/500'} 
-                            alt={`${profile.name} - Image ${currentImageIndex + 1}`}
+                            alt={`${displayName} - Image ${currentImageIndex + 1}`}
                             className="w-full h-full object-cover transition-transform duration-300"
                             onError={(e) => {
                               e.currentTarget.src = '/api/placeholder/400/500';
@@ -307,12 +281,6 @@ export default function ExplorePage() {
                     {/* Profile Badges */}
                     <div className="absolute top-4 right-4 flex flex-col space-y-2 z-20">
                       <div className="flex space-x-2">
-                        {profile.isAnonymous && (
-                          <span className="bg-purple-500/90 text-white px-3 py-1 rounded-full text-xs font-medium backdrop-blur-sm">
-                            <Shield className="h-3 w-3 inline mr-1" />
-                            Anonymous
-                          </span>
-                        )}
                         <span className="bg-green-500/90 text-white px-3 py-1 rounded-full text-xs font-medium backdrop-blur-sm">
                           {profile.compatibility}% Match
                         </span>
@@ -324,20 +292,25 @@ export default function ExplorePage() {
                       <div className="flex items-end justify-between">
                         <div>
                           <h2 className="text-2xl font-bold text-white mb-1">
-                            {profile.name}, {profile.age}
+                            {displayName}
+                            {profile.age > 0 && `, ${profile.age}`}
                           </h2>
                           <p className="text-gray-200 text-sm capitalize">{profile.category}</p>
                           
                           {/* Additional Info */}
                           <div className="flex items-center space-x-4 mt-2">
-                            <div className="flex items-center text-gray-200 text-sm">
-                              <MapPin className="h-3 w-3 mr-1" />
-                              {profile.distance}km away
-                            </div>
-                            <div className="flex items-center text-gray-200 text-sm">
-                              <Calendar className="h-3 w-3 mr-1" />
-                              {profile.department}
-                            </div>
+                            {profile.distance > 0 && (
+                              <div className="flex items-center text-gray-200 text-sm">
+                                <MapPin className="h-3 w-3 mr-1" />
+                                {profile.distance}km away
+                              </div>
+                            )}
+                            {profile.department && (
+                              <div className="flex items-center text-gray-200 text-sm">
+                                <Calendar className="h-3 w-3 mr-1" />
+                                {profile.department}
+                              </div>
+                            )}
                           </div>
                         </div>
                         
@@ -400,14 +373,6 @@ export default function ExplorePage() {
         </Button>
         
         <Button 
-          variant="outline" 
-          size="lg"
-          className="w-16 h-16 rounded-full border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
-        >
-          <Shield className="h-6 w-6 text-blue-500" />
-        </Button>
-        
-        <Button 
           size="lg"
           disabled={!canSwipe || isSwiping}
           className="w-16 h-16 rounded-full bg-gradient-to-r from-green-500 to-teal-500 shadow-lg hover:shadow-xl hover:from-green-600 hover:to-teal-600 transition-all duration-200 hover:scale-105"
@@ -419,20 +384,6 @@ export default function ExplorePage() {
             <Heart className="h-8 w-8 text-white" />
           )}
         </Button>
-      </div>
-
-      {/* Progress Indicator */}
-      <div className="flex justify-center space-x-2">
-        {profiles.map((_, index) => (
-          <div 
-            key={index}
-            className={`h-1 rounded-full transition-all duration-300 ${
-              index === currentIndex 
-                ? 'bg-gradient-to-r from-green-500 to-teal-500 w-8' 
-                : 'bg-gray-300 dark:bg-gray-600 w-2'
-            }`}
-          />
-        ))}
       </div>
     </div>
   );

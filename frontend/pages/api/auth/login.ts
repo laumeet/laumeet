@@ -32,7 +32,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         "Content-Type": "application/json",
         "Accept": "application/json"
       },
-      body: req.body,
+      body: JSON.stringify(req.body),
     });
 
     const data = await backendRes.json();

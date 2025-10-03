@@ -39,7 +39,7 @@ export const useAdminUsers = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get<AdminUsersResponse>('/admin/users');
+      const response = await api.get<AdminUsersResponse>('/admin/user');
       
       if (response.data.success) {
         setUsers(response.data.users);

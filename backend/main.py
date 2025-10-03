@@ -1,5 +1,5 @@
 # Import necessary modules and libraries
-from flask import Flask, request, jsonify  # Flask web framework and request/response handling
+from flask import Flask, request, jsonify, url_for  # Flask web framework and request/response handling
 from flask_sqlalchemy import SQLAlchemy  # SQLAlchemy for database ORM
 from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey  # SQLAlchemy column types
 from sqlalchemy.orm import mapped_column, Mapped, relationship  # SQLAlchemy ORM features

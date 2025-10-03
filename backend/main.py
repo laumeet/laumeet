@@ -9,7 +9,6 @@ from flask_jwt_extended import (  # JWT authentication utilities
     jwt_required, get_jwt_identity, get_jwt,
     set_access_cookies, set_refresh_cookies, unset_jwt_cookies
 )
-from sqlalchemy.sql.expression import func
 from datetime import datetime, timedelta, timezone  # Date and time handling
 import re  # Regular expressions for validation
 import uuid  # UUID generation for unique identifiers
@@ -20,13 +19,21 @@ import time  # Time functions for rate limiting
 
 # Initialize Flask application
 app = Flask(__name__)
+# Enable CORS for all routes to allow frontend-backend communication
+# CORS(app, supports_credentials=True)
 
-# CORS configuration
+from flask_cors import CORS
+
 CORS(
     app,
     supports_credentials=True,
-    resources={r"/*": {"origins": "https://laumeet.vercel.app"}}
+    resources={r"/*": {"origins": [
+        "https://laumeet.vercel.app",  # Production frontend
+        "http://localhost:3000",       # Local development
+        "http://127.0.0.1:3000"        # Alternative localhost
+    ]}}
 )
+
 
 import os
 from datetime import timedelta
@@ -39,16 +46,19 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Disable modification tracking for performance
 
 # JWT configuration
+# JWT configuration
 app.config['JWT_SECRET_KEY'] = os.environ.get("JWT_SECRET_KEY") or "dev-secret-key-please-change"
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)  # Access token expiration time (24 hours)
-app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=14)  # Refresh token expiration time (14 days)
-app.config['JWT_TOKEN_LOCATION'] = ['cookies', 'headers']
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)   # Access token expiration time (24 hours)
+app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=14)   # Refresh token expiration time (14 days)
+app.config['JWT_TOKEN_LOCATION'] = ['cookies']  # Only use cookies (safer for browser apps)
 
 # Cookie settings
-app.config['JWT_COOKIE_SECURE'] = not app.debug  # True in production, False in local dev
-app.config['JWT_COOKIE_SAMESITE'] = "None"  # Required for cross-site cookies
-app.config['JWT_COOKIE_CSRF_PROTECT'] = False  # Disable if not using CSRF protection
-app.config['JWT_SESSION_COOKIE'] = False  # Persistent cookies, not session-only
+app.config['JWT_COOKIE_SECURE'] = not app.debug      # True in production, False in local dev
+app.config['JWT_COOKIE_SAMESITE'] = "None"           # Required for cross-site cookies
+app.config['JWT_COOKIE_CSRF_PROTECT'] = False        # Disable if not using CSRF protection
+app.config['JWT_SESSION_COOKIE'] = False             # 🔑 Persistent cookies, not session-only
+    # Disable CSRF (simpler, but less secure
+
 
 # Initialize database and JWT manager
 db = SQLAlchemy(app)  # Database instance
@@ -219,16 +229,6 @@ class User(db.Model):
         return f"<User {self.username}>"
 
 
-class Swipe(db.Model):
-    __tablename__ = "swipes"
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)  # who swiped
-    target_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)  # on whom
-    action = db.Column(db.String(10), nullable=False)  # "like" or "pass"
-    timestamp = db.Column(db.DateTime, default=db.func.now())
-
-
 # Token blacklist model for storing revoked JWT tokens
 class TokenBlocklist(db.Model):
     __tablename__ = "token_blacklist"  # Database table name
@@ -331,9 +331,22 @@ def check_if_token_revoked(jwt_header, jwt_payload):
     return TokenBlocklist.query.filter_by(jti=jti).first() is not None
 
 
-# REMOVED: @jwt.user_identity_loader and @jwt.user_lookup_loader
-# Reason: We're handling identity manually in routes for consistency
-# Using string user.id in tokens and casting back to int in routes
+@jwt.user_identity_loader
+def user_identity_lookup(user):
+    """
+    Specify what data to use as identity in JWT tokens
+    We use public_id instead of database ID for security
+    """
+    return user.public_id if isinstance(user, User) else user
+
+
+@jwt.user_lookup_loader
+def user_lookup_callback(_jwt_header, jwt_data):
+    """
+    Load user from database based on JWT identity
+    This is called when we use @jwt_required()
+    """
+    return User.query.filter_by(public_id=jwt_data["sub"]).first()
 
 
 # Initialize database tables
@@ -343,52 +356,145 @@ with app.app_context():
 
 # Route Handlers
 
+
 @app.route("/")
 def home():
-    return jsonify({"message": "Dating App API"})
+    return jsonify({"message": "Dating App API", "environment": "production" if not app.debug else "development"})
 
 
 @app.route("/signup", methods=["POST"])
+@rate_limit(max_attempts=3, window_seconds=900)  # 3 attempts per 15 minutes
 def signup():
+    """
+    User registration endpoint
+    Creates a new user account with provided information
+    """
+    # Get JSON data from request body, default to empty dict if None
     data = request.json or {}
+
+    # Extract all fields from request data
     username = data.get("username")
     password = data.get("password")
+    security_question = data.get("security_question")
+    security_answer = data.get("security_answer")
+    name = data.get("name")  # Optional field
+    age = data.get("age")
+    department = data.get("department")  # Optional field
     gender = data.get("gender")
+    genotype = data.get("genotype")  # Optional field
+    level = data.get("level")  # Optional field
+    interested_in = data.get("interestedIn")  # camelCase input → snake_case db field
+    religious = data.get("religious")  # Optional field
+    is_anonymous = data.get("isAnonymous", False)  # Default to False
+    category = data.get("category", "friend")  # Default to "friend"
+    bio = data.get("bio")  # Optional field
+    pictures = data.get("pictures", [])  # List of images, default to empty list
 
-    # basic validation
-    if not username or not password or not gender:
-        return jsonify({"msg": "username, password, and gender are required"}), 400
+    # Required fields validation
+    if not username or not password:
+        return jsonify({"success": False, "message": f"Username and password are required {username} and {password}" }), 400
 
+    # Security question validation
+    if not security_question or len(security_question.strip()) < 5:
+        return jsonify({"success": False, "message": "Security question must be at least 5 characters long"}), 400
+
+    # Security answer validation
+    if not security_answer or len(security_answer.strip()) < 2:
+        return jsonify({"success": False, "message": "Security answer must be at least 2 characters long"}), 400
+
+    # Username format validation
+    if not is_valid_username(username):
+        return jsonify({"success": False, "message": "Invalid username format"}), 400
+
+    # Password strength validation
+    if not is_strong_password(password):
+        return jsonify({"success": False, "message": "Weak password"}), 400
+
+    # Age validation
+    try:
+        age = int(age)  # Convert to integer
+        if age < 18 or age > 100:  # Reasonable age range for dating app
+            return jsonify({"success": False, "message": "Age must be between 18 and 100"}), 400
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Age must be a valid number"}), 400
+
+    # Gender validation
+    if not validate_gender(gender):
+        return jsonify({"success": False, "message": "Gender must be male, female, or other"}), 400
+
+    # isAnonymous must be boolean
+    if not isinstance(is_anonymous, bool):
+        return jsonify({"success": False, "message": "isAnonymous must be boolean"}), 400
+
+    # Category is required
+    if not category:
+        return jsonify({"success": False, "message": "Category is required"}), 400
+
+    # Limit number of pictures to prevent abuse
+    if len(pictures) > 10:
+        return jsonify({"success": False, "message": "Max 10 pictures allowed"}), 400
+
+    # Validate each picture
+    for img in pictures:
+        valid, msg = is_valid_image_data(img)
+        if not valid:
+            return jsonify({"success": False, "message": f"Invalid image: {msg}"}), 400
+
+    # Check if username already exists in database
     if User.query.filter_by(username=username).first():
-        return jsonify({"msg": "username already exists"}), 409
+        return jsonify({"success": False, "message": "Username already taken"}), 400
 
-    # create user
+    # Create new user object with all provided data
     new_user = User(
         username=username,
-        category=data.get("category"),
-        bio=data.get("bio"),
-        security_question=data.get("security_question"),
-        security_answer=data.get("security_answer"),
-        age=data.get("age"),
-        gender=gender
+        security_question=security_question.strip(),  # Remove extra whitespace
+        age=age,
+        department=department or "",  # Provide empty string if None
+        gender=gender.lower(),  # Store in lowercase for consistency
+        genotype=genotype or "",  # Provide empty string if None
+        level=level or "",  # Provide empty string if None
+        interested_in=interested_in or "",  # Provide empty string if None
+        religious=religious or "",  # Provide empty string if None
+        is_anonymous=is_anonymous,
+        category=category,
+        bio=bio or "",  # Provide empty string if None
+        name=name or ""  # Provide empty string if None
     )
+
+    # Set hashed password and security answer
     new_user.set_password(password)
+    new_user.set_security_answer(security_answer)
+
+    # Add pictures to database
+    for img in pictures:
+        db.session.add(Picture(user=new_user, image=img))
+
+    # Add user to database session and commit
     db.session.add(new_user)
     db.session.commit()
 
-    # FIX: Use string user.id as JWT identity instead of public_id
-    access_token = create_access_token(identity=str(new_user.id))
-    refresh_token = create_refresh_token(identity=str(new_user.id))
+    # Create JWT tokens for immediate login after signup
+    access_token = create_access_token(identity=new_user)
+    refresh_token = create_refresh_token(identity=new_user)
 
-    return jsonify({
-        "msg": "signup successful",
-        "user": new_user.to_dict(),
+    # Prepare success response
+    response = jsonify({
+        "success": True,
+        "message": "User created successfully",
+        "user": new_user.to_dict(),  # Return user data without sensitive fields
         "access_token": access_token,
         "refresh_token": refresh_token
-    }), 201
+    })
+
+    # Set JWT tokens as HTTP cookies (optional, for browser-based clients)
+    set_access_cookies(response, access_token)
+    set_refresh_cookies(response, refresh_token)
+
+    return response, 201  # HTTP 201 Created
 
 
 @app.route("/login", methods=["POST"])
+@rate_limit(max_attempts=5, window_seconds=900)  # 5 attempts per 15 minutes
 def login():
     data = request.json or {}
     username = data.get("username")
@@ -472,6 +578,7 @@ def logout():
 
 
 @app.route("/forgot-password", methods=["POST"])
+@rate_limit(max_attempts=3, window_seconds=3600)  # 3 attempts per hour
 def forgot_password():
     """
     Step 1 of password reset process
@@ -499,6 +606,7 @@ def forgot_password():
 
 
 @app.route("/reset-password", methods=["POST"])
+@rate_limit(max_attempts=3, window_seconds=3600)  # 3 attempts per hour
 def reset_password():
     """
     Step 2 of password reset process
@@ -643,34 +751,40 @@ def get_all_users():
 def explore():
     # FIX: Consistent JWT identity - cast string to int for DB operations
     current_user_id = int(get_jwt_identity())
-    print(f"DEBUG /explore current_user_id = {current_user_id}")
-
     current_user = User.query.get(current_user_id)
-    print(f"DEBUG /explore current_user = {current_user}")
 
     if not current_user:
         return jsonify({"success": False, "message": "User not found"}), 404
 
-    # Opposite gender logic
-    opposite_gender = "Male" if current_user.gender == "Female" else "Female"
+    # Enhanced gender matching logic to handle "other" gender
+    opposite_genders = get_opposite_gender(current_user.gender)
 
     # Already swiped IDs
     swiped_ids = db.session.query(Swipe.target_user_id).filter_by(user_id=current_user_id).all()
     swiped_ids = [s[0] for s in swiped_ids]
-    print(f"DEBUG /explore swiped_ids = {swiped_ids}")
 
     # Pagination params
     page = int(request.args.get("page", 1))
     limit = int(request.args.get("limit", 10))
 
-    # Fetch paginated random users excluding already swiped
+    # Build query based on gender matching
+    query = User.query.filter(
+        User.id != current_user_id,
+        ~User.id.in_(swiped_ids) if swiped_ids else True
+    )
+
+    # Handle different gender scenarios
+    if isinstance(opposite_genders, list):
+        # For "other" gender, show both male and female profiles
+        query = query.filter(User.gender.in_(opposite_genders))
+    else:
+        # For male/female, show opposite gender
+        query = query.filter(User.gender == opposite_genders)
+
+    # TODO: For production with large datasets, replace func.random() with more efficient approach
+    # Consider: pre-computed compatibility scores, recent activity, or paginated random seeds
     candidates = (
-        User.query.filter(
-            User.gender == opposite_gender,
-            User.id != current_user_id,
-            ~User.id.in_(swiped_ids)
-        )
-        .order_by(func.random())
+        query.order_by(func.random())
         .offset((page - 1) * limit)
         .limit(limit)
         .all()
@@ -704,13 +818,14 @@ def swipe():
     target_id = data.get("target_user_id")
     action = data.get("action")
 
-    print("DEBUG: current_user_id =", current_user_id)
-    print("DEBUG: target_user_id =", target_id)
-    print("DEBUG: action =", action)
-
     # Validate action
     if action not in ["like", "pass"]:
         return jsonify({"success": False, "message": "Invalid action"}), 400
+
+    # Validate target user exists
+    target_user = User.query.get(target_id)
+    if not target_user:
+        return jsonify({"success": False, "message": "Target user not found"}), 404
 
     # Save swipe
     swipe = Swipe(user_id=current_user_id, target_user_id=target_id, action=action)
@@ -722,8 +837,6 @@ def swipe():
         mutual_like = Swipe.query.filter_by(
             user_id=target_id, target_user_id=current_user_id, action="like"
         ).first()
-
-        print("DEBUG: mutual_like =", mutual_like)
 
         if mutual_like:
             return jsonify({
@@ -754,10 +867,6 @@ def protected():
 
 # Application entry point
 if __name__ == "__main__":
-    # Ensure database tables are created before running the app
-    with app.app_context():
-        db.create_all()
-
     # Start the Flask development server
     # debug=True enables auto-reload and detailed error pages (disable in production!)
-    app.run(debug=False)
+    app.run(debug=os.environ.get("FLASK_DEBUG", "False").lower() == "true")

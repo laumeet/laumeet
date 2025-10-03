@@ -4,11 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="now">
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="added swipe and explore API">
+      <change afterPath="$PROJECT_DIR$/backend/.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -281,7 +280,15 @@
       <option name="project" value="LOCAL" />
       <updated>1759409387283</updated>
     </task>
-    <option name="localTasksCounter" value="25" />
+    <task id="LOCAL-00025" summary="added swipe and explore API">
+      <option name="closed" value="true" />
+      <created>1759485886574</created>
+      <option name="number" value="00025" />
+      <option name="presentableId" value="LOCAL-00025" />
+      <option name="project" value="LOCAL" />
+      <updated>1759485886574</updated>
+    </task>
+    <option name="localTasksCounter" value="26" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -341,6 +348,7 @@
     <MESSAGE value="cors" />
     <MESSAGE value="token" />
     <MESSAGE value="now" />
-    <option name="LAST_COMMIT_MESSAGE" value="now" />
+    <MESSAGE value="added swipe and explore API" />
+    <option name="LAST_COMMIT_MESSAGE" value="added swipe and explore API" />
   </component>
 </project>

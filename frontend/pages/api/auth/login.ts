@@ -2,7 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
 const getBackendUrl = () => {
-  if (process.env.BACKEND_URL) {
+  if (process.env.NODE_ENV === "production" && process.env.BACKEND_URL) {
     return process.env.BACKEND_URL;
   }
   
@@ -10,7 +10,7 @@ const getBackendUrl = () => {
     throw new Error("BACKEND_URL environment variable is required in production");
   }
   
-  return "http://localhost:5000";
+  return "http://127.0.0.1:5000";
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

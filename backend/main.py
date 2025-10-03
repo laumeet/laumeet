@@ -4,6 +4,8 @@ from flask_sqlalchemy import SQLAlchemy  # SQLAlchemy for database ORM
 from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, or_, and_  # SQLAlchemy column types
 from sqlalchemy.orm import mapped_column, Mapped, relationship  # SQLAlchemy ORM features
 from sqlalchemy.sql.expression import func  # SQL functions for random ordering
+from flask_socketio import SocketIO, join_room, leave_room, emit
+from flask import request as flask_request
 from werkzeug.security import generate_password_hash, check_password_hash  # Password hashing utilities
 from flask_jwt_extended import (  # JWT authentication utilities
     JWTManager, create_access_token, create_refresh_token,

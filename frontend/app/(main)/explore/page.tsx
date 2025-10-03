@@ -75,9 +75,10 @@ export default function ExplorePage() {
     try {
       const action = direction === 'right' ? 'like' : 'pass';
       const result = await swipeProfile(profileId, action);
-        toast.success(result.message);
+        
         if (result.match) {
-          toast(`It's a match with ${result.matched_with}! 🎉`, {
+          const matchedUser = profiles.find((profile) => profile.id === result.matched_with)
+          toast(`It's a match with ${matchedUser.username}! 🎉`, {
             icon: '💖',
             duration: 8000
           });
@@ -87,6 +88,7 @@ export default function ExplorePage() {
       updateCurrentIndex(index); // Stay on current card on error
     } finally {
       setIsSwiping(false);
+      refetch()
     }
   }, [swipeProfile]);
 

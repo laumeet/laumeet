@@ -4,11 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="shrinks images">
-      <changelist_data name="laumeet" email="lilybill009@gmail.com" automatic="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/requirements.txt" afterDir="false" />
-    </list>
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="ADDED PILLOW" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -22,6 +18,11 @@
     </option>
   </component>
   <component name="Git.Settings">
+    <option name="PREVIOUS_COMMIT_AUTHORS">
+      <list>
+        <option value="laumeet &lt;lilybill009@gmail.com&gt;" />
+      </list>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="ProjectColorInfo">{
@@ -336,7 +337,15 @@
       <option name="project" value="LOCAL" />
       <updated>1759496821766</updated>
     </task>
-    <option name="localTasksCounter" value="32" />
+    <task id="LOCAL-00032" summary="ADDED PILLOW">
+      <option name="closed" value="true" />
+      <created>1759507964702</created>
+      <option name="number" value="00032" />
+      <option name="presentableId" value="LOCAL-00032" />
+      <option name="project" value="LOCAL" />
+      <updated>1759507964702</updated>
+    </task>
+    <option name="localTasksCounter" value="33" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -402,6 +411,7 @@
     <MESSAGE value="added matches" />
     <MESSAGE value="shrinks images" />
     <MESSAGE value="made swipe based on interestedIm" />
-    <option name="LAST_COMMIT_MESSAGE" value="made swipe based on interestedIm" />
+    <MESSAGE value="ADDED PILLOW" />
+    <option name="LAST_COMMIT_MESSAGE" value="ADDED PILLOW" />
   </component>
 </project>

@@ -18,6 +18,7 @@ from functools import wraps  # Decorator utilities
 from flask_cors import CORS  # Cross-Origin Resource Sharing support
 import time  # Time functions for rate limiting
 import os  # Operating system interface for environment variables
+from PIL import Image
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -377,6 +378,49 @@ def user_identity_lookup(user):
     return user  # Return as-is if already a string (public_id)
 
 
+import base64
+from PIL import Image
+import io
+
+def process_image(image_data, max_size_kb=500, resize_to=(800, 800)):
+    """
+    Validate and compress image data (base64 or URL).
+    Returns (is_valid, message, processed_image_string)
+    """
+    # Handle base64
+    if image_data.startswith('data:image/'):
+        try:
+            header, data = image_data.split(',', 1)
+            raw = base64.b64decode(data)
+
+            size_kb = len(raw) / 1024
+            if size_kb > max_size_kb:
+                # Compress with Pillow
+                img = Image.open(io.BytesIO(raw))
+                img.thumbnail(resize_to, Image.LANCZOS)
+
+                output = io.BytesIO()
+                img.save(output, format="JPEG", quality=85)
+                output.seek(0)
+
+                # Convert back to base64 string for DB
+                compressed_base64 = "data:image/jpeg;base64," + base64.b64encode(output.read()).decode("utf-8")
+                return True, "compressed", compressed_base64
+
+            return True, "valid", image_data  # original is fine
+
+        except Exception as e:
+            return False, f"Invalid base64: {str(e)}", None
+
+    # Handle URL (don’t compress, just return as is)
+    if image_data.startswith(('http://', 'https://')):
+        return True, "url", image_data
+
+    return False, "Image must be a valid URL or base64", None
+
+
+
+
 @jwt.user_lookup_loader
 def user_lookup_callback(_jwt_header, jwt_data):
     """
@@ -507,9 +551,12 @@ def signup():
     new_user.set_password(password)
     new_user.set_security_answer(security_answer)
 
-    # Add pictures to database
+    processed_pictures = []
     for img in pictures:
-        db.session.add(Picture(user=new_user, image=img))
+        valid, msg, processed = process_image(img)
+        if not valid:
+            return jsonify({"success": False, "message": f"Invalid image: {msg}"}), 400
+        processed_pictures.append(processed)
 
     # Add user to database session and commit
     db.session.add(new_user)

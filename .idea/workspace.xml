@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="explore and signp again">
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="added matches">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/main.py" afterDir="false" />
     </list>
@@ -319,7 +319,15 @@
       <option name="project" value="LOCAL" />
       <updated>1759492081472</updated>
     </task>
-    <option name="localTasksCounter" value="30" />
+    <task id="LOCAL-00030" summary="added matches">
+      <option name="closed" value="true" />
+      <created>1759495524476</created>
+      <option name="number" value="00030" />
+      <option name="presentableId" value="LOCAL-00030" />
+      <option name="project" value="LOCAL" />
+      <updated>1759495524477</updated>
+    </task>
+    <option name="localTasksCounter" value="31" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -382,6 +390,7 @@
     <MESSAGE value="added swipe and explore API" />
     <MESSAGE value="edit sign up" />
     <MESSAGE value="explore and signp again" />
-    <option name="LAST_COMMIT_MESSAGE" value="explore and signp again" />
+    <MESSAGE value="added matches" />
+    <option name="LAST_COMMIT_MESSAGE" value="added matches" />
   </component>
 </project>

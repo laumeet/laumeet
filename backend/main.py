@@ -215,7 +215,7 @@ class User(db.Model):
             "category": self.category,
             "bio": self.bio,
             "is_admin": self.is_admin,
-            "pictures": [picture.image for picture in self.pictures],  # List of image URLs/data
+            "pictures": [build_image_url(picture.image) for picture in self.pictures],
             "timestamp": self.timestamp.isoformat() + "Z" if self.timestamp else None  # ISO format with Zulu time
         }
         # Only include security question if explicitly requested (rarely needed)
@@ -917,7 +917,7 @@ def explore():
             "bio": user.bio,
             "gender": user.gender,
             "interestedIn": user.interested_in,
-            "avatar": user.pictures[0].image if user.pictures else None
+            "avatar": build_image_url(user.pictures[0].image) if user.pictures else None
         }
         for user in candidates
     ]

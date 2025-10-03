@@ -396,13 +396,7 @@ export default function ChatDetailPage() {
         </div>
       </div>
 
-      {/* Security Notice */}
-      <div className="px-4 py-2 bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-200 dark:border-yellow-800">
-        <div className="flex items-center text-sm text-yellow-800 dark:text-yellow-200">
-          <Shield className="h-3 w-3 mr-2 flex-shrink-0" />
-          <span>For your safety, phone numbers, links, and external app names are automatically hidden.</span>
-        </div>
-      </div>
+      
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">

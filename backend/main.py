@@ -1,7 +1,7 @@
 # Import necessary modules and libraries
 from flask import Flask, request, jsonify, url_for  # Flask web framework and request/response handling
 from flask_sqlalchemy import SQLAlchemy  # SQLAlchemy for database ORM
-from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey  # SQLAlchemy column types
+from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, or_, and_  # SQLAlchemy column types
 from sqlalchemy.orm import mapped_column, Mapped, relationship  # SQLAlchemy ORM features
 from sqlalchemy.sql.expression import func  # SQL functions for random ordering
 from werkzeug.security import generate_password_hash, check_password_hash  # Password hashing utilities
@@ -1167,6 +1167,374 @@ def get_matches():
         "count": len(result),
         "matches": result
     }), 200
+
+
+
+
+
+
+
+
+
+
+# Chat System Routes
+
+@app.route("/conversations", methods=["GET"])
+@jwt_required()
+def get_conversations():
+    """
+    Get all conversations for the current user
+    Returns conversations with other user info, last message, and unread count
+    """
+    # Get current user's identity from JWT
+    public_id = get_jwt_identity()
+    current_user = User.query.filter_by(public_id=public_id).first()
+
+    if not current_user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+
+    # Find all conversations where current user is either user1 or user2
+    conversations = Conversation.query.filter(
+        or_(
+            Conversation.user1_id == current_user.id,
+            Conversation.user2_id == current_user.id
+        )
+    ).order_by(Conversation.last_message_at.desc()).all()  # Sort by most recent activity
+
+    # Format response with conversation details
+    conversations_data = []
+    for conv in conversations:
+        # Determine the other user in the conversation
+        other_user = conv.user2 if conv.user1_id == current_user.id else conv.user1
+        
+        # Count unread messages for current user
+        unread_count = Message.query.filter(
+            Message.conversation_id == conv.id,
+            Message.sender_id != current_user.id,  # Messages from other user
+            Message.is_read == False               # That are unread
+        ).count()
+
+        conversations_data.append({
+            "id": conv.id,
+            "other_user": {
+                "id": other_user.public_id,
+                "username": other_user.username,
+                "name": other_user.name,
+                "avatar": build_image_url(other_user.pictures[0].image) if other_user.pictures else None,
+                "isOnline": False  # You can implement online status later
+            },
+            "last_message": conv.last_message,
+            "last_message_at": conv.last_message_at.isoformat() + "Z" if conv.last_message_at else None,
+            "unread_count": unread_count,
+            "created_at": conv.created_at.isoformat() + "Z" if conv.created_at else None
+        })
+
+    return jsonify({
+        "success": True,
+        "conversations": conversations_data,
+        "total": len(conversations_data)
+    }), 200
+
+
+@app.route("/conversations", methods=["POST"])
+@jwt_required()
+def create_conversation():
+    """
+    Create a new conversation between two users
+    Typically triggered after a mutual match in dating app
+    """
+    # Get current user's identity from JWT
+    public_id = get_jwt_identity()
+    current_user = User.query.filter_by(public_id=public_id).first()
+
+    if not current_user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+
+    data = request.json or {}
+    target_public_id = data.get("target_user_id")
+
+    if not target_public_id:
+        return jsonify({"success": False, "message": "Target user ID is required"}), 400
+
+    # Find target user
+    target_user = User.query.filter_by(public_id=target_public_id).first()
+    if not target_user:
+        return jsonify({"success": False, "message": "Target user not found"}), 404
+
+    # Check if conversation already exists between these users
+    existing_conversation = Conversation.query.filter(
+        or_(
+            and_(Conversation.user1_id == current_user.id, Conversation.user2_id == target_user.id),
+            and_(Conversation.user1_id == target_user.id, Conversation.user2_id == current_user.id)
+        )
+    ).first()
+
+    if existing_conversation:
+        return jsonify({
+            "success": True,
+            "message": "Conversation already exists",
+            "conversation_id": existing_conversation.id,
+            "existing": True
+        }), 200
+
+    # Create new conversation
+    new_conversation = Conversation(
+        user1_id=current_user.id,
+        user2_id=target_user.id,
+        last_message=None,
+        last_message_at=None
+    )
+
+    db.session.add(new_conversation)
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": "Conversation created successfully",
+        "conversation_id": new_conversation.id,
+        "existing": False
+    }), 201
+
+
+@app.route("/messages/<int:conversation_id>", methods=["GET"])
+@jwt_required()
+def get_messages(conversation_id):
+    """
+    Get messages for a specific conversation
+    Marks messages as read if current user is the recipient
+    Supports pagination for performance
+    """
+    # Get current user's identity from JWT
+    public_id = get_jwt_identity()
+    current_user = User.query.filter_by(public_id=public_id).first()
+
+    if not current_user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+
+    # Verify conversation exists and user has access
+    conversation = Conversation.query.get(conversation_id)
+    if not conversation:
+        return jsonify({"success": False, "message": "Conversation not found"}), 404
+
+    # Check if current user is part of this conversation
+    if current_user.id not in [conversation.user1_id, conversation.user2_id]:
+        return jsonify({"success": False, "message": "Access denied"}), 403
+
+    # Pagination parameters
+    page = int(request.args.get("page", 1))
+    limit = int(request.args.get("limit", 50))
+    offset = (page - 1) * limit
+
+    # Get messages for this conversation
+    messages_query = Message.query.filter_by(conversation_id=conversation_id)
+    total_messages = messages_query.count()
+    
+    messages = messages_query.order_by(Message.timestamp.desc()).offset(offset).limit(limit).all()
+    
+    # Reverse to get chronological order (oldest first)
+    messages.reverse()
+
+    # Mark unread messages as read (only messages sent to current user)
+    unread_messages = Message.query.filter(
+        Message.conversation_id == conversation_id,
+        Message.sender_id != current_user.id,
+        Message.is_read == False
+    ).all()
+
+    for msg in unread_messages:
+        msg.is_read = True
+
+    if unread_messages:
+        db.session.commit()
+
+    # Format response
+    messages_data = [message.to_dict() for message in messages]
+
+    return jsonify({
+        "success": True,
+        "messages": messages_data,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total_messages": total_messages,
+            "has_next": (page * limit) < total_messages,
+            "has_prev": page > 1
+        },
+        "conversation": {
+            "id": conversation.id,
+            "user1_id": conversation.user1.public_id,
+            "user2_id": conversation.user2.public_id,
+            "other_user": conversation.user2.to_dict() if conversation.user1_id == current_user.id else conversation.user1.to_dict()
+        }
+    }), 200
+
+
+@app.route("/messages/<int:conversation_id>", methods=["POST"])
+@jwt_required()
+def send_message(conversation_id):
+    """
+    Send a message in a conversation
+    Saves message to database and updates conversation last_message
+    """
+    # Get current user's identity from JWT
+    public_id = get_jwt_identity()
+    current_user = User.query.filter_by(public_id=public_id).first()
+
+    if not current_user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+
+    # Verify conversation exists and user has access
+    conversation = Conversation.query.get(conversation_id)
+    if not conversation:
+        return jsonify({"success": False, "message": "Conversation not found"}), 404
+
+    # Check if current user is part of this conversation
+    if current_user.id not in [conversation.user1_id, conversation.user2_id]:
+        return jsonify({"success": False, "message": "Access denied"}), 403
+
+    data = request.json or {}
+    content = data.get("content", "").strip()
+
+    if not content:
+        return jsonify({"success": False, "message": "Message content cannot be empty"}), 400
+
+    if len(content) > 1000:
+        return jsonify({"success": False, "message": "Message too long (max 1000 characters)"}), 400
+
+    # Create new message
+    new_message = Message(
+        conversation_id=conversation_id,
+        sender_id=current_user.id,
+        content=content,
+        is_read=False,  # Initially unread
+        timestamp=datetime.utcnow()
+    )
+
+    # Update conversation's last message and timestamp
+    conversation.last_message = content
+    conversation.last_message_at = datetime.utcnow()
+
+    db.session.add(new_message)
+    db.session.commit()
+
+    # Prepare real-time event data (you can integrate WebSocket here)
+    message_data = new_message.to_dict()
+    
+    # Determine the recipient
+    recipient_id = conversation.user2_id if conversation.user1_id == current_user.id else conversation.user1_id
+    recipient = User.query.get(recipient_id)
+
+    # WebSocket event data structure (for future integration)
+    websocket_event = {
+        "type": "new_message",
+        "conversation_id": conversation_id,
+        "message": message_data,
+        "sender": {
+            "id": current_user.public_id,
+            "username": current_user.username
+        },
+        "recipient_id": recipient.public_id
+    }
+
+    # TODO: Integrate with WebSocket (Socket.IO or similar)
+    # socketio.emit('new_message', websocket_event, room=f"user_{recipient_id}")
+
+    return jsonify({
+        "success": True,
+        "message": "Message sent successfully",
+        "message_id": new_message.id,
+        "message_data": message_data,
+        "websocket_event": websocket_event  # For debugging, remove in production
+    }), 201
+
+
+@app.route("/conversations/<int:conversation_id>/mark_read", methods=["POST"])
+@jwt_required()
+def mark_conversation_read(conversation_id):
+    """
+    Mark all messages in a conversation as read for current user
+    Useful when user opens a conversation
+    """
+    # Get current user's identity from JWT
+    public_id = get_jwt_identity()
+    current_user = User.query.filter_by(public_id=public_id).first()
+
+    if not current_user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+
+    # Verify conversation exists and user has access
+    conversation = Conversation.query.get(conversation_id)
+    if not conversation:
+        return jsonify({"success": False, "message": "Conversation not found"}), 404
+
+    # Check if current user is part of this conversation
+    if current_user.id not in [conversation.user1_id, conversation.user2_id]:
+        return jsonify({"success": False, "message": "Access denied"}), 403
+
+    # Mark all unread messages from other user as read
+    unread_messages = Message.query.filter(
+        Message.conversation_id == conversation_id,
+        Message.sender_id != current_user.id,
+        Message.is_read == False
+    ).all()
+
+    for msg in unread_messages:
+        msg.is_read = True
+
+    if unread_messages:
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "message": f"Marked {len(unread_messages)} messages as read",
+            "marked_count": len(unread_messages)
+        }), 200
+    else:
+        return jsonify({
+            "success": True,
+            "message": "No unread messages to mark",
+            "marked_count": 0
+        }), 200
+
+
+@app.route("/conversations/unread_count", methods=["GET"])
+@jwt_required()
+def get_total_unread_count():
+    """
+    Get total unread message count across all conversations
+    Useful for showing badge count in UI
+    """
+    # Get current user's identity from JWT
+    public_id = get_jwt_identity()
+    current_user = User.query.filter_by(public_id=public_id).first()
+
+    if not current_user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+
+    # Find all conversations where current user is either user1 or user2
+    conversations = Conversation.query.filter(
+        or_(
+            Conversation.user1_id == current_user.id,
+            Conversation.user2_id == current_user.id
+        )
+    ).all()
+
+    # Calculate total unread count across all conversations
+    total_unread = 0
+    for conv in conversations:
+        unread_count = Message.query.filter(
+            Message.conversation_id == conv.id,
+            Message.sender_id != current_user.id,
+            Message.is_read == False
+        ).count()
+        total_unread += unread_count
+
+    return jsonify({
+        "success": True,
+        "total_unread": total_unread
+    }), 200
+
+
+
 
 
 

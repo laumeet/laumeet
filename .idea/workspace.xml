@@ -4,11 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="added swipe and explore API">
-      <change afterPath="$PROJECT_DIR$/backend/.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/main.py" afterDir="false" />
-    </list>
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="explore and signp again" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -288,7 +284,31 @@
       <option name="project" value="LOCAL" />
       <updated>1759485886574</updated>
     </task>
-    <option name="localTasksCounter" value="26" />
+    <task id="LOCAL-00026" summary="edit sign up">
+      <option name="closed" value="true" />
+      <created>1759489936473</created>
+      <option name="number" value="00026" />
+      <option name="presentableId" value="LOCAL-00026" />
+      <option name="project" value="LOCAL" />
+      <updated>1759489936473</updated>
+    </task>
+    <task id="LOCAL-00027" summary="edit sign up">
+      <option name="closed" value="true" />
+      <created>1759489982902</created>
+      <option name="number" value="00027" />
+      <option name="presentableId" value="LOCAL-00027" />
+      <option name="project" value="LOCAL" />
+      <updated>1759489982902</updated>
+    </task>
+    <task id="LOCAL-00028" summary="explore and signp again">
+      <option name="closed" value="true" />
+      <created>1759491755160</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1759491755160</updated>
+    </task>
+    <option name="localTasksCounter" value="29" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -349,6 +369,8 @@
     <MESSAGE value="token" />
     <MESSAGE value="now" />
     <MESSAGE value="added swipe and explore API" />
-    <option name="LAST_COMMIT_MESSAGE" value="added swipe and explore API" />
+    <MESSAGE value="edit sign up" />
+    <MESSAGE value="explore and signp again" />
+    <option name="LAST_COMMIT_MESSAGE" value="explore and signp again" />
   </component>
 </project>

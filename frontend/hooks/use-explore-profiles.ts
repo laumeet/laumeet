@@ -8,7 +8,7 @@ interface ExploreProfile {
   name: string;
   age: number;
   bio: string;
-  images: string[];
+  pictures: string[];
   category: string;
   isAnonymous: boolean;
   department: string;

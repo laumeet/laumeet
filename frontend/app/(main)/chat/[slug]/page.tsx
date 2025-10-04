@@ -100,21 +100,26 @@ export default function ChatDetailPage() {
     }
   };
 
-  const fetchMessages = async () => {
-    if (!conversation) return;
+  // In your ChatDetailPage component, change the fetchMessages function:
 
-    try {
-      const response = await api.get(`/chat/messages/conversationId?conversationId=${conversation.id}`);
+const fetchMessages = async () => {
+  if (!conversation) return;
 
-      if (response.data.success) {
-        setMessages(response.data.messages || []);
-      } else {
-        setError('Failed to load messages');
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load messages');
+  try {
+    // Use path parameter instead of query parameter
+    const response = await api.get(`/chat/messages/${conversation.id}`);
+
+    if (response.data.success) {
+      setMessages(response.data.messages || []);
+    } else {
+      setError('Failed to load messages');
+      console.error('API response error:', response.data);
     }
-  };
+  } catch (err: any) {
+    console.error('Fetch messages error:', err);
+    setError(err.response?.data?.message || 'Failed to load messages');
+  }
+};
 
   const loadChatData = async () => {
     if (!chatId) {
@@ -127,9 +132,8 @@ export default function ChatDetailPage() {
       setError('');
 
       const conv = await fetchConversation();
-      if (conv) {
         await fetchMessages();
-      }
+      
     } catch (err) {
       setError('Failed to load chat');
     } finally {

@@ -49,30 +49,46 @@ export default function ChatDetailPage() {
   const [error, setError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // FIX: Use params?.slug instead of params?.id
   const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
+
+  console.log('Chat ID from params:', chatId); // Debug log
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const fetchConversation = async () => {
-    if (!chatId) return null;
+    if (!chatId) {
+      console.log('No chatId provided');
+      return null;
+    }
 
     try {
+      console.log('Fetching conversations...');
       const response = await api.get('/chat/conversations');
+      console.log('Conversations response:', response.data);
+      
       if (response.data.success) {
         const conversations = response.data.conversations || [];
+        console.log('Available conversations:', conversations);
+        
         const currentConv = conversations.find((conv: Conversation) => conv.id === chatId);
+        console.log('Found conversation:', currentConv);
         
         if (!currentConv) {
+          console.log('Conversation not found for ID:', chatId);
           setError('Chat not found');
           return null;
         }
         
         setConversation(currentConv);
         return currentConv;
+      } else {
+        console.log('Failed to fetch conversations');
+        setError('Failed to load conversations');
+        return null;
       }
-      return null;
     } catch (err: any) {
       console.error('Error fetching conversation:', err);
       setError('Failed to load conversation');
@@ -84,7 +100,10 @@ export default function ChatDetailPage() {
     if (!chatId) return;
 
     try {
+      console.log('Fetching messages for chat:', chatId);
       const response = await api.get(`/chat/messages/${chatId}`);
+      console.log('Messages response:', response.data);
+      
       if (response.data.success) {
         setMessages(response.data.messages || []);
       } else {
@@ -98,6 +117,7 @@ export default function ChatDetailPage() {
 
   const loadChatData = async () => {
     if (!chatId) {
+      console.log('No chatId, redirecting to /chat');
       router.push('/chat');
       return;
     }
@@ -105,17 +125,20 @@ export default function ChatDetailPage() {
     try {
       setLoading(true);
       setError('');
+      console.log('Loading chat data for:', chatId);
       
       // First verify the conversation exists
       const conv = await fetchConversation();
       if (conv) {
         // Then load messages
         await fetchMessages();
+      } else {
+        console.log('No conversation found, setting loading to false');
+        setLoading(false);
       }
     } catch (err) {
       console.error('Error loading chat:', err);
       setError('Failed to load chat');
-    } finally {
       setLoading(false);
     }
   };
@@ -190,7 +213,10 @@ export default function ChatDetailPage() {
   };
 
   const sendMessage = async () => {
-    if (!message.trim() || !chatId || sending || !conversation) return;
+    if (!message.trim() || !chatId || sending || !conversation) {
+      console.log('Cannot send message:', { message: message.trim(), chatId, sending, conversation });
+      return;
+    }
 
     const { content: censoredContent, hasSensitiveInfo } = censorSensitiveInfo(message);
     const detectedPatterns = detectSensitivePatterns(message);
@@ -202,10 +228,15 @@ export default function ChatDetailPage() {
     setSending(true);
 
     try {
-      // Use the correct API endpoint for sending messages
-      const response = await api.post(`/chat/messages/send?conversationId=${chatId}`, {
+      console.log('Sending message to conversation:', chatId);
+      console.log('Message content:', censoredContent);
+      
+      // FIX: Use the correct API endpoint with query parameter
+      const response = await api.post(`/api/chat/messages/send?conversationId=${chatId}`, {
         content: censoredContent
       });
+
+      console.log('Send message response:', response.data);
 
       if (response.data.success) {
         const newMessage = response.data.message_data;
@@ -215,7 +246,7 @@ export default function ChatDetailPage() {
         // Refresh conversation to update last message
         await fetchConversation();
       } else {
-        setError('Failed to send message');
+        setError('Failed to send message: ' + (response.data.message || 'Unknown error'));
       }
     } catch (err: any) {
       console.error('Error sending message:', err);
@@ -274,12 +305,18 @@ export default function ChatDetailPage() {
     }
   }, [messages.length]);
 
+  // Debug info
+  useEffect(() => {
+    console.log('Current state:', { loading, error, conversation, messagesCount: messages.length });
+  }, [loading, error, conversation, messages.length]);
+
   if (loading) {
     return (
       <div className="h-[calc(100vh-140px)] flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-pink-500" />
           <p className="text-gray-500 dark:text-gray-400">Loading chat...</p>
+          <p className="text-xs text-gray-400 mt-2">Chat ID: {chatId}</p>
         </div>
       </div>
     );
@@ -291,6 +328,7 @@ export default function ChatDetailPage() {
         <p className="text-gray-500 dark:text-gray-400 mb-4 text-center">
           {error || 'Chat not found'}
         </p>
+        <p className="text-sm text-gray-400 mb-4">Chat ID: {chatId}</p>
         <Button onClick={handleBack}>
           Back to Chats
         </Button>

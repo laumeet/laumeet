@@ -1,0 +1,23 @@
+backend/
+├── app.py                 # Main application entry point
+├── config.py             # Configuration settings
+├── models/               # Database models
+│   ├── __init__.py
+│   ├── user.py
+│   ├── chat.py
+│   └── core.py
+├── routes/               # API routes
+│   ├── __init__.py
+│   ├── auth.py
+│   ├── profile.py
+│   ├── matching.py
+│   └── chat.py
+├── sockets/              # WebSocket handlers
+│   ├── __init__.py
+│   └── chat_events.py
+├── utils/                # Utilities
+│   ├── __init__.py
+│   ├── validation.py
+│   ├── security.py
+│   └── helpers.py
+└── requirements.txt      # Dependencies

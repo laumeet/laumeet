@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       headers: {
         "Content-Type": "application/json",
         // Pass the original cookie from the browser for session/auth
-        Cookie: req.headers.cookie || "",
+        "Cookie": req.headers.cookie || "",
       },
       // Make sure cookies are included
       credentials: "include",

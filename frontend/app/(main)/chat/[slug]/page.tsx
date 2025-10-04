@@ -1,183 +1,113 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/(main)/chat/[id]/page.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Phone, Video, MoreVertical, Send, Paperclip, Smile, Shield } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Smile, Shield, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ChatUser } from '../page';
+import api from '@/lib/axio';
 
 export interface Message {
   id: string;
-  senderId: string;
+  conversation_id: string;
+  sender_id: string;
+  sender_username: string;
   content: string;
+  is_read: boolean;
   timestamp: string;
-  isOwn: boolean;
-  containsSensitiveInfo?: boolean;
+  delivered_at: string | null;
+  read_at: string | null;
+  status: 'sent' | 'delivered' | 'read';
 }
 
-// Mock data - Replace with real API calls
-const mockChatUsers: Record<string, ChatUser> = {
-  '1': {
-    id: '1',
-    name: 'Alex Johnson',
-    avatar: '/api/placeholder/40/40',
-    isOnline: true
-  },
-  '2': {
-    id: '2',
-    name: 'Taylor Smith',
-    avatar: '/api/placeholder/40/40',
-    isOnline: false
-  },
-  '3': {
-    id: '3',
-    name: 'Jordan Miller',
-    avatar: '/api/placeholder/40/40',
-    isOnline: true
-  }
-};
-
-const mockMessages: Record<string, Message[]> = {
-  '1': [
-    {
-      id: '1',
-      senderId: '1',
-      content: 'Hey! How was your presentation?',
-      timestamp: '2:30 PM',
-      isOwn: false
-    },
-    {
-      id: '2',
-      senderId: 'current',
-      content: 'It went really well! Thanks for asking 😊',
-      timestamp: '2:31 PM',
-      isOwn: true
-    },
-    {
-      id: '3',
-      senderId: '1',
-      content: 'That\'s awesome! I knew you\'d crush it',
-      timestamp: '2:32 PM',
-      isOwn: false
-    }
-  ],
-  '2': [
-    {
-      id: '1',
-      senderId: '2',
-      content: 'Practice session at 6 PM today',
-      timestamp: '1:45 PM',
-      isOwn: false
-    },
-    {
-      id: '2',
-      senderId: 'current',
-      content: 'Got it! I\'ll be there',
-      timestamp: '1:46 PM',
-      isOwn: true
-    }
-  ],
-  '3': [
-    {
-      id: '1',
-      senderId: '3',
-      content: 'Thanks for the study notes!',
-      timestamp: '11:30 AM',
-      isOwn: false
-    },
-    {
-      id: '2',
-      senderId: 'current',
-      content: 'No problem! Happy to help',
-      timestamp: '11:31 AM',
-      isOwn: true
-    }
-  ]
-};
-
-// Real API functions - Uncomment and use these when you have your API
-/*
-const fetchChatUser = async (chatId: string): Promise<ChatUser> => {
-  const response = await fetch(`/api/chats/${chatId}/user`);
-  if (!response.ok) throw new Error('Failed to fetch chat user');
-  return response.json();
-};
-
-const fetchMessages = async (chatId: string): Promise<Message[]> => {
-  const response = await fetch(`/api/chats/${chatId}/messages`);
-  if (!response.ok) throw new Error('Failed to fetch messages');
-  return response.json();
-};
-
-const sendMessageToAPI = async (chatId: string, message: { content: string }): Promise<Message> => {
-  const response = await fetch(`/api/chats/${chatId}/messages`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(message)
-  });
-  if (!response.ok) throw new Error('Failed to send message');
-  return response.json();
-};
-*/
+export interface Conversation {
+  id: string;
+  other_user: {
+    id: string;
+    username: string;
+    name: string;
+    avatar: string | null;
+    isOnline: boolean;
+    lastSeen: string | null;
+  };
+}
 
 export default function ChatDetailPage() {
   const params = useParams();
   const router = useRouter();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
+  const [conversation, setConversation] = useState<Conversation | null>(null);
   const [showSecurityAlert, setShowSecurityAlert] = useState(false);
   const [securityAlertMessage, setSecurityAlertMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Safely get chatId from params
-  const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
+  const chatId = Array.isArray(params?.id) ? params.id[0] : params?.id;
 
-  const chatUser = chatId ? mockChatUsers[chatId] : null;
-
-  // Auto-scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const fetchConversation = async () => {
+    if (!chatId) return;
+
+    try {
+      const response = await api.get('/chat/conversations');
+      if (response.data.success) {
+        const conversations = response.data.conversations || [];
+        const currentConv = conversations.find((conv: Conversation) => conv.id === chatId);
+        setConversation(currentConv || null);
+      }
+    } catch (err: any) {
+      console.error('Error fetching conversation:', err);
+      setError('Failed to load conversation');
+    }
+  };
+
+  const fetchMessages = async () => {
+    if (!chatId) return;
+
+    try {
+      const response = await api.get(`/chat/messages/${chatId}`);
+      if (response.data.success) {
+        setMessages(response.data.messages || []);
+      } else {
+        setError('Failed to load messages');
+      }
+    } catch (err: any) {
+      console.error('Error fetching messages:', err);
+      setError(err.response?.data?.message || 'Failed to load messages');
+    }
+  };
+
+  const loadChatData = async () => {
+    if (!chatId) {
+      router.push('/chat');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+      await Promise.all([fetchConversation(), fetchMessages()]);
+    } catch (err) {
+      console.error('Error loading chat:', err);
+      setError('Failed to load chat');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadChatData = async () => {
-      if (!chatId) {
-        router.push('/chat');
-        return;
-      }
-
-      try {
-        setLoading(true);
-        
-        // For real API usage:
-        // const [userData, messageData] = await Promise.all([
-        //   fetchChatUser(chatId),
-        //   fetchMessages(chatId)
-        // ]);
-        // setMessages(messageData);
-        
-        // Mock data loading
-        if (mockMessages[chatId]) {
-          setMessages(mockMessages[chatId]);
-        } else {
-          router.push('/chat');
-          return;
-        }
-      } catch (error) {
-        console.error('Error loading chat:', error);
-        router.push('/chat');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadChatData();
-  }, [chatId, router]);
+  }, [chatId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -192,11 +122,9 @@ export default function ChatDetailPage() {
       email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
       url: /(https?:\/\/[^\s]+|www\.[^\s]+)/gi,
       socialMedia: /\b(instagram|facebook|fb|twitter|x|tiktok|snapchat|telegram|whatsapp|signal|discord|reddit|linkedin)\b/gi,
-      appNames: /\b(whatsapp|telegram|signal|instagram|facebook|twitter|snapchat|tiktok|discord|messenger|viber|wechat|line)\b/gi,
       externalRequests: /\b(move to|switch to|contact me on|dm me on|hit me up on|add me on|find me on)\s+[a-zA-Z0-9]+\b/gi
     };
 
-    // Censor patterns
     Object.entries(patterns).forEach(([key, pattern]) => {
       censoredText = censoredText.replace(pattern, (match) => {
         hasSensitiveInfo = true;
@@ -247,7 +175,7 @@ export default function ChatDetailPage() {
   };
 
   const sendMessage = async () => {
-    if (!message.trim() || !chatId) return;
+    if (!message.trim() || !chatId || sending) return;
 
     const { content: censoredContent, hasSensitiveInfo } = censorSensitiveInfo(message);
     const detectedPatterns = detectSensitivePatterns(message);
@@ -256,52 +184,29 @@ export default function ChatDetailPage() {
       showSecurityWarning(detectedPatterns);
     }
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      senderId: 'current',
-      content: censoredContent,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isOwn: true,
-      containsSensitiveInfo: hasSensitiveInfo
-    };
+    setSending(true);
 
-    // For real API usage:
-    /*
     try {
-      const sentMessage = await sendMessageToAPI(chatId, { content: censoredContent });
-      setMessages(prev => [...prev, sentMessage]);
-    } catch (error) {
-      console.error('Error sending message:', error);
+      const response = await api.post(`/chat/messages/${chatId}`, {
+        content: censoredContent
+      });
+
+      if (response.data.success) {
+        const newMessage = response.data.message_data;
+        setMessages(prev => [...prev, newMessage]);
+        setMessage('');
+        
+        // Refresh conversation to update last message
+        await fetchConversation();
+      } else {
+        setError('Failed to send message');
+      }
+    } catch (err: any) {
+      console.error('Error sending message:', err);
+      setError(err.response?.data?.message || 'Failed to send message');
+    } finally {
+      setSending(false);
     }
-    */
-
-    // Mock implementation
-    setMessages(prev => [...prev, newMessage]);
-    setMessage('');
-
-    // Simulate reply
-    const replyDelay = Math.random() * 2000 + 1000;
-    setTimeout(() => {
-      const replies = [
-        "That's interesting!",
-        "I appreciate you keeping the conversation here 😊",
-        "Thanks for sharing!",
-        "Let's continue chatting here on Campus Vibes!",
-        "That sounds great!",
-        "I'm glad we're talking here on the app"
-      ];
-      
-      const randomReply = replies[Math.floor(Math.random() * replies.length)];
-      
-      const reply: Message = {
-        id: (Date.now() + 1).toString(),
-        senderId: chatId,
-        content: randomReply,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        isOwn: false
-      };
-      setMessages(prev => [...prev, reply]);
-    }, replyDelay);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -326,23 +231,51 @@ export default function ChatDetailPage() {
     );
   };
 
+  const formatMessageTime = (timestamp: string) => {
+    return new Date(timestamp).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
+
   const handleBack = () => {
     router.push('/chat');
   };
 
+  const markConversationAsRead = async () => {
+    if (!chatId) return;
+
+    try {
+      await api.post(`/chat/conversations/${chatId}/mark_read`);
+    } catch (err) {
+      console.error('Error marking conversation as read:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      markConversationAsRead();
+    }
+  }, [messages.length]);
+
   if (loading) {
     return (
       <div className="h-[calc(100vh-140px)] flex items-center justify-center">
-        <p className="text-gray-500">Loading chat...</p>
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-pink-500" />
+          <p className="text-gray-500 dark:text-gray-400">Loading chat...</p>
+        </div>
       </div>
     );
   }
 
-  if (!chatUser || !chatId) {
+  if (error || !conversation) {
     return (
-      <div className="h-[calc(100vh-140px)] flex items-center justify-center">
-        <p className="text-gray-500">Chat not found</p>
-        <Button onClick={handleBack} className="ml-4">
+      <div className="h-[calc(100vh-140px)] flex flex-col items-center justify-center p-4">
+        <p className="text-gray-500 dark:text-gray-400 mb-4 text-center">
+          {error || 'Chat not found'}
+        </p>
+        <Button onClick={handleBack}>
           Back to Chats
         </Button>
       </div>
@@ -370,64 +303,78 @@ export default function ChatDetailPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <Avatar>
-            <AvatarImage src={chatUser.avatar} />
-            <AvatarFallback>{chatUser.name.charAt(0)}</AvatarFallback>
+            <AvatarImage 
+              src={conversation.other_user.avatar || '/api/placeholder/40/40'} 
+              alt={conversation.other_user.name}
+            />
+            <AvatarFallback>
+              {conversation.other_user.name?.charAt(0) || conversation.other_user.username?.charAt(0)}
+            </AvatarFallback>
           </Avatar>
           <div>
             <h3 className="font-semibold text-gray-900 dark:text-white">
-              {chatUser.name}
+              {conversation.other_user.name || conversation.other_user.username}
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {chatUser.isOnline ? 'Online' : 'Offline'}
+              {conversation.other_user.isOnline ? 'Online' : 'Offline'}
             </p>
           </div>
         </div>
-        
-        <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="sm">
-            <Phone className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="sm">
-            <Video className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="sm">
-            <MoreVertical className="h-4 w-4" />
-          </Button>
-        </div>
       </div>
-
-      
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.isOwn ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
-                msg.isOwn
-                  ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-br-none'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-none'
-              } ${msg.containsSensitiveInfo ? 'border border-yellow-400 dark:border-yellow-600' : ''}`}
-            >
-              <p className="text-sm break-words">
-                {formatMessageContent(msg.content, msg.containsSensitiveInfo)}
-              </p>
-              <p className={`text-xs mt-1 ${
-                msg.isOwn ? 'text-pink-100' : 'text-gray-500'
-              }`}>
-                {msg.timestamp}
-              </p>
-            </div>
+        {messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+            <p className="text-sm">No messages yet</p>
+            <p className="text-xs mt-1">Start the conversation!</p>
           </div>
-        ))}
+        ) : (
+          messages.map((msg) => {
+            const isOwn = msg.sender_id !== conversation.other_user.id;
+            const { content: censoredContent, hasSensitiveInfo } = censorSensitiveInfo(msg.content);
+
+            return (
+              <div
+                key={msg.id}
+                className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+                    isOwn
+                      ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-br-none'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-none'
+                  } ${hasSensitiveInfo ? 'border border-yellow-400 dark:border-yellow-600' : ''}`}
+                >
+                  <p className="text-sm break-words">
+                    {formatMessageContent(censoredContent, hasSensitiveInfo)}
+                  </p>
+                  <div className={`text-xs mt-1 flex items-center justify-between ${
+                    isOwn ? 'text-pink-100' : 'text-gray-500'
+                  }`}>
+                    <span>{formatMessageTime(msg.timestamp)}</span>
+                    {isOwn && (
+                      <span className="ml-2 text-xs opacity-75">
+                        {msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Message Input */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+        {error && (
+          <div className="mb-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-2">
+            <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+          </div>
+        )}
+        
         <div className="flex items-center space-x-2">
           <Button variant="ghost" size="sm">
             <Paperclip className="h-4 w-4" />
@@ -438,16 +385,21 @@ export default function ChatDetailPage() {
             onChange={(e) => setMessage(e.target.value)}
             onKeyPress={handleKeyPress}
             className="flex-1"
+            disabled={sending}
           />
           <Button variant="ghost" size="sm">
             <Smile className="h-4 w-4" />
           </Button>
           <Button 
             onClick={sendMessage}
-            disabled={!message.trim()}
+            disabled={!message.trim() || sending}
             className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50"
           >
-            <Send className="h-4 w-4" />
+            {sending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
           </Button>
         </div>
       </div>

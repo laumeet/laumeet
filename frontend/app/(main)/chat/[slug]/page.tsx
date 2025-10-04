@@ -104,7 +104,7 @@ export default function ChatDetailPage() {
     if (!conversation) return;
 
     try {
-      const response = await api.get(`/chat/messages/conversation.id?conversationId=${conversation.id}`);
+      const response = await api.get(`/chat/messages/conversationId?conversationId=${conversation.id}`);
 
       if (response.data.success) {
         setMessages(response.data.messages || []);

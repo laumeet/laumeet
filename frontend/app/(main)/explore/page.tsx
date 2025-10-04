@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/(main)/explore/page.tsx
 'use client';
 

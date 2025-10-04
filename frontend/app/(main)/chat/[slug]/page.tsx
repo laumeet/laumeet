@@ -56,18 +56,27 @@ export default function ChatDetailPage() {
   };
 
   const fetchConversation = async () => {
-    if (!chatId) return;
+    if (!chatId) return null;
 
     try {
       const response = await api.get('/chat/conversations');
       if (response.data.success) {
         const conversations = response.data.conversations || [];
         const currentConv = conversations.find((conv: Conversation) => conv.id === chatId);
-        setConversation(currentConv || null);
+        
+        if (!currentConv) {
+          setError('Chat not found');
+          return null;
+        }
+        
+        setConversation(currentConv);
+        return currentConv;
       }
+      return null;
     } catch (err: any) {
       console.error('Error fetching conversation:', err);
       setError('Failed to load conversation');
+      return null;
     }
   };
 
@@ -96,7 +105,13 @@ export default function ChatDetailPage() {
     try {
       setLoading(true);
       setError('');
-      await Promise.all([fetchConversation(), fetchMessages()]);
+      
+      // First verify the conversation exists
+      const conv = await fetchConversation();
+      if (conv) {
+        // Then load messages
+        await fetchMessages();
+      }
     } catch (err) {
       console.error('Error loading chat:', err);
       setError('Failed to load chat');
@@ -146,7 +161,7 @@ export default function ChatDetailPage() {
 
   const detectSensitivePatterns = (text: string): string[] => {
     const detectedPatterns: string[] = [];
-    
+
     const patterns = {
       phone: { regex: /\b(\+?[\d\s\-\(\)]{10,15})\b/g, name: 'Phone number' },
       email: { regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, name: 'Email address' },
@@ -175,7 +190,7 @@ export default function ChatDetailPage() {
   };
 
   const sendMessage = async () => {
-    if (!message.trim() || !chatId || sending) return;
+    if (!message.trim() || !chatId || sending || !conversation) return;
 
     const { content: censoredContent, hasSensitiveInfo } = censorSensitiveInfo(message);
     const detectedPatterns = detectSensitivePatterns(message);
@@ -187,7 +202,8 @@ export default function ChatDetailPage() {
     setSending(true);
 
     try {
-      const response = await api.post(`/chat/messages/${chatId}`, {
+      // Use the correct API endpoint for sending messages
+      const response = await api.post(`/chat/messages/send?conversationId=${chatId}`, {
         content: censoredContent
       });
 
@@ -195,7 +211,7 @@ export default function ChatDetailPage() {
         const newMessage = response.data.message_data;
         setMessages(prev => [...prev, newMessage]);
         setMessage('');
-        
+
         // Refresh conversation to update last message
         await fetchConversation();
       } else {
@@ -374,7 +390,7 @@ export default function ChatDetailPage() {
             <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
           </div>
         )}
-        
+
         <div className="flex items-center space-x-2">
           <Button variant="ghost" size="sm">
             <Paperclip className="h-4 w-4" />

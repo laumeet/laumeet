@@ -52,7 +52,7 @@ export const useExploreProfiles = () => {
           name: p.name || p.username || 'Unknown',
           age: typeof p.age === 'number' ? p.age : 0,
           bio: p.bio || '',
-          images: Array.isArray(p.images) ? p.images : [],
+          pictures: Array.isArray(p.pictures) ? p.pictures : [],
           category: p.category || '',
           isAnonymous: Boolean(p.isAnonymous),
           department: p.department || '',

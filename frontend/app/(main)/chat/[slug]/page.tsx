@@ -322,7 +322,19 @@ export default function ChatDetailPage() {
     );
   }
 
-  
+  if (error || !conversation) {
+    return (
+      <div className="h-[calc(100vh-140px)] flex flex-col items-center justify-center p-4">
+        <p className="text-gray-500 dark:text-gray-400 mb-4 text-center">
+          {error || 'Chat not found'}
+        </p>
+        <p className="text-sm text-gray-400 mb-4">Chat ID: {chatId}</p>
+        <Button onClick={handleBack}>
+          Back to Chats
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="h-[calc(100vh-70px)] flex flex-col">

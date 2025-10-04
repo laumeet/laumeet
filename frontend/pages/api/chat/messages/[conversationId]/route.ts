@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/chat/messages/[conversationId]/route.ts
 import { getCookieValue } from "@/lib/utils";
 import { NextRequest, NextResponse } from "next/server";

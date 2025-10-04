@@ -302,7 +302,7 @@ export default function ExplorePage() {
                   }`}>
                     {/* Image Carousel */}
                     <div className="relative w-full h-full overflow-hidden">
-                      {profile.images && profile.images.length > 0 ? (
+                      {profile.pictures && profile.pictures.length > 0 ? (
                         <>
                           {/* Current Image */}
                           <img 

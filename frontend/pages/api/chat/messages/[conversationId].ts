@@ -1,4 +1,4 @@
-// pages/api/chat/messages/send.ts
+// pages/api/chat/messages/[conversationId].ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { getCookieValue } from "@/lib/utils";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ success: true });
   }
 
-  if (req.method === "POST") {
+  if (req.method === "GET") {
     try {
       const BACKEND_URL = getBackendUrl();
       const { conversationId } = req.query;
@@ -27,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
-      console.log(`🔧 Sending message to conversation: ${conversationId}`);
+      console.log(`🔧 Fetching messages for conversation: ${conversationId}`);
       
       const token = getCookieValue(req.headers.cookie, 'access_token_cookie');
       
@@ -39,22 +39,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       const backendRes = await fetch(`${BACKEND_URL}/messages/${conversationId}`, {
-        method: "POST",
+        method: "GET",
         headers: { 
           "Content-Type": "application/json",
           "Accept": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify(req.body),
       });
 
       const data = await backendRes.json();
       return res.status(backendRes.status).json(data);
       
     } catch (err: any) {
-      console.error("❌ Send message proxy error:", err);
+      console.error("❌ Get messages proxy error:", err);
       
-      let errorMessage = "Unable to send message. Please try again later.";
+      let errorMessage = "Unable to fetch messages. Please try again later.";
       
       if (err.message?.includes("ECONNREFUSED") || err.message?.includes("fetch failed")) {
         errorMessage = "Cannot connect to chat service. Please check if the backend server is running.";

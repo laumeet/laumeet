@@ -4,13 +4,14 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Send, Paperclip, Smile, Shield, Loader2, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Smile, Shield, Loader2, MoreVertical, CheckCheck, Check, Search, Menu } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import api from '@/lib/axio';
+import { useSocket } from '@/hooks/useSocket';
 
 export interface Message {
   id: string;
@@ -47,15 +48,126 @@ export default function ChatDetailPage() {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
-  const [showSecurityAlert, setShowSecurityAlert] = useState(false);
-  const [securityAlertMessage, setSecurityAlertMessage] = useState('');
+
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingUser, setTypingUser] = useState<string>('');
+  const [onlineStatus, setOnlineStatus] = useState<boolean>(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Use the useSocket hook
+  const { socket, isConnected: socketConnected, connectionError } = useSocket();
 
   const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
+
+  // Setup socket listeners when conversation is loaded
+  useEffect(() => {
+    if (!socket || !conversation) return;
+
+    // Join conversation room
+    socket.emit('join_conversation', { conversation_id: conversation.id });
+
+    // Listen for new messages
+    socket.on('new_message', (newMessage: Message) => {
+      console.log('📨 New message received:', newMessage);
+      setMessages(prev => {
+        // Check if message already exists to prevent duplicates
+        const exists = prev.some(msg => msg.id === newMessage.id);
+        if (exists) return prev;
+        return [...prev, newMessage];
+      });
+      
+      // Mark message as delivered if it's from other user
+      if (newMessage.sender_id !== conversation.other_user.id) {
+        socket.emit('message_delivered', {
+          message_id: newMessage.id,
+          conversation_id: conversation.id
+        });
+      }
+    });
+
+    // Listen for typing indicators
+    socket.on('user_typing', (data: any) => {
+      if (data.user_id !== conversation.other_user.id) return;
+      
+      setTypingUser(data.username);
+      setIsTyping(data.is_typing);
+
+      if (data.is_typing) {
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+        typingTimeoutRef.current = setTimeout(() => {
+          setIsTyping(false);
+          setTypingUser('');
+        }, 3000);
+      } else {
+        setIsTyping(false);
+        setTypingUser('');
+      }
+    });
+
+    // Listen for online status updates
+    socket.on('user_online_status', (data: any) => {
+      if (data.user_id === conversation.other_user.id) {
+        setOnlineStatus(data.is_online);
+        setConversation(prev => prev ? {
+          ...prev,
+          other_user: {
+            ...prev.other_user,
+            isOnline: data.is_online,
+            lastSeen: data.last_seen
+          }
+        } : null);
+      }
+    });
+
+    // Listen for message status updates
+    socket.on('message_status_update', (data: any) => {
+      console.log('📨 Message status update:', data);
+      setMessages(prev => prev.map(msg => 
+        msg.id === data.message_id 
+          ? { 
+              ...msg, 
+              status: data.status,
+              delivered_at: data.delivered_at || msg.delivered_at,
+              read_at: data.read_at || msg.read_at,
+              is_read: data.status === 'read' ? true : msg.is_read
+            } 
+          : msg
+      ));
+    });
+
+    // Listen for conversation updates
+    socket.on('conversation_updated', (data: any) => {
+      if (data.conversation_id === conversation.id) {
+        // Update conversation last message
+        setConversation(prev => prev ? {
+          ...prev,
+          last_message: data.last_message,
+          last_message_at: data.last_message_at
+        } : null);
+      }
+    });
+
+    return () => {
+      socket.off('new_message');
+      socket.off('user_typing');
+      socket.off('user_online_status');
+      socket.off('message_status_update');
+      socket.off('conversation_updated');
+      
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+    };
+  }, [socket, conversation]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -91,6 +203,7 @@ export default function ChatDetailPage() {
         }
 
         setConversation(currentConv);
+        setOnlineStatus(currentConv.other_user.isOnline);
         return currentConv;
       }
       return null;
@@ -100,26 +213,28 @@ export default function ChatDetailPage() {
     }
   };
 
-  // In your ChatDetailPage component, change the fetchMessages function:
+  const fetchMessages = async () => {
+    if (!chatId) return;
 
-const fetchMessages = async () => {
-  if (!conversation) return;
+    try {
+      console.log(`🔄 Fetching messages for conversation: ${chatId}`);
+      
+      const response = await api.get(`/chat/messages/${chatId}`);
 
-  try {
-    // Use path parameter instead of query parameter
-    const response = await api.get(`/chat/messages/${conversation.id}`);
+      console.log('📨 API Response:', response.data);
 
-    if (response.data.success) {
-      setMessages(response.data.messages || []);
-    } else {
-      setError('Failed to load messages');
-      console.error('API response error:', response.data);
+      if (response.data.success) {
+        setMessages(response.data.messages || []);
+        console.log(`✅ Loaded ${response.data.messages?.length || 0} messages`);
+      } else {
+        setError('Failed to load messages');
+        console.error('API response error:', response.data);
+      }
+    } catch (err: any) {
+      console.error('Fetch messages error:', err);
+      setError(err.response?.data?.message || 'Failed to load messages');
     }
-  } catch (err: any) {
-    console.error('Fetch messages error:', err);
-    setError(err.response?.data?.message || 'Failed to load messages');
-  }
-};
+  };
 
   const loadChatData = async () => {
     if (!chatId) {
@@ -132,8 +247,10 @@ const fetchMessages = async () => {
       setError('');
 
       const conv = await fetchConversation();
-        await fetchMessages();
-      
+      console.log("conv:",conv)
+      if (conv){
+      await fetchMessages();
+      }
     } catch (err) {
       setError('Failed to load chat');
     } finally {
@@ -147,97 +264,94 @@ const fetchMessages = async () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isTyping]);
 
-  const censorSensitiveInfo = (text: string): { content: string; hasSensitiveInfo: boolean } => {
-    let hasSensitiveInfo = false;
-    let censoredText = text;
-
-    const patterns = {
-      phone: /\b(\+?[\d\s\-\(\)]{10,15})\b/g,
-      email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
-      url: /(https?:\/\/[^\s]+|www\.[^\s]+)/gi,
-      socialMedia: /\b(instagram|facebook|fb|twitter|x|tiktok|snapchat|telegram|whatsapp|signal|discord|reddit|linkedin)\b/gi,
-      externalRequests: /\b(move to|switch to|contact me on|dm me on|hit me up on|add me on|find me on)\s+[a-zA-Z0-9]+\b/gi
-    };
-
-    Object.entries(patterns).forEach(([key, pattern]) => {
-      censoredText = censoredText.replace(pattern, (match) => {
-        hasSensitiveInfo = true;
-        if (key === 'email') {
-          const [local, domain] = match.split('@');
-          return local.charAt(0) + '#'.repeat(local.length - 1) + '@' + domain;
-        } else if (key === 'externalRequests') {
-          const words = match.split(' ');
-          const lastWord = words[words.length - 1];
-          return words.slice(0, -1).join(' ') + ' #' + '#'.repeat(lastWord.length - 1);
-        } else {
-          return '#' + '#'.repeat(Math.min(match.length - 1, 10));
-        }
-      });
-    });
-
-    return { content: censoredText, hasSensitiveInfo };
-  };
-
-  const detectSensitivePatterns = (text: string): string[] => {
-    const detectedPatterns: string[] = [];
-
-    const patterns = {
-      phone: { regex: /\b(\+?[\d\s\-\(\)]{10,15})\b/g, name: 'Phone number' },
-      email: { regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, name: 'Email address' },
-      url: { regex: /(https?:\/\/[^\s]+|www\.[^\s]+)/gi, name: 'Website link' },
-      socialMedia: { regex: /\b(instagram|facebook|fb|twitter|x|tiktok|snapchat|telegram|whatsapp|signal|discord|reddit|linkedin)\b/gi, name: 'Social media platform' },
-      externalRequest: { regex: /\b(move to|switch to|contact me on|dm me on|hit me up on|add me on|find me on)\s+[a-zA-Z0-9]+\b/gi, name: 'External platform request' }
-    };
-
-    Object.entries(patterns).forEach(([key, { regex, name }]) => {
-      if (regex.test(text)) {
-        detectedPatterns.push(name);
-      }
-    });
-
-    return detectedPatterns;
-  };
-
-  const showSecurityWarning = (patterns: string[]) => {
-    if (patterns.length > 0) {
-      setSecurityAlertMessage(
-        `For your safety, we've hidden ${patterns.join(', ')}. Please keep conversations within Campus Vibes.`
-      );
-      setShowSecurityAlert(true);
-      setTimeout(() => setShowSecurityAlert(false), 5000);
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
     }
+  }, [message]);
+
+  // Typing indicator handler
+  const handleTyping = (isTyping: boolean) => {
+    if (!socket || !conversation) return;
+
+    socket.emit('typing', {
+      conversation_id: conversation.id,
+      is_typing: isTyping
+    });
   };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMessage(e.target.value);
+    
+    // Send typing start
+    if (e.target.value.trim() && !isTyping) {
+      handleTyping(true);
+    }
+    
+    // Set timeout to send typing stop
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    
+    typingTimeoutRef.current = setTimeout(() => {
+      handleTyping(false);
+    }, 1000);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  
+
 
   const sendMessage = async () => {
     if (!message.trim() || !conversation || sending) return;
 
-    const { content: censoredContent, hasSensitiveInfo } = censorSensitiveInfo(message);
-    const detectedPatterns = detectSensitivePatterns(message);
-
-    if (hasSensitiveInfo) {
-      showSecurityWarning(detectedPatterns);
-    }
-
+    const content = message.trim();
     setSending(true);
 
     try {
-      const response = await api.post(`/chat/messages/send?conversationId=${conversation.id}`, {
-        content: censoredContent
-      });
+      // Stop typing when sending
+      handleTyping(false);
 
-      if (response.data.success) {
-        const newMessage = response.data.message_data;
-        setMessages(prev => [...prev, newMessage]);
-        setMessage('');
+      // Create optimistic message
 
-        await fetchConversation();
+      setMessage('');
+
+      // Use Socket.IO for real-time messaging
+      if (socket && socketConnected) {
+        socket.emit('send_message', {
+          conversation_id: conversation.id,
+          content: content
+        });
       } else {
-        setError('Failed to send message');
+        // Fallback to HTTP API
+        const response = await api.post(`/chat/messages/send?conversationId=${conversation.id}`, {
+          content: content
+        });
+
+        if (response.data.success) {
+        
+          await fetchConversation();
+        } else {
+          setError('Failed to send message');
+          // Remove optimistic message on error
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to send message');
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(msg => msg.id.startsWith('temp-')));
     } finally {
       setSending(false);
     }
@@ -253,17 +367,29 @@ const fetchMessages = async () => {
   const formatMessageTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString([], { 
       hour: '2-digit', 
-      minute: '2-digit' 
+      minute: '2-digit',
+      hour12: false
     });
   };
 
   const formatMessageDate = (timestamp: string) => {
-    return new Date(timestamp).toLocaleDateString([], {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString([], {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
   };
 
   const isSameDay = (date1: string, date2: string) => {
@@ -274,35 +400,36 @@ const fetchMessages = async () => {
     router.push('/chat');
   };
 
-  const markConversationAsRead = async () => {
-    if (!conversation) return;
+  const formatLastSeen = (lastSeen: string | null) => {
+    if (!lastSeen) return 'Never seen';
 
-    try {
-      await api.post(`/chat/conversations/mark-read?conversationId=${conversation.id}`);
-    } catch (err) {
-      // Silent fail for read receipts
-    }
+    const now = new Date();
+    const seen = new Date(lastSeen);
+    const diffMinutes = Math.floor((now.getTime() - seen.getTime()) / (1000 * 60));
+
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+    return `${Math.floor(diffMinutes / 1440)}d ago`;
   };
 
-  useEffect(() => {
-    if (messages.length > 0 && conversation) {
-      markConversationAsRead();
-    }
-  }, [messages.length, conversation]);
-
-  // Auto-resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
-    }
-  }, [message]);
+  // Connection status component
+  const ConnectionStatus = () => (
+    <div className="flex items-center space-x-2 text-xs">
+      <div className={`h-2 w-2 rounded-full ${
+        socketConnected ? 'bg-green-500' : 'bg-red-500'
+      }`} />
+      <span className="text-gray-500 dark:text-gray-400">
+        {socketConnected ? 'Connected' : 'Disconnected'}
+      </span>
+    </div>
+  );
 
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-white dark:bg-gray-900">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-pink-500" />
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-green-500" />
           <p className="text-gray-500 dark:text-gray-400">Loading chat...</p>
         </div>
       </div>
@@ -323,81 +450,73 @@ const fetchMessages = async () => {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white dark:bg-gray-900">
-      {/* Security Alert */}
-      {showSecurityAlert && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md px-4">
-          <Alert className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg">
-            <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            <AlertDescription className="text-blue-800 dark:text-blue-200 text-sm">
-              {securityAlertMessage}
-            </AlertDescription>
-          </Alert>
-        </div>
-      )}
-
-      {/* Chat Header */}
-      <div className="flex-none border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <div className="flex items-center justify-between p-4">
+    <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900">
+      {/* WhatsApp-like Header */}
+      <div className="flex-none  text-white">
+        <div className="flex items-center justify-between p-3">
           <div className="flex items-center space-x-3">
             <Button 
               variant="ghost" 
               size="icon" 
               onClick={handleBack} 
-              className="md:hidden hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="hover:bg-green-600 dark:hover:bg-green-700 text-white"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <Avatar className="h-10 w-10 border-2 border-white dark:border-gray-800">
+            <Avatar className="h-10 w-10 border-2 border-white">
               <AvatarImage 
                 src={conversation.other_user.avatar || '/api/placeholder/40/40'} 
                 alt={conversation.other_user.name}
                 className="object-cover"
               />
-              <AvatarFallback className="bg-gradient-to-r from-pink-500 to-purple-600 text-white">
+              <AvatarFallback className="bg-green-600 text-white">
                 {conversation.other_user.name?.charAt(0) || conversation.other_user.username?.charAt(0)}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+              <h3 className="font-semibold text-white truncate">
                 {conversation.other_user.name || conversation.other_user.username}
               </h3>
-              <div className="flex items-center space-x-1">
-                <div className={`h-2 w-2 rounded-full ${
-                  conversation.other_user.isOnline 
-                    ? 'bg-green-500' 
-                    : 'bg-gray-400'
-                }`} />
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {conversation.other_user.isOnline ? 'Online' : 'Offline'}
+              <div className="flex items-center space-x-2">
+                <p className="text-green-100 text-xs">
+                  {socketConnected ? 'online' : formatLastSeen(conversation.other_user.lastSeen)}
                 </p>
+                {/* <ConnectionStatus /> */}
               </div>
             </div>
           </div>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="hover:bg-gray-100 dark:hover:bg-gray-800">
-                <MoreVertical className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>View profile</DropdownMenuItem>
-              <DropdownMenuItem>Media, files & links</DropdownMenuItem>
-              <DropdownMenuItem className="text-red-600">Block user</DropdownMenuItem>
-              <DropdownMenuItem className="text-red-600">Report</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+{/* 
+          <div className="flex items-center space-x-2">
+           
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="hover:bg-green-600 dark:hover:bg-green-700 text-white">
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>Contact info</DropdownMenuItem>
+                <DropdownMenuItem>Media, files & links</DropdownMenuItem>
+                <DropdownMenuItem>Export chat</DropdownMenuItem>
+                <DropdownMenuItem className="text-red-600">Block user</DropdownMenuItem>
+                <DropdownMenuItem className="text-red-600">Report</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div> */}
         </div>
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-800/30">
-        <div className="max-w-3xl mx-auto p-4 space-y-6">
+      <div 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto bg-[#e5ddd5] dark:bg-gray-800 bg-chat-background bg-repeat bg-center"
+       
+      >
+        <div className="max-w-3xl mx-auto p-2 space-y-1">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center py-12">
-              <div className="w-16 h-16 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
-                <span className="text-2xl text-white">👋</span>
+              <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mb-4">
+                <span className="text-2xl text-white">💬</span>
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                 Start a conversation
@@ -408,64 +527,50 @@ const fetchMessages = async () => {
             </div>
           ) : (
             messages.map((msg, index) => {
-              const isOwn = msg.sender_id !== conversation.other_user.id;
-              const { content: censoredContent, hasSensitiveInfo } = censorSensitiveInfo(msg.content);
+              const isOwn = !msg.sender_id.startsWith('temp-') && msg.sender_id !== conversation.other_user.id;
               const showDate = index === 0 || !isSameDay(msg.timestamp, messages[index - 1].timestamp);
 
               return (
-                <div key={msg.id} className="space-y-2">
+                <div key={msg.id} className="space-y-1">
                   {/* Date Separator */}
                   {showDate && (
                     <div className="flex justify-center">
-                      <div className="bg-white dark:bg-gray-700 px-3 py-1 rounded-full text-xs text-gray-500 dark:text-gray-400 border dark:border-gray-600">
+                      <div className="bg-black bg-opacity-20 px-3 py-1 rounded-full text-xs text-white">
                         {formatMessageDate(msg.timestamp)}
                       </div>
                     </div>
                   )}
 
                   {/* Message */}
-                  <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} group`}>
-                    <div className={`flex max-w-[70%] ${isOwn ? 'flex-row-reverse' : 'flex-row'} items-end space-x-2`}>
-                      {!isOwn && (
-                        <Avatar className="h-8 w-8 flex-none">
-                          <AvatarImage 
-                            src={conversation.other_user.avatar || '/api/placeholder/32/32'} 
-                            alt={conversation.other_user.name}
-                          />
-                          <AvatarFallback className="text-xs">
-                            {conversation.other_user.name?.charAt(0) || conversation.other_user.username?.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-
-                      <div className={`relative px-4 py-2 rounded-2xl ${
+                  <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[70%] ${isOwn ? 'ml-12' : 'mr-12'}`}>
+                      <div className={`relative px-3 py-2 rounded-lg ${
                         isOwn
-                          ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-br-md'
-                          : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-md shadow-sm border border-gray-200 dark:border-gray-600'
-                      } ${hasSensitiveInfo ? 'border-2 border-yellow-400 dark:border-yellow-600' : ''}`}>
-                        <p className="text-sm break-words leading-relaxed">
-                          {censoredContent}
+                          ? 'bg-[#d9fdd3] dark:bg-green-900 rounded-br-none'
+                          : 'bg-white dark:bg-gray-700 rounded-bl-none'
+                      } shadow-sm`}>
+                        <p className="text-sm break-words leading-relaxed whitespace-pre-wrap">
+                          {msg.content}
                         </p>
 
                         <div className={`flex items-center justify-end space-x-1 mt-1 ${
-                          isOwn ? 'text-pink-100' : 'text-gray-500 dark:text-gray-400'
+                          isOwn ? 'text-green-800 dark:text-green-300' : 'text-gray-500 dark:text-gray-400'
                         }`}>
-                          <span className="text-xs">
+                          <span className="text-xs" style={{ fontSize: '11px' }}>
                             {formatMessageTime(msg.timestamp)}
                           </span>
                           {isOwn && (
-                            <span className="text-xs opacity-75">
-                              {msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}
+                            <span className="flex items-center" style={{ fontSize: '11px' }}>
+                              {msg.status === 'read' ? (
+                                <CheckCheck size={14} className="text-blue-500" />
+                              ) : msg.status === 'delivered' ? (
+                                <CheckCheck size={14} />
+                              ) : (
+                                <Check size={14} />
+                              )}
                             </span>
                           )}
                         </div>
-
-                        {/* Security Shield */}
-                        {hasSensitiveInfo && (
-                          <div className="absolute -top-2 -right-2 bg-yellow-100 dark:bg-yellow-900 rounded-full p-1">
-                            <Shield className="h-3 w-3 text-yellow-600 dark:text-yellow-400" />
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -473,38 +578,60 @@ const fetchMessages = async () => {
               );
             })
           )}
+
+          {/* Typing Indicator */}
+          {isTyping && (
+            <div className="flex justify-start">
+              <div className="max-w-[70%] mr-12">
+                <div className="bg-white dark:bg-gray-700 px-3 py-2 rounded-lg rounded-bl-none shadow-sm">
+                  <div className="flex items-center space-x-2">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                    </div>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {typingUser} is typing...
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
       </div>
 
-      {/* Message Input */}
-      <div className="flex-none border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      {/* Message Input - WhatsApp Style */}
+      <div className="flex-none bg-gray-100 dark:bg-gray-800 p-3">
         {error && (
           <div className="mb-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
             <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
           </div>
         )}
 
-        <div className="flex items-end space-x-3 max-w-3xl mx-auto">
-          <Button variant="ghost" size="icon" className="flex-none hover:bg-gray-100 dark:hover:bg-gray-800">
+        <div className="flex items-end space-x-2 max-w-3xl mx-auto">
+          <Button variant="ghost" size="icon" className="flex-none hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400">
             <Paperclip className="h-5 w-5" />
           </Button>
 
           <div className="flex-1 relative">
             <textarea
               ref={textareaRef}
-              placeholder="Type a message..."
+              placeholder="Type a message"
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={handleInputChange}
               onKeyDown={handleKeyPress}
-              className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-32"
+              className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-32 overflow-hidden"
               rows={1}
               disabled={sending}
+              style={{ overflow: 'hidden' }}
             />
             <Button 
               variant="ghost" 
               size="icon" 
-              className="absolute right-2 bottom-2 hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="absolute right-2 bottom-2 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-400"
             >
               <Smile className="h-5 w-5" />
             </Button>
@@ -512,14 +639,15 @@ const fetchMessages = async () => {
 
           <Button 
             onClick={sendMessage}
-            disabled={!message.trim() || sending}
+            disabled={!message.trim() || sending || !socketConnected}
             size="icon"
-            className="flex-none bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed h-11 w-11 rounded-full shadow-lg"
+            className="flex-none bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed h-11 w-11 rounded-full shadow-lg"
+            title={!socketConnected ? "Waiting for connection..." : "Send message"}
           >
             {sending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin text-white" />
             ) : (
-              <Send className="h-5 w-5" />
+              <Send className="h-5 w-5 text-white" />
             )}
           </Button>
         </div>

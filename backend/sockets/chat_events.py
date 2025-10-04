@@ -78,22 +78,26 @@ def handle_connect():
     Update user's online status in database
     """
     try:
-        # Get token from query string or headers
-        token = flask_request.args.get('token') or flask_request.headers.get('Authorization')
+        # Get token from cookies (since middleware handles authentication)
+        token = flask_request.cookies.get('access_token_cookie')
 
         if not token:
-            print("DEBUG: No token provided for SocketIO connection")
-            return False
-
-        # Remove 'Bearer ' prefix if present
-        if token.startswith('Bearer '):
-            token = token[7:]
+            print("DEBUG: No token found in cookies")
+            # Also check Authorization header as fallback
+            auth_header = flask_request.headers.get('Authorization')
+            if auth_header and auth_header.startswith('Bearer '):
+                token = auth_header[7:]
+                print("DEBUG: Using token from Authorization header")
+            else:
+                print("DEBUG: No token provided for SocketIO connection")
+                return False
 
         # Verify JWT token
         from flask_jwt_extended import decode_token
         try:
             decoded_token = decode_token(token)
             user_public_id = decoded_token['sub']
+            print(f"DEBUG: Decoded token for user: {user_public_id}")
 
             # Find user in database
             user = User.query.filter_by(public_id=user_public_id).first()
@@ -131,7 +135,6 @@ def handle_connect():
         return False
 
     return True
-
 
 @socketio.on('disconnect')
 def handle_disconnect():

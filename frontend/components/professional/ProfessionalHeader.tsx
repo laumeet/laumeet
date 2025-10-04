@@ -4,7 +4,7 @@
 
 import { Bell, Search, MessageCircle, User, Settings, LogOut, Home, Heart, Loader2 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import api from '@/lib/axio';
 import { useProfile } from '@/hooks/get-profile';
@@ -20,6 +20,7 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
 
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+ 
 
   const getTitleConfig = () => {
     const config = {
@@ -45,7 +46,8 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
+ const pathname = usePathname();
+   if (pathname && pathname.startsWith('/chat/') && pathname !== '/chat') return
   const handleLogout = async () => {
     setLogoutLoading(true);
     try {

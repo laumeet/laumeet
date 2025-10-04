@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/axio';
+import { useSocket } from '@/hooks/useSocket';
 
 export interface Conversation {
   id: string;
@@ -32,6 +33,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const { socket } = useSocket();
 
   const fetchConversations = async () => {
     try {
@@ -56,7 +58,71 @@ export default function ChatPage() {
     fetchConversations();
   }, []);
 
+  // Listen for real-time updates
+  useEffect(() => {
+    if (!socket) return;
+
+    // Listen for new messages to update conversation list
+    socket.on('new_message', (data: any) => {
+      setConversations(prev => {
+        const updated = prev.map(conv => {
+          if (conv.id === data.conversation_id) {
+            return {
+              ...conv,
+              last_message: data.content,
+              last_message_at: data.timestamp,
+              unread_count: data.sender_id !== conv.other_user.id ? conv.unread_count + 1 : conv.unread_count
+            };
+          }
+          return conv;
+        });
+
+        // Move updated conversation to top
+        const updatedConv = updated.find(conv => conv.id === data.conversation_id);
+        if (updatedConv) {
+          return [updatedConv, ...updated.filter(conv => conv.id !== data.conversation_id)];
+        }
+        return updated;
+      });
+    });
+
+    // Listen for message status updates
+    socket.on('message_status_update', (data: any) => {
+      // You can update conversation status if needed
+      console.log('Message status updated:', data);
+    });
+
+    // Listen for online status updates
+    socket.on('user_online_status', (data: any) => {
+      setConversations(prev => prev.map(conv => {
+        if (conv.other_user.id === data.user_id) {
+          return {
+            ...conv,
+            other_user: {
+              ...conv.other_user,
+              isOnline: data.is_online,
+              lastSeen: data.last_seen
+            }
+          };
+        }
+        return conv;
+      }));
+    });
+
+    return () => {
+      socket.off('new_message');
+      socket.off('message_status_update');
+      socket.off('user_online_status');
+    };
+  }, [socket]);
+
   const handleChatSelect = (conversationId: string) => {
+    // Reset unread count when opening chat
+    setConversations(prev => prev.map(conv => 
+      conv.id === conversationId 
+        ? { ...conv, unread_count: 0 }
+        : conv
+    ));
     router.push(`/chat/${conversationId}`);
   };
 
@@ -69,11 +135,14 @@ export default function ChatPage() {
     
     if (diffInHours < 1) {
       const diffInMinutes = Math.floor(diffInHours * 60);
-      return `${diffInMinutes}m ago`;
+      if (diffInMinutes < 1) return 'now';
+      return `${diffInMinutes}m`;
     } else if (diffInHours < 24) {
-      return `${Math.floor(diffInHours)}h ago`;
+      return `${Math.floor(diffInHours)}h`;
+    } else if (diffInHours < 168) {
+      return date.toLocaleDateString([], { weekday: 'short' });
     } else {
-      return date.toLocaleDateString();
+      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }
   };
 
@@ -85,9 +154,9 @@ export default function ChatPage() {
 
   if (loading) {
     return (
-      <div className="h-[calc(100vh-140px)] flex items-center justify-center">
+      <div className="h-screen flex items-center justify-center bg-white dark:bg-gray-900">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-pink-500" />
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-green-500" />
           <p className="text-gray-500 dark:text-gray-400">Loading conversations...</p>
         </div>
       </div>
@@ -95,14 +164,15 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-140px)] pb-10">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Messages</h2>
+    <div className="h-screen bg-white dark:bg-gray-900">
+  
+      {/* Search Bar */}
+      <div className="p-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
             placeholder="Search conversations..."
-            className="pl-10 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+            className="pl-10 bg-gray-100 dark:bg-gray-800 border-0 focus:ring-0"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -117,7 +187,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      <div className="overflow-y-auto h-full">
+      <div className="overflow-y-auto h-[calc(100vh-140px)]">
         {filteredConversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-gray-500 dark:text-gray-400">
             <p className="text-sm">
@@ -131,17 +201,17 @@ export default function ChatPage() {
           filteredConversations.map((conversation) => (
             <div
               key={conversation.id}
-              className="p-4 border-b border-gray-100 dark:border-gray-800 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
+              className="p-3 border-b border-gray-100 dark:border-gray-800 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700"
               onClick={() => handleChatSelect(conversation.id)}
             >
               <div className="flex items-center space-x-3">
                 <div className="relative">
-                  <Avatar>
+                  <Avatar className="h-12 w-12">
                     <AvatarImage 
                       src={conversation.other_user.avatar || '/api/placeholder/40/40'} 
                       alt={conversation.other_user.name}
                     />
-                    <AvatarFallback>
+                    <AvatarFallback className="bg-green-500 text-white">
                       {conversation.other_user.name?.charAt(0) || conversation.other_user.username?.charAt(0)}
                     </AvatarFallback>
                   </Avatar>
@@ -151,17 +221,17 @@ export default function ChatPage() {
                 </div>
                 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-1">
                     <h3 className="font-semibold text-gray-900 dark:text-white truncate">
                       {conversation.other_user.name || conversation.other_user.username}
                     </h3>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                       {formatTimestamp(conversation.last_message_at)}
                     </span>
                   </div>
                   
                   <div className="flex items-center justify-between">
-                    <p className={`text-sm truncate ${
+                    <p className={`text-sm truncate flex-1 ${
                       conversation.unread_count > 0 
                         ? 'text-gray-900 dark:text-white font-medium' 
                         : 'text-gray-500 dark:text-gray-400'
@@ -170,7 +240,7 @@ export default function ChatPage() {
                     </p>
                     
                     {conversation.unread_count > 0 && (
-                      <Badge className="bg-pink-500 text-white text-xs min-w-[20px] h-5 flex items-center justify-center">
+                      <Badge className="bg-green-500 text-white text-xs min-w-[20px] h-5 flex items-center justify-center rounded-full">
                         {conversation.unread_count}
                       </Badge>
                     )}

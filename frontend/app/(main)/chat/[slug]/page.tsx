@@ -49,7 +49,7 @@ export default function ChatDetailPage() {
   const [error, setError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const chatId = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

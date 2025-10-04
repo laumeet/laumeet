@@ -306,7 +306,7 @@ export default function ExplorePage() {
                         <>
                           {/* Current Image */}
                           <img 
-                            src={profile.images[currentImageIndex] || '/api/placeholder/400/500'} 
+                            src={profile.pictures[currentImageIndex] || '/api/placeholder/400/500'} 
                             alt={`${displayName} - Image ${currentImageIndex + 1}`}
                             className="w-full h-full object-cover transition-transform duration-300"
                             onError={(e) => {
@@ -335,7 +335,7 @@ export default function ExplorePage() {
                           {/* Image Dots Indicator */}
                           {hasMultipleImages && (
                             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2 z-20">
-                              {profile.images.map((_, imgIndex) => (
+                              {profile.pictures.map((_, imgIndex) => (
                                 <button
                                   key={imgIndex}
                                   onClick={(e) => goToImage(profile.id, imgIndex, e)}

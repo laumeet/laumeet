@@ -1,0 +1,149 @@
+// Connect with authentication
+const socket = io('http://localhost:5000', {
+  query: {
+    token: 'your-jwt-token-here'
+  }
+});
+
+// Join conversation
+socket.emit('join_conversation', { conversation_id: 123 });
+
+// Send message
+socket.emit('send_message', {
+  conversation_id: 123,
+  content: 'Hello world!'
+});
+
+// Typing indicator
+socket.emit('typing', {
+  conversation_id: 123,
+  is_typing: true
+});
+
+// Mark messages as read
+socket.emit('read_messages', {
+  conversation_id: 123,
+  message_ids: [1, 2, 3]  // optional, mark all if empty
+});
+
+// Listen for events
+socket.on('new_message', (data) => {
+  console.log('New message:', data);
+});
+
+socket.on('user_typing', (data) => {
+  console.log('User typing:', data);
+});
+
+socket.on('messages_read', (data) => {
+  console.log('Messages read:', data);
+});
+
+socket.on('user_online_status', (data) => {
+  console.log('User online status:', data);
+});
+
+
+
+
+
+
+
+
+
+
+// Connect to SocketIO
+const socket = io('http://localhost:5000', {
+  query: { token: 'your-jwt-token' }
+});
+
+// Listen for online status updates
+socket.on('user_online_status', (data) => {
+  console.log('Online status update:', data);
+
+  // Update UI - show green dot for online, last seen for offline
+  if (data.is_online) {
+    showOnlineIndicator(data.user_id);
+  } else {
+    showLastSeen(data.user_id, data.last_seen);
+  }
+});
+
+// Get conversations with online status
+fetch('/conversations', {
+  headers: { 'Authorization': 'Bearer ' + token }
+})
+.then(response => response.json())
+.then(data => {
+  data.conversations.forEach(conversation => {
+    const otherUser = conversation.other_user;
+
+    // Display online status
+    if (otherUser.isOnline) {
+      displayGreenDot(otherUser.id);
+    } else {
+      displayLastSeen(otherUser.id, otherUser.lastSeen);
+    }
+  });
+});
+
+// Function to format last seen time
+function formatLastSeen(lastSeen) {
+  if (!lastSeen) return 'Never seen';
+
+  const now = new Date();
+  const seen = new Date(lastSeen);
+  const diffMinutes = Math.floor((now - seen) / (1000 * 60));
+
+  if (diffMinutes < 1) return 'Just now';
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+  return `${Math.floor(diffMinutes / 1440)}d ago`;
+}// Connect to SocketIO
+const socket = io('http://localhost:5000', {
+  query: { token: 'your-jwt-token' }
+});
+
+// Listen for online status updates
+socket.on('user_online_status', (data) => {
+  console.log('Online status update:', data);
+
+  // Update UI - show green dot for online, last seen for offline
+  if (data.is_online) {
+    showOnlineIndicator(data.user_id);
+  } else {
+    showLastSeen(data.user_id, data.last_seen);
+  }
+});
+
+// Get conversations with online status
+fetch('/conversations', {
+  headers: { 'Authorization': 'Bearer ' + token }
+})
+.then(response => response.json())
+.then(data => {
+  data.conversations.forEach(conversation => {
+    const otherUser = conversation.other_user;
+
+    // Display online status
+    if (otherUser.isOnline) {
+      displayGreenDot(otherUser.id);
+    } else {
+      displayLastSeen(otherUser.id, otherUser.lastSeen);
+    }
+  });
+});
+
+// Function to format last seen time
+function formatLastSeen(lastSeen) {
+  if (!lastSeen) return 'Never seen';
+
+  const now = new Date();
+  const seen = new Date(lastSeen);
+  const diffMinutes = Math.floor((now - seen) / (1000 * 60));
+
+  if (diffMinutes < 1) return 'Just now';
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+  return `${Math.floor(diffMinutes / 1440)}d ago`;
+}

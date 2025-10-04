@@ -270,8 +270,8 @@ export default function ExplorePage() {
       <div className="relative h-[600px] w-full max-w-md mx-auto">
         {profiles.map((profile, index) => {
           const currentImageIndex = getCurrentImageIndex(profile.id);
-          const hasMultipleImages = profile.images && profile.images.length > 1;
-          const totalImages = profile.images?.length || 0;
+          const hasMultipleImages = profile.pictures && profile.pictures.length > 1;
+          const totalImages = profile.pictures?.length || 0;
           const displayName = profile.name || profile.username;
           const isShowingDetails = showDetails[profile.id];
           const isProcessing = processingMatch === profile.id;

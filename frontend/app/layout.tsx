@@ -4,6 +4,7 @@ import { Inter, Poppins } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/ui/theme-provider';
 import { Toaster } from 'sonner';
+import ModelPreloader from '@/components/providers/ModelPreloader';
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -35,11 +36,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-           <Toaster position='top-center' />
+          <ModelPreloader />
+          <Toaster position='top-center' />
           <div className="max-w-md mx-auto min-h-screen bg-white dark:bg-gray-900 overflow-hidden">
             {children}
           </div>
-         
         </ThemeProvider>
       </body>
     </html>

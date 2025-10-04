@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import {
   Edit3, Shield, Eye, Heart, MessageCircle,
   MapPin, Calendar, Book, Cross, Droplets, GraduationCap,
-  Save, X, Loader2
+  Save, X, Loader2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCcw
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,10 +36,251 @@ interface UserProfile {
   timestamp: string;
 }
 
+// Lightbox Component
+function LightboxModal({ 
+  images, 
+  currentIndex, 
+  onClose, 
+  onNext, 
+  onPrev 
+}: {
+  images: string[];
+  currentIndex: number;
+  onClose: () => void;
+  onNext: () => void;
+  onPrev: () => void;
+}) {
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [startPosition, setStartPosition] = useState({ x: 0, y: 0 });
+
+  const currentImage = images[currentIndex];
+
+  // Reset zoom and rotation when image changes
+  useEffect(() => {
+    setZoom(1);
+    setRotation(0);
+    setPosition({ x: 0, y: 0 });
+  }, [currentIndex]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'Escape':
+          onClose();
+          break;
+        case 'ArrowLeft':
+          onPrev();
+          break;
+        case 'ArrowRight':
+          onNext();
+          break;
+        case '+':
+        case '=':
+          setZoom(prev => Math.min(prev + 0.25, 3));
+          break;
+        case '-':
+          setZoom(prev => Math.max(prev - 0.25, 0.5));
+          break;
+        case 'r':
+          setRotation(prev => (prev + 90) % 360);
+          break;
+        case '0':
+          setZoom(1);
+          setRotation(0);
+          setPosition({ x: 0, y: 0 });
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose, onNext, onPrev]);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey) {
+      e.preventDefault();
+      setZoom(prev => {
+        const newZoom = prev - e.deltaY * 0.01;
+        return Math.max(0.5, Math.min(3, newZoom));
+      });
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (zoom > 1) {
+      setIsDragging(true);
+      setStartPosition({ x: e.clientX - position.x, y: e.clientY - position.y });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging) {
+      setPosition({
+        x: e.clientX - startPosition.x,
+        y: e.clientY - startPosition.y
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const resetTransform = () => {
+    setZoom(1);
+    setRotation(0);
+    setPosition({ x: 0, y: 0 });
+  };
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      {/* Modal Content */}
+      <div 
+        className="relative max-w-7xl max-h-[90vh] w-full h-full flex items-center justify-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-10 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full backdrop-blur-sm transition-all duration-200 hover:scale-110"
+        >
+          <X className="h-6 w-6" />
+        </button>
+
+        {/* Navigation Arrows */}
+        {images.length > 1 && (
+          <>
+            <button
+              onClick={onPrev}
+              className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white p-4 rounded-full backdrop-blur-sm transition-all duration-200 hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={currentIndex === 0}
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+            <button
+              onClick={onNext}
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white p-4 rounded-full backdrop-blur-sm transition-all duration-200 hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={currentIndex === images.length - 1}
+            >
+              <ChevronRight className="h-6 w-6" />
+            </button>
+          </>
+        )}
+
+        {/* Image Counter */}
+        <div className="absolute top-4 left-4 z-10 bg-black/50 text-white px-3 py-2 rounded-full text-sm font-medium backdrop-blur-sm">
+          {currentIndex + 1} / {images.length}
+        </div>
+
+        {/* Controls */}
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 flex items-center gap-2 bg-black/50 text-white px-4 py-2 rounded-full backdrop-blur-sm">
+          <button
+            onClick={() => setZoom(prev => Math.max(0.5, prev - 0.25))}
+            className="p-2 hover:bg-white/20 rounded-full transition-colors"
+            disabled={zoom <= 0.5}
+          >
+            <ZoomOut className="h-4 w-4" />
+          </button>
+          
+          <span className="text-xs mx-2 min-w-[45px] text-center">
+            {Math.round(zoom * 100)}%
+          </span>
+          
+          <button
+            onClick={() => setZoom(prev => Math.min(3, prev + 0.25))}
+            className="p-2 hover:bg-white/20 rounded-full transition-colors"
+            disabled={zoom >= 3}
+          >
+            <ZoomIn className="h-4 w-4" />
+          </button>
+          
+          <button
+            onClick={() => setRotation(prev => (prev + 90) % 360)}
+            className="p-2 hover:bg-white/20 rounded-full transition-colors ml-2"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </button>
+          
+          <button
+            onClick={resetTransform}
+            className="p-2 hover:bg-white/20 rounded-full transition-colors ml-2 text-xs"
+          >
+            Reset
+          </button>
+        </div>
+
+        {/* Image Container */}
+        <div 
+          className="relative w-full h-full flex items-center justify-center overflow-hidden"
+          onWheel={handleWheel}
+        >
+          <img
+            src={currentImage}
+            alt={`Photo ${currentIndex + 1}`}
+            className="max-w-full max-h-full object-contain transition-transform duration-200"
+            style={{
+              transform: `scale(${zoom}) rotate(${rotation}deg) translate(${position.x}px, ${position.y}px)`,
+              cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+            }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            draggable={false}
+          />
+        </div>
+
+        {/* Thumbnail Strip */}
+        {images.length > 1 && (
+          <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-10 flex gap-2 max-w-full overflow-x-auto px-4 py-2">
+            {images.map((image, index) => (
+              <button
+                key={index}
+                onClick={() => {
+                  // This would need to be handled by parent component
+                  // For now, we'll just navigate using the existing functions
+                  if (index > currentIndex) {
+                    for (let i = currentIndex; i < index; i++) onNext();
+                  } else if (index < currentIndex) {
+                    for (let i = currentIndex; i > index; i--) onPrev();
+                  }
+                }}
+                className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all duration-200 ${
+                  index === currentIndex 
+                    ? 'border-pink-500 ring-2 ring-pink-500/50 scale-110' 
+                    : 'border-white/30 hover:border-white/50'
+                }`}
+              >
+                <img
+                  src={image}
+                  alt={`Thumbnail ${index + 1}`}
+                  className="w-full h-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Background Click to Close */}
+      <div className="absolute inset-0 -z-10" onClick={onClose} />
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const { profile, loading, error, refetch } = useProfile();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Form fields - initialize with profile data
   const [username, setUsername] = useState('');
@@ -101,6 +342,32 @@ export default function ProfilePage() {
       setLevel(profile.level || '');
     }
     setIsEditing(false);
+  };
+
+  // Lightbox functions
+  const openLightbox = (index: number) => {
+    setCurrentImageIndex(index);
+    setLightboxOpen(true);
+  };
+
+  const closeLightbox = () => {
+    setLightboxOpen(false);
+  };
+
+  const nextImage = () => {
+    if (profile?.pictures) {
+      setCurrentImageIndex(prev => 
+        prev === profile.pictures.length - 1 ? 0 : prev + 1
+      );
+    }
+  };
+
+  const prevImage = () => {
+    if (profile?.pictures) {
+      setCurrentImageIndex(prev => 
+        prev === 0 ? profile.pictures.length - 1 : prev - 1
+      );
+    }
   };
 
   // Show loading state
@@ -165,11 +432,25 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6 pb-28">
+      {/* Lightbox Modal */}
+      {lightboxOpen && profile.pictures && (
+        <LightboxModal
+          images={profile.pictures}
+          currentIndex={currentImageIndex}
+          onClose={closeLightbox}
+          onNext={nextImage}
+          onPrev={prevImage}
+        />
+      )}
+
       {/* Profile Header */}
       <div className="text-center">
         <div className="relative inline-block mb-4">
-          <div className="w-24 h-24 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 p-1">
-            <div className="w-full h-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center">
+          <div className="w-24 h-24 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 p-1 cursor-pointer hover:scale-105 transition-transform duration-200">
+            <div 
+              className="w-full h-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center overflow-hidden"
+              onClick={() => profile.pictures && profile.pictures.length > 0 && openLightbox(0)}
+            >
               {profile.pictures && profile.pictures.length > 0 ? (
                 <img
                   src={profile.pictures[0]}
@@ -456,12 +737,20 @@ export default function ProfilePage() {
                 </h3>
                 <div className="grid grid-cols-3 gap-2">
                   {profile.pictures.map((image, index) => (
-                    <div key={index} className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
+                    <div 
+                      key={index} 
+                      className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 cursor-pointer group relative"
+                      onClick={() => openLightbox(index)}
+                    >
                       <img
                         src={image}
                         alt={`Photo ${index + 1}`}
-                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center">
+                        <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transform scale-75 group-hover:scale-100 transition-all duration-300" />
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -1,18 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // components/shared/auth/ForgotPasswordForm.tsx
 'use client';
 
-import { useState,} from 'react';
-import {  ArrowLeft, Eye, EyeOff, CheckCircle, UserRound } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, Eye, EyeOff, CheckCircle, UserRound, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-
-interface UserData {
-  username: string;
-  securityQuestion: string;
-  securityAnswer: string;
-  password?: string;
-  // other user fields
-}
+import api from '@/lib/axio';
 
 export default function ForgotPasswordForm() {
   const router = useRouter();
@@ -24,67 +18,44 @@ export default function ForgotPasswordForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
-  const [userData, setUserData] = useState<UserData | null>(null);
+  const [securityQuestion, setSecurityQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   // Check if username exists and get security question
-  const handleUsernameSubmit = (e: React.FormEvent) => {
+  const handleUsernameSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
     try {
-      // Get users from localStorage
-      const existingUsers = JSON.parse(
-        localStorage.getItem('campusVibesUsers') || '[]'
-      );
-
-      // Find user by username
-      const user = existingUsers.find((u: UserData) => u.username === username);
+      const response = await api.post('/auth/forgot-password', { username });
       
-      if (!user) {
-        setError('Username not found. Please check and try again.');
-        setIsLoading(false);
-        return;
+      if (response.data.success) {
+        if (response.data.question) {
+          setSecurityQuestion(response.data.question);
+          setStep(2);
+        } else {
+          // Security best practice: don't reveal if username exists
+          setError('If this username exists, a security question will be shown.');
+        }
+      } else {
+        setError(response.data.message || 'Error processing your request.');
       }
-
-      if (!user.securityQuestion || !user.securityAnswer) {
-        setError('No security question set for this account. Please contact support.');
-        setIsLoading(false);
-        return;
-      }
-
-      setUserData(user);
-      setStep(2);
-    } catch (err) {
-      setError('Error retrieving account information. Please try again.');
-     
+    } catch (err: any) {
+      console.error('Forgot password error:', err);
+      const errorMessage = err.response?.data?.message || 'Network error. Please try again.';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Verify security answer
-  const handleSecurityAnswerSubmit = (e: React.FormEvent) => {
+  // Verify security answer and reset password
+  const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!userData) return;
-
-    // Simple case-insensitive comparison
-    if (securityAnswer.toLowerCase().trim() !== userData.securityAnswer.toLowerCase().trim()) {
-      setError('Incorrect security answer. Please try again.');
-      return;
-    }
-
-    setStep(3);
-  };
-
-  // Reset password
-  const handlePasswordReset = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
+    // Validation
     if (newPassword !== confirmPassword) {
       setError('Passwords do not match. Please try again.');
       return;
@@ -98,28 +69,26 @@ export default function ForgotPasswordForm() {
     setIsLoading(true);
 
     try {
-      // Get users from localStorage
-      const existingUsers = JSON.parse(
-        localStorage.getItem('campusVibesUsers') || '[]'
-      );
+      const response = await api.post('/auth/reset-password', {
+        username,
+        security_answer: securityAnswer,
+        new_password: newPassword
+      });
 
-      // Update user's password
-      const updatedUsers = existingUsers.map((user: UserData) => 
-        user.username === username ? { ...user, password: newPassword } : user
-      );
-
-      // Save back to localStorage
-      localStorage.setItem('campusVibesUsers', JSON.stringify(updatedUsers));
-      
-      setStep(4);
-      
-      // Redirect to login after 3 seconds
-      setTimeout(() => {
-        router.push('/login');
-      }, 3000);
-    } catch (err) {
-      setError('Error resetting password. Please try again.');
-   
+      if (response.data.success) {
+        setStep(4);
+        
+        // Redirect to login after 3 seconds
+        setTimeout(() => {
+          router.push('/login');
+        }, 3000);
+      } else {
+        setError(response.data.message || 'Error resetting password.');
+      }
+    } catch (err: any) {
+      console.error('Reset password error:', err);
+      const errorMessage = err.response?.data?.message || 'Network error. Please try again.';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -131,6 +100,9 @@ export default function ForgotPasswordForm() {
         return (
           <form onSubmit={handleUsernameSubmit} className="space-y-6">
             <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Forgot Password
+              </h2>
               <p className="text-gray-600 dark:text-gray-300">
                 Enter your username to reset your password.
               </p>
@@ -151,34 +123,45 @@ export default function ForgotPasswordForm() {
                     type="text"
                     required
                     placeholder="Enter your username"
-                    className="pl-10 w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="pl-10 w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
+                    disabled={isLoading}
                   />
                 </div>
               </div>
             </div>
 
             {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 animate-in fade-in duration-200">
                 <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
               </div>
             )}
 
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3.5 rounded-lg font-medium shadow-lg shadow-pink-500/25 hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading || !username.trim()}
+              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3.5 rounded-lg font-medium shadow-lg shadow-pink-500/25 hover:shadow-xl hover:from-pink-600 hover:to-purple-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-pink-500/25 flex items-center justify-center"
             >
-              {isLoading ? 'Checking...' : 'Continue'}
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Checking...
+                </>
+              ) : (
+                'Continue'
+              )}
             </button>
           </form>
         );
 
       case 2:
         return (
-          <form onSubmit={handleSecurityAnswerSubmit} className="space-y-6">
+          <form onSubmit={handlePasswordReset} className="space-y-6">
             <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Security Verification
+              </h2>
               <p className="text-gray-600 dark:text-gray-300">
                 Please answer your security question to verify your identity.
               </p>
@@ -189,8 +172,8 @@ export default function ForgotPasswordForm() {
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Security Question
                 </label>
-                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
-                  <p className="text-gray-800 dark:text-gray-200">{userData?.securityQuestion}</p>
+                <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+                  <p className="text-gray-800 dark:text-gray-200 font-medium">{securityQuestion}</p>
                 </div>
               </div>
 
@@ -204,38 +187,13 @@ export default function ForgotPasswordForm() {
                   type="text"
                   required
                   placeholder="Enter your answer"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200"
                   value={securityAnswer}
                   onChange={(e) => setSecurityAnswer(e.target.value)}
+                  disabled={isLoading}
                 />
               </div>
-            </div>
 
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3.5 rounded-lg font-medium shadow-lg shadow-pink-500/25 hover:shadow-xl transition-all duration-300"
-            >
-              Verify Identity
-            </button>
-          </form>
-        );
-
-      case 3:
-        return (
-          <form onSubmit={handlePasswordReset} className="space-y-6">
-            <div className="space-y-2">
-              <p className="text-gray-600 dark:text-gray-300">
-                Create a new password for your account.
-              </p>
-            </div>
-
-            <div className="space-y-4">
               <div className="space-y-2">
                 <label htmlFor="newPassword" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   New Password
@@ -247,19 +205,21 @@ export default function ForgotPasswordForm() {
                     type={showPassword ? "text" : "password"}
                     required
                     placeholder="Enter new password"
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10 transition-colors duration-200"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
+                    disabled={isLoading}
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors duration-200"
                     onClick={() => setShowPassword(!showPassword)}
+                    disabled={isLoading}
                   >
                     {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-gray-400" />
+                      <EyeOff className="h-4 w-4" />
                     ) : (
-                      <Eye className="h-4 w-4 text-gray-400" />
+                      <Eye className="h-4 w-4" />
                     )}
                   </button>
                 </div>
@@ -276,19 +236,21 @@ export default function ForgotPasswordForm() {
                     type={showConfirmPassword ? "text" : "password"}
                     required
                     placeholder="Confirm new password"
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10 transition-colors duration-200"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={isLoading}
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors duration-200"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    disabled={isLoading}
                   >
                     {showConfirmPassword ? (
-                      <EyeOff className="h-4 w-4 text-gray-400" />
+                      <EyeOff className="h-4 w-4" />
                     ) : (
-                      <Eye className="h-4 w-4 text-gray-400" />
+                      <Eye className="h-4 w-4" />
                     )}
                   </button>
                 </div>
@@ -296,24 +258,31 @@ export default function ForgotPasswordForm() {
             </div>
 
             {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 animate-in fade-in duration-200">
                 <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
               </div>
             )}
 
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3.5 rounded-lg font-medium shadow-lg shadow-pink-500/25 hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading || !securityAnswer.trim() || !newPassword || !confirmPassword}
+              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3.5 rounded-lg font-medium shadow-lg shadow-pink-500/25 hover:shadow-xl hover:from-pink-600 hover:to-purple-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-pink-500/25 flex items-center justify-center"
             >
-              {isLoading ? 'Resetting Password...' : 'Reset Password'}
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Resetting Password...
+                </>
+              ) : (
+                'Reset Password'
+              )}
             </button>
           </form>
         );
 
-      case 4:
+      case 3:
         return (
-          <div className="text-center space-y-6 py-4">
+          <div className="text-center space-y-6 py-4 animate-in fade-in duration-500">
             <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto">
               <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
@@ -327,12 +296,17 @@ export default function ForgotPasswordForm() {
               </p>
             </div>
             
-            <Link 
-              href="/login"
-              className="inline-flex items-center justify-center w-full bg-pink-500 text-white py-3 rounded-lg font-medium hover:bg-pink-600 transition-colors"
-            >
-              Go to Login
-            </Link>
+            <div className="flex flex-col gap-3">
+              <Link 
+                href="/login"
+                className="inline-flex items-center justify-center w-full bg-pink-500 text-white py-3 rounded-lg font-medium hover:bg-pink-600 transition-colors duration-200"
+              >
+                Go to Login Now
+              </Link>
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                Redirecting in 3 seconds...
+              </div>
+            </div>
           </div>
         );
 
@@ -343,25 +317,31 @@ export default function ForgotPasswordForm() {
 
   return (
     <div className="space-y-6">
-      {step > 1 && step < 4 && (
+      {/* Back Button */}
+      {step > 1 && step < 3 && (
         <button
           onClick={() => setStep(step - 1)}
-          className="inline-flex items-center text-sm text-pink-500 hover:text-pink-600 font-medium mb-4"
+          className="inline-flex items-center text-sm text-pink-500 hover:text-pink-600 font-medium mb-4 transition-colors duration-200 group"
+          disabled={isLoading}
         >
-          <ArrowLeft className="h-4 w-4 mr-1" />
+          <ArrowLeft className="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform duration-200" />
           Back
         </button>
       )}
 
-      {renderStep()}
+      {/* Main Content */}
+      <div className="animate-in fade-in duration-300">
+        {renderStep()}
+      </div>
 
+      {/* Back to Login Link */}
       {step === 1 && (
-        <div className="text-center">
+        <div className="text-center pt-4 border-t border-gray-200 dark:border-gray-700">
           <Link 
             href="/login"
-            className="inline-flex items-center text-sm text-pink-500 hover:text-pink-600 font-medium"
+            className="inline-flex items-center text-sm text-pink-500 hover:text-pink-600 font-medium transition-colors duration-200 group"
           >
-            <ArrowLeft className="h-4 w-4 mr-1" />
+            <ArrowLeft className="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform duration-200" />
             Back to login
           </Link>
         </div>

@@ -26,6 +26,9 @@ export interface Message {
 
 export interface Conversation {
   id: string;
+  created_at: string;
+  last_message: string;
+  last_message_at: string;
   other_user: {
     id: string;
     username: string;
@@ -34,6 +37,7 @@ export interface Conversation {
     isOnline: boolean;
     lastSeen: string | null;
   };
+  unread_count: number;
 }
 
 export default function ChatDetailPage() {
@@ -73,11 +77,20 @@ export default function ChatDetailPage() {
         const conversations = response.data.conversations || [];
         console.log('Available conversations:', conversations);
         
-        const currentConv = conversations.find((conv: Conversation) => conv.id === chatId);
+        // FIX: Try matching by numeric ID if chatId is a number
+        // Also try matching by other_user.id in case that's what's in the URL
+        const currentConv = conversations.find((conv: Conversation) => 
+          conv.id === chatId || 
+          conv.id === parseInt(chatId) || 
+          conv.other_user.id === chatId
+        );
+        
         console.log('Found conversation:', currentConv);
+        console.log('Looking for chatId:', chatId, 'Type:', typeof chatId);
         
         if (!currentConv) {
           console.log('Conversation not found for ID:', chatId);
+          console.log('Available IDs:', conversations.map((c: Conversation) => ({ id: c.id, type: typeof c.id, other_user_id: c.other_user.id })));
           setError('Chat not found');
           return null;
         }
@@ -97,11 +110,11 @@ export default function ChatDetailPage() {
   };
 
   const fetchMessages = async () => {
-    if (!chatId) return;
+    if (!conversation) return;
 
     try {
-      console.log('Fetching messages for chat:', chatId);
-      const response = await api.get(`/chat/messages/${chatId}`);
+      console.log('Fetching messages for conversation:', conversation.id);
+      const response = await api.get(`/chat/messages/${conversation.id}`);
       console.log('Messages response:', response.data);
       
       if (response.data.success) {
@@ -130,7 +143,7 @@ export default function ChatDetailPage() {
       // First verify the conversation exists
       const conv = await fetchConversation();
       if (conv) {
-        // Then load messages
+        // Then load messages using the conversation ID from the API
         await fetchMessages();
       } else {
         console.log('No conversation found, setting loading to false');
@@ -213,8 +226,8 @@ export default function ChatDetailPage() {
   };
 
   const sendMessage = async () => {
-    if (!message.trim() || !chatId || sending || !conversation) {
-      console.log('Cannot send message:', { message: message.trim(), chatId, sending, conversation });
+    if (!message.trim() || !conversation || sending) {
+      console.log('Cannot send message:', { message: message.trim(), conversation, sending });
       return;
     }
 
@@ -228,11 +241,11 @@ export default function ChatDetailPage() {
     setSending(true);
 
     try {
-      console.log('Sending message to conversation:', chatId);
+      console.log('Sending message to conversation:', conversation.id);
       console.log('Message content:', censoredContent);
       
-      // FIX: Use the correct API endpoint with query parameter
-      const response = await api.post(`/api/chat/messages/send?conversationId=${chatId}`, {
+      // FIX: Use the conversation ID from the API response, not the URL parameter
+      const response = await api.post(`/api/chat/messages/send?conversationId=${conversation.id}`, {
         content: censoredContent
       });
 
@@ -290,20 +303,20 @@ export default function ChatDetailPage() {
   };
 
   const markConversationAsRead = async () => {
-    if (!chatId) return;
+    if (!conversation) return;
 
     try {
-      await api.post(`/chat/conversations/${chatId}/mark_read`);
+      await api.post(`/chat/conversations/${conversation.id}/mark_read`);
     } catch (err) {
       console.error('Error marking conversation as read:', err);
     }
   };
 
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 && conversation) {
       markConversationAsRead();
     }
-  }, [messages.length]);
+  }, [messages.length, conversation]);
 
   // Debug info
   useEffect(() => {

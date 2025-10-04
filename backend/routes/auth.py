@@ -143,6 +143,14 @@ def signup():
     # Set JWT cookies
     set_access_cookies(response, access_token)
     set_refresh_cookies(response, refresh_token)
+        # Set "is_logged_in" cookie for Next.js middleware
+    response.set_cookie(
+        "is_logged_in",
+        "true",
+        httponly=False,
+        secure=True,
+        samesite="None"
+    )
 
     return response, 201
 

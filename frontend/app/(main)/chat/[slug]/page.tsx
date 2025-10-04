@@ -25,7 +25,7 @@ export interface Message {
 }
 
 export interface Conversation {
-  id: string;
+  id: string | number;
   created_at: string;
   last_message: string;
   last_message_at: string;
@@ -53,57 +53,49 @@ export default function ChatDetailPage() {
   const [error, setError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // FIX: Use params?.slug instead of params?.id
   const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
-
-  console.log('Chat ID from params:', chatId); // Debug log
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const fetchConversation = async () => {
-    if (!chatId) {
-      console.log('No chatId provided');
-      return null;
-    }
+    if (!chatId) return null;
 
     try {
-      console.log('Fetching conversations...');
       const response = await api.get('/chat/conversations');
-      console.log('Conversations response:', response.data);
       
       if (response.data.success) {
         const conversations = response.data.conversations || [];
-        console.log('Available conversations:', conversations);
         
-        // FIX: Try matching by numeric ID if chatId is a number
-        // Also try matching by other_user.id in case that's what's in the URL
-        const currentConv = conversations.find((conv: Conversation) => 
-          conv.id === chatId || 
-          conv.id === parseInt(chatId) || 
-          conv.other_user.id === chatId
-        );
-        
-        console.log('Found conversation:', currentConv);
-        console.log('Looking for chatId:', chatId, 'Type:', typeof chatId);
-        
+        const currentConv = conversations.find((conv: Conversation) => {
+          // Convert both to string for safe comparison
+          const convIdStr = conv.id.toString();
+          const chatIdStr = chatId.toString();
+          
+          // Check exact string match
+          if (convIdStr === chatIdStr) {
+            return true;
+          }
+          
+          // Check if matches other_user.id
+          if (conv.other_user.id === chatIdStr) {
+            return true;
+          }
+          
+          return false;
+        });
+
         if (!currentConv) {
-          console.log('Conversation not found for ID:', chatId);
-          console.log('Available IDs:', conversations.map((c: Conversation) => ({ id: c.id, type: typeof c.id, other_user_id: c.other_user.id })));
           setError('Chat not found');
           return null;
         }
         
         setConversation(currentConv);
         return currentConv;
-      } else {
-        console.log('Failed to fetch conversations');
-        setError('Failed to load conversations');
-        return null;
       }
+      return null;
     } catch (err: any) {
-      console.error('Error fetching conversation:', err);
       setError('Failed to load conversation');
       return null;
     }
@@ -113,9 +105,7 @@ export default function ChatDetailPage() {
     if (!conversation) return;
 
     try {
-      console.log('Fetching messages for conversation:', conversation.id);
       const response = await api.get(`/chat/messages/${conversation.id}`);
-      console.log('Messages response:', response.data);
       
       if (response.data.success) {
         setMessages(response.data.messages || []);
@@ -123,14 +113,12 @@ export default function ChatDetailPage() {
         setError('Failed to load messages');
       }
     } catch (err: any) {
-      console.error('Error fetching messages:', err);
       setError(err.response?.data?.message || 'Failed to load messages');
     }
   };
 
   const loadChatData = async () => {
     if (!chatId) {
-      console.log('No chatId, redirecting to /chat');
       router.push('/chat');
       return;
     }
@@ -138,20 +126,14 @@ export default function ChatDetailPage() {
     try {
       setLoading(true);
       setError('');
-      console.log('Loading chat data for:', chatId);
       
-      // First verify the conversation exists
       const conv = await fetchConversation();
       if (conv) {
-        // Then load messages using the conversation ID from the API
         await fetchMessages();
-      } else {
-        console.log('No conversation found, setting loading to false');
-        setLoading(false);
       }
     } catch (err) {
-      console.error('Error loading chat:', err);
       setError('Failed to load chat');
+    } finally {
       setLoading(false);
     }
   };
@@ -226,10 +208,7 @@ export default function ChatDetailPage() {
   };
 
   const sendMessage = async () => {
-    if (!message.trim() || !conversation || sending) {
-      console.log('Cannot send message:', { message: message.trim(), conversation, sending });
-      return;
-    }
+    if (!message.trim() || !conversation || sending) return;
 
     const { content: censoredContent, hasSensitiveInfo } = censorSensitiveInfo(message);
     const detectedPatterns = detectSensitivePatterns(message);
@@ -241,28 +220,20 @@ export default function ChatDetailPage() {
     setSending(true);
 
     try {
-      console.log('Sending message to conversation:', conversation.id);
-      console.log('Message content:', censoredContent);
-      
-      // FIX: Use the conversation ID from the API response, not the URL parameter
       const response = await api.post(`/api/chat/messages/send?conversationId=${conversation.id}`, {
         content: censoredContent
       });
-
-      console.log('Send message response:', response.data);
 
       if (response.data.success) {
         const newMessage = response.data.message_data;
         setMessages(prev => [...prev, newMessage]);
         setMessage('');
 
-        // Refresh conversation to update last message
         await fetchConversation();
       } else {
-        setError('Failed to send message: ' + (response.data.message || 'Unknown error'));
+        setError('Failed to send message');
       }
     } catch (err: any) {
-      console.error('Error sending message:', err);
       setError(err.response?.data?.message || 'Failed to send message');
     } finally {
       setSending(false);
@@ -308,7 +279,7 @@ export default function ChatDetailPage() {
     try {
       await api.post(`/chat/conversations/${conversation.id}/mark_read`);
     } catch (err) {
-      console.error('Error marking conversation as read:', err);
+      // Silent fail for read receipts
     }
   };
 
@@ -318,18 +289,12 @@ export default function ChatDetailPage() {
     }
   }, [messages.length, conversation]);
 
-  // Debug info
-  useEffect(() => {
-    console.log('Current state:', { loading, error, conversation, messagesCount: messages.length });
-  }, [loading, error, conversation, messages.length]);
-
   if (loading) {
     return (
       <div className="h-[calc(100vh-140px)] flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-pink-500" />
           <p className="text-gray-500 dark:text-gray-400">Loading chat...</p>
-          <p className="text-xs text-gray-400 mt-2">Chat ID: {chatId}</p>
         </div>
       </div>
     );
@@ -341,7 +306,6 @@ export default function ChatDetailPage() {
         <p className="text-gray-500 dark:text-gray-400 mb-4 text-center">
           {error || 'Chat not found'}
         </p>
-        <p className="text-sm text-gray-400 mb-4">Chat ID: {chatId}</p>
         <Button onClick={handleBack}>
           Back to Chats
         </Button>
@@ -351,7 +315,6 @@ export default function ChatDetailPage() {
 
   return (
     <div className="h-[calc(100vh-70px)] flex flex-col">
-      {/* Security Alert */}
       {showSecurityAlert && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md px-4">
           <Alert className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
@@ -363,7 +326,6 @@ export default function ChatDetailPage() {
         </div>
       )}
 
-      {/* Chat Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <Button variant="ghost" size="sm" onClick={handleBack} className="mr-2">
@@ -389,7 +351,6 @@ export default function ChatDetailPage() {
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
@@ -434,7 +395,6 @@ export default function ChatDetailPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">
         {error && (
           <div className="mb-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-2">

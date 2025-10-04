@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/(main)/chat/[id]/page.tsx
+// app/(main)/chat/[slug]/page.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -66,22 +66,22 @@ export default function ChatDetailPage() {
 
     try {
       const response = await api.get('/chat/conversations');
-      
+
       if (response.data.success) {
         const conversations = response.data.conversations || [];
-        
+
         const currentConv = conversations.find((conv: Conversation) => {
           const convIdStr = conv.id.toString();
           const chatIdStr = chatId.toString();
-          
+
           if (convIdStr === chatIdStr) {
             return true;
           }
-          
+
           if (conv.other_user.id === chatIdStr) {
             return true;
           }
-          
+
           return false;
         });
 
@@ -89,7 +89,7 @@ export default function ChatDetailPage() {
           setError('Chat not found');
           return null;
         }
-        
+
         setConversation(currentConv);
         return currentConv;
       }
@@ -105,7 +105,7 @@ export default function ChatDetailPage() {
 
     try {
       const response = await api.get(`/chat/messages/${conversation.id}`);
-      
+
       if (response.data.success) {
         setMessages(response.data.messages || []);
       } else {
@@ -125,7 +125,7 @@ export default function ChatDetailPage() {
     try {
       setLoading(true);
       setError('');
-      
+
       const conv = await fetchConversation();
       if (conv) {
         await fetchMessages();
@@ -274,7 +274,7 @@ export default function ChatDetailPage() {
     if (!conversation) return;
 
     try {
-      await api.post(`/chat/conversations/${conversation.id}/mark_read`);
+      await api.post(`/chat/conversations/mark-read?conversationId=${conversation.id}`);
     } catch (err) {
       // Silent fail for read receipts
     }
@@ -433,7 +433,7 @@ export default function ChatDetailPage() {
                           </AvatarFallback>
                         </Avatar>
                       )}
-                      
+
                       <div className={`relative px-4 py-2 rounded-2xl ${
                         isOwn
                           ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-br-md'
@@ -442,7 +442,7 @@ export default function ChatDetailPage() {
                         <p className="text-sm break-words leading-relaxed">
                           {censoredContent}
                         </p>
-                        
+
                         <div className={`flex items-center justify-end space-x-1 mt-1 ${
                           isOwn ? 'text-pink-100' : 'text-gray-500 dark:text-gray-400'
                         }`}>
@@ -485,7 +485,7 @@ export default function ChatDetailPage() {
           <Button variant="ghost" size="icon" className="flex-none hover:bg-gray-100 dark:hover:bg-gray-800">
             <Paperclip className="h-5 w-5" />
           </Button>
-          
+
           <div className="flex-1 relative">
             <textarea
               ref={textareaRef}
@@ -505,7 +505,7 @@ export default function ChatDetailPage() {
               <Smile className="h-5 w-5" />
             </Button>
           </div>
-          
+
           <Button 
             onClick={sendMessage}
             disabled={!message.trim() || sending}

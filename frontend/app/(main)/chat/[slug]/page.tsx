@@ -55,6 +55,8 @@ export default function ChatDetailPage() {
   const [isTyping, setIsTyping] = useState(false);
   const [typingUser, setTypingUser] = useState<string>('');
   const [onlineStatus, setOnlineStatus] = useState<boolean>(true);
+  const [isUserInChatRoom, setIsUserInChatRoom] = useState<boolean>(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -64,6 +66,34 @@ export default function ChatDetailPage() {
   const { socket, isConnected: socketConnected, connectionError } = useSocket();
 
   const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
+
+  // Track if user is currently in the chat room (active tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsUserInChatRoom(!document.hidden);
+      
+      // If user comes back to the tab and conversation is loaded, mark messages as read
+      if (!document.hidden && conversation) {
+        markMessagesAsRead();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Initially set to true since user is viewing the page
+    setIsUserInChatRoom(true);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [conversation]);
+
+  // Mark messages as read when conversation is loaded and user is viewing
+  useEffect(() => {
+    if (conversation && isUserInChatRoom) {
+      markMessagesAsRead();
+    }
+  }, [conversation, isUserInChatRoom]);
 
   // Setup socket listeners when conversation is loaded
   useEffect(() => {
@@ -82,12 +112,17 @@ export default function ChatDetailPage() {
         return [...prev, newMessage];
       });
       
-      // Mark message as delivered if it's from other user
-      if (newMessage.sender_id !== conversation.other_user.id) {
-        socket.emit('message_delivered', {
+      // If the new message is from other user and we're in the chat room, mark it as read immediately
+      if (newMessage.sender_id === conversation.other_user.id && isUserInChatRoom) {
+        socket.emit('mark_message_read', {
           message_id: newMessage.id,
           conversation_id: conversation.id
         });
+      }
+      
+      // If the new message is from current user, handle status based on recipient's status
+      if (newMessage.sender_id !== conversation.other_user.id) {
+        handleOutgoingMessageStatus(newMessage);
       }
     });
 
@@ -115,6 +150,7 @@ export default function ChatDetailPage() {
     // Listen for online status updates
     socket.on('user_online_status', (data: any) => {
       if (data.user_id === conversation.other_user.id) {
+        console.log(`🌐 User ${data.user_id} is now ${data.is_online ? 'online' : 'offline'}`);
         setOnlineStatus(data.is_online);
         setConversation(prev => prev ? {
           ...prev,
@@ -124,6 +160,9 @@ export default function ChatDetailPage() {
             lastSeen: data.last_seen
           }
         } : null);
+
+        // Update message statuses based on new online status
+        updateMessageStatusesBasedOnOnlineStatus(data.is_online);
       }
     });
 
@@ -141,6 +180,46 @@ export default function ChatDetailPage() {
             } 
           : msg
       ));
+    });
+     
+
+
+    // Message delivered update
+    socket.on('message_delivered', ({ message_id }) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === message_id ? { ...msg, status: 'delivered' } : msg
+        )
+      );
+    });
+
+    // Message read update
+    socket.on('messages_read', ({ message_ids }) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          message_ids.includes(msg.id)
+            ? { ...msg, is_read: true, status: 'read' }
+            : msg
+        )
+      );
+    });
+
+    
+
+
+    // Listen for user join/leave chat room events
+    socket.on('user_joined_chat', (data: any) => {
+      if (data.user_id === conversation.other_user.id) {
+        console.log('👤 Other user joined the chat room');
+        // If other user joins chat room, mark our messages as read
+        markOurMessagesAsRead();
+      }
+    });
+
+    socket.on('user_left_chat', (data: any) => {
+      if (data.user_id === conversation.other_user.id) {
+        console.log('👤 Other user left the chat room');
+      }
     });
 
     // Listen for conversation updates
@@ -160,14 +239,110 @@ export default function ChatDetailPage() {
       socket.off('user_typing');
       socket.off('user_online_status');
       socket.off('message_status_update');
+      socket.off('user_joined_chat');
+      socket.off('user_left_chat');
       socket.off('conversation_updated');
+      socket.off('receive_message');
+      socket.off('message_delivered');
+      socket.off('messages_read');
       
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = null;
       }
     };
-  }, [socket, conversation]);
+  }, [socket, conversation, isUserInChatRoom]);
+
+  // Handle outgoing message status based on recipient's status
+  const handleOutgoingMessageStatus = (message: Message) => {
+    if (!socket || !conversation) return;
+
+    // If recipient is online AND in the chat room → mark as READ
+    if (onlineStatus && isUserInChatRoom) {
+      setTimeout(() => {
+        socket.emit('message_read', {
+          message_id: message.id,
+          conversation_id: conversation.id
+        });
+      }, 1000); // Small delay to simulate real-world timing
+    }
+    // If recipient is online but NOT in chat room → mark as DELIVERED
+    else if (onlineStatus) {
+      setTimeout(() => {
+        socket.emit('message_delivered', {
+          message_id: message.id,
+          conversation_id: conversation.id
+        });
+      }, 500);
+    }
+    // If recipient is offline → status remains SENT
+    // No action needed, status stays as 'sent'
+  };
+
+  // Update all pending messages when recipient's online status changes
+  const updateMessageStatusesBasedOnOnlineStatus = (isOnline: boolean) => {
+    if (!socket || !conversation) return;
+
+    // Get messages sent by current user that are not yet read
+    const pendingMessages = messages.filter(msg => 
+      msg.sender_id !== conversation.other_user.id && 
+      msg.status !== 'read'
+    );
+
+    if (isOnline) {
+      // If user comes online, update delivered messages
+      pendingMessages.forEach(msg => {
+        if (msg.status === 'sent') {
+          socket.emit('message_delivered', {
+            message_id: msg.id,
+            conversation_id: conversation.id
+          });
+        }
+      });
+    }
+  };
+
+  // Mark all our messages as read (when recipient views the chat)
+  const markOurMessagesAsRead = () => {
+    if (!socket || !conversation) return;
+
+    const ourUnreadMessages = messages.filter(msg => 
+      msg.sender_id !== conversation.other_user.id && 
+      msg.status !== 'read'
+    );
+
+    ourUnreadMessages.forEach(msg => {
+      socket.emit('message_read', {
+        message_id: msg.id,
+        conversation_id: conversation.id
+      });
+    });
+  };
+
+  // Mark all messages from other user as read
+  const markMessagesAsRead = async () => {
+    if (!conversation) return;
+
+    try {
+      // Also emit socket event for real-time updates
+      if (socket) {
+        socket.emit('mark_conversation_read', {
+          conversation_id: conversation.id
+        });
+      }
+
+      // Update local state
+      setMessages(prev => prev.map(msg => ({
+        ...msg,
+        is_read: true,
+        status: msg.status === 'delivered' || msg.status === 'sent' ? 'read' : msg.status,
+        read_at: msg.read_at || new Date().toISOString()
+      })));
+
+    } catch (err) {
+      console.error('Failed to mark messages as read:', err);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -217,21 +392,21 @@ export default function ChatDetailPage() {
     if (!chatId) return;
 
     try {
-      console.log(`🔄 Fetching messages for conversation: ${chatId}`);
+  
       
       const response = await api.get(`/chat/messages/${chatId}`);
 
-      console.log('📨 API Response:', response.data);
+      
 
       if (response.data.success) {
         setMessages(response.data.messages || []);
-        console.log(`✅ Loaded ${response.data.messages?.length || 0} messages`);
+    
       } else {
         setError('Failed to load messages');
-        console.error('API response error:', response.data);
+        
       }
     } catch (err: any) {
-      console.error('Fetch messages error:', err);
+   
       setError(err.response?.data?.message || 'Failed to load messages');
     }
   };
@@ -247,7 +422,7 @@ export default function ChatDetailPage() {
       setError('');
 
       const conv = await fetchConversation();
-      console.log("conv:",conv)
+     
       if (conv){
       await fetchMessages();
       }
@@ -310,8 +485,6 @@ export default function ChatDetailPage() {
       }
     };
   }, []);
-
-  
 
 
   const sendMessage = async () => {
@@ -411,19 +584,7 @@ export default function ChatDetailPage() {
     if (diffMinutes < 60) return `${diffMinutes}m ago`;
     if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
     return `${Math.floor(diffMinutes / 1440)}d ago`;
-  };
-
-  // Connection status component
-  const ConnectionStatus = () => (
-    <div className="flex items-center space-x-2 text-xs">
-      <div className={`h-2 w-2 rounded-full ${
-        socketConnected ? 'bg-green-500' : 'bg-red-500'
-      }`} />
-      <span className="text-gray-500 dark:text-gray-400">
-        {socketConnected ? 'Connected' : 'Disconnected'}
-      </span>
-    </div>
-  );
+  } ;
 
   if (loading) {
     return (
@@ -452,7 +613,7 @@ export default function ChatDetailPage() {
   return (
     <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900">
       {/* WhatsApp-like Header */}
-      <div className="flex-none  text-white">
+      <div className="flex-none bg-green-500 text-white">
         <div className="flex items-center justify-between p-3">
           <div className="flex items-center space-x-3">
             <Button 
@@ -479,30 +640,12 @@ export default function ChatDetailPage() {
               </h3>
               <div className="flex items-center space-x-2">
                 <p className="text-green-100 text-xs">
-                  {socketConnected ? 'online' : formatLastSeen(conversation.other_user.lastSeen)}
+                  {onlineStatus ? 'online' : formatLastSeen(conversation.other_user.lastSeen)}
                 </p>
-                {/* <ConnectionStatus /> */}
+                
               </div>
             </div>
           </div>
-{/* 
-          <div className="flex items-center space-x-2">
-           
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="hover:bg-green-600 dark:hover:bg-green-700 text-white">
-                  <MoreVertical className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem>Contact info</DropdownMenuItem>
-                <DropdownMenuItem>Media, files & links</DropdownMenuItem>
-                <DropdownMenuItem>Export chat</DropdownMenuItem>
-                <DropdownMenuItem className="text-red-600">Block user</DropdownMenuItem>
-                <DropdownMenuItem className="text-red-600">Report</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div> */}
         </div>
       </div>
 
@@ -510,7 +653,6 @@ export default function ChatDetailPage() {
       <div 
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto bg-[#e5ddd5] dark:bg-gray-800 bg-chat-background bg-repeat bg-center"
-       
       >
         <div className="max-w-3xl mx-auto p-2 space-y-1">
           {messages.length === 0 ? (
@@ -527,7 +669,7 @@ export default function ChatDetailPage() {
             </div>
           ) : (
             messages.map((msg, index) => {
-              const isOwn = !msg.sender_id.startsWith('temp-') && msg.sender_id !== conversation.other_user.id;
+              const isOwn = msg.sender_id !== conversation.other_user.id;
               const showDate = index === 0 || !isSameDay(msg.timestamp, messages[index - 1].timestamp);
 
               return (

@@ -81,10 +81,10 @@ export default function ExplorePage() {
   };
 
   // Function to create conversation and send initial message
-  const createConversationWithMessage = async (matchedUserId: string) => {
+  const createConversationWithMessage = async (matchedUserId: any) => {
     try {
       // First, create the conversation
-      const conversationResponse = await api.post('/api/chat/conversations/create', {
+      const conversationResponse = await api.post('/chat/conversations/create', {
         target_user_id: matchedUserId
       });
 
@@ -92,7 +92,7 @@ export default function ExplorePage() {
         const conversationId = conversationResponse.data.conversation_id;
         
         // Send initial message
-        const messageResponse = await api.post(`/api/chat/messages/send?conversationId=${conversationId}`, {
+        const messageResponse = await api.post(`/chat/messages/send?conversationId=${conversationId}`, {
           content: "Conversation has been unlocked! 🎉"
         });
 

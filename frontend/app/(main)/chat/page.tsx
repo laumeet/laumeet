@@ -130,9 +130,9 @@ export default function ChatPage() {
         ) : (
           filteredConversations.map((conversation) => (
             <div
-              key={conversation.other_user.id}
+              key={conversation.id}
               className="p-4 border-b border-gray-100 dark:border-gray-800 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
-              onClick={() => handleChatSelect(conversation.other_user.id)}
+              onClick={() => handleChatSelect(conversation.id)}
             >
               <div className="flex items-center space-x-3">
                 <div className="relative">

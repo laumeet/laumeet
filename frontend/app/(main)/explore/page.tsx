@@ -5,7 +5,7 @@ import { useState, useRef, useCallback } from 'react';
 import { 
   Heart, X, Filter, MapPin, Calendar, Users, 
   Loader2, AlertCircle, ChevronLeft, ChevronRight,
-  Book, GraduationCap, Droplets, Cross, Eye
+  Book, GraduationCap, Droplets, Cross, Eye, MessageCircle
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useExploreProfiles } from '@/hooks/use-explore-profiles';
 import { toast } from 'sonner';
 import TinderCard from 'react-tinder-card';
+import { useRouter } from 'next/navigation';
+import api from '@/lib/axio';
 
 export default function ExplorePage() {
+  const router = useRouter();
   const { 
     profiles = [], 
     loading, 
@@ -23,10 +26,11 @@ export default function ExplorePage() {
     refetch, 
     swipeProfile 
   } = useExploreProfiles();
-  
+
   const [currentIndex, setCurrentIndex] = useState(profiles.length - 1);
   const [isSwiping, setIsSwiping] = useState(false);
-  
+  const [processingMatch, setProcessingMatch] = useState<string | null>(null);
+
   // State for image carousel per profile
   const [currentImageIndexes, setCurrentImageIndexes] = useState<{ [key: string]: number }>({});
   const [showDetails, setShowDetails] = useState<{ [key: string]: boolean }>({});
@@ -75,6 +79,37 @@ export default function ExplorePage() {
     return currentImageIndexes[profileId] || 0;
   };
 
+  // Function to create conversation and send initial message
+  const createConversationWithMessage = async (matchedUserId: string) => {
+    try {
+      // First, create the conversation
+      const conversationResponse = await api.post('/api/chat/conversations/create', {
+        target_user_id: matchedUserId
+      });
+
+      if (conversationResponse.data.success) {
+        const conversationId = conversationResponse.data.conversation_id;
+        
+        // Send initial message
+        const messageResponse = await api.post(`/api/chat/messages/send?conversationId=${conversationId}`, {
+          content: "Conversation has been unlocked! 🎉"
+        });
+
+        if (messageResponse.data.success) {
+          return { success: true, conversationId };
+        }
+      }
+      
+      return { success: false, error: 'Failed to create conversation' };
+    } catch (err: any) {
+      console.error('Error creating conversation:', err);
+      return { 
+        success: false, 
+        error: err.response?.data?.message || 'Failed to create conversation' 
+      };
+    }
+  };
+
   // Handle card swipe
   const swiped = useCallback(async (direction: string, profileId: string, index: number) => {
     updateCurrentIndex(index - 1);
@@ -83,13 +118,44 @@ export default function ExplorePage() {
     try {
       const action = direction === 'right' ? 'like' : 'pass';
       const result = await swipeProfile(profileId, action);
-      
+
       if (result.match) {
         const matchedUser = profiles.find((profile) => profile.id === result.matched_with);
-        toast(`It's a match with ${matchedUser?.username || 'someone'}! 🎉`, {
-          icon: '💖',
-          duration: 8000
+        setProcessingMatch(profileId);
+        
+        // Show match success toast
+        toast.success(`It's a match with ${matchedUser?.username || 'someone'}! 🎉`, {
+          duration: 5000,
+          icon: '💖'
         });
+
+        // Automatically create conversation and send initial message
+        const conversationResult = await createConversationWithMessage(result.matched_with);
+        
+        if (conversationResult.success) {
+          // Show success message with chat option
+          toast(
+            <div className="flex flex-col space-y-2">
+              <p className="font-medium">Chat unlocked! 🎉</p>
+              <p className="text-sm text-gray-600">Say hello to your new match!</p>
+              <Button 
+                onClick={() => router.push(`/chat/${conversationResult.conversationId}`)}
+                size="sm"
+                className="bg-pink-500 hover:bg-pink-600 text-white"
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />
+                Start Chatting
+              </Button>
+            </div>,
+            {
+              duration: 8000,
+            }
+          );
+        } else {
+          toast.error('Match created! Failed to start conversation automatically.');
+        }
+        
+        setProcessingMatch(null);
       }
     } catch (err) {
       toast.error('An error occurred while processing your swipe');
@@ -98,7 +164,7 @@ export default function ExplorePage() {
       setIsSwiping(false);
       refetch();
     }
-  }, [swipeProfile, profiles, refetch]);
+  }, [swipeProfile, profiles, refetch, router]);
 
   const outOfFrame = useCallback((name: string, idx: number) => {
     console.log(`${name} (${idx}) left the screen!`);
@@ -107,7 +173,7 @@ export default function ExplorePage() {
   // Manual swipe functions
   const swipe = useCallback(async (dir: string) => {
     if (currentIndexRef.current < 0 || currentIndexRef.current >= profiles.length) return;
-    
+
     const profile = profiles[currentIndexRef.current];
     await swiped(dir, profile.id, currentIndexRef.current);
   }, [swiped, profiles]);
@@ -136,7 +202,7 @@ export default function ExplorePage() {
             <p className="text-gray-500 dark:text-gray-400">Swipe to connect with amazing people</p>
           </div>
         </div>
-        
+
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
@@ -162,7 +228,7 @@ export default function ExplorePage() {
             <p className="text-gray-500 dark:text-gray-400">Swipe to connect with amazing people</p>
           </div>
         </div>
-        
+
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
             <div className="w-20 h-20 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -207,7 +273,8 @@ export default function ExplorePage() {
           const totalImages = profile.images?.length || 0;
           const displayName = profile.name || profile.username;
           const isShowingDetails = showDetails[profile.id];
-          
+          const isProcessing = processingMatch === profile.id;
+
           return (
             <TinderCard
               key={profile.id}
@@ -218,6 +285,16 @@ export default function ExplorePage() {
             >
               <Card className="h-full w-full cursor-grab active:cursor-grabbing shadow-2xl border-0 overflow-hidden">
                 <CardContent className="p-0 h-full relative">
+                  {/* Processing Overlay */}
+                  {isProcessing && (
+                    <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center">
+                      <div className="text-center text-white">
+                        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+                        <p className="text-sm">Creating your match...</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Profile Image with Gradient Overlay and Carousel */}
                   <div className={`relative transition-all duration-500 ${
                     isShowingDetails ? 'h-1/2' : 'h-2/3'
@@ -235,7 +312,7 @@ export default function ExplorePage() {
                               e.currentTarget.src = '/api/placeholder/400/500';
                             }}
                           />
-                          
+
                           {/* Image Navigation Arrows */}
                           {hasMultipleImages && (
                             <>
@@ -253,7 +330,7 @@ export default function ExplorePage() {
                               </button>
                             </>
                           )}
-                          
+
                           {/* Image Dots Indicator */}
                           {hasMultipleImages && (
                             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2 z-20">
@@ -270,7 +347,7 @@ export default function ExplorePage() {
                               ))}
                             </div>
                           )}
-                          
+
                           {/* Image Counter */}
                           {hasMultipleImages && (
                             <div className="absolute top-4 left-4 bg-black/50 text-white px-2 py-1 rounded-full text-xs font-medium backdrop-blur-sm z-20">
@@ -285,10 +362,10 @@ export default function ExplorePage() {
                         </div>
                       )}
                     </div>
-                    
+
                     {/* Advanced Overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                    
+
                     {/* Details Toggle Button */}
                     <button
                       onClick={(e) => toggleDetails(profile.id, e)}
@@ -308,7 +385,7 @@ export default function ExplorePage() {
                           <p className="text-gray-200 text-sm capitalize drop-shadow-md">
                             {profile.category}
                           </p>
-                          
+
                           {/* Quick Info */}
                           <div className="flex items-center space-x-3 mt-2">
                             {profile.department && (
@@ -432,7 +509,7 @@ export default function ExplorePage() {
                         <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed mb-4 line-clamp-3">
                           {profile.bio || 'No bio available'}
                         </p>
-                        
+
                         {/* Interests Preview */}
                         {profile.interests && profile.interests.length > 0 && (
                           <div className="flex flex-wrap gap-2">
@@ -476,7 +553,7 @@ export default function ExplorePage() {
             <X className="h-8 w-8 text-red-500" />
           )}
         </Button>
-        
+
         <Button 
           size="lg"
           disabled={!canSwipe || isSwiping}

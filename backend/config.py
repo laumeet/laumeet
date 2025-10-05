@@ -1,11 +1,14 @@
+# config.py
 import os
 from datetime import timedelta
-
 
 class Config:
     """Base configuration"""
     SQLALCHEMY_DATABASE_URI = os.environ.get("DB_URL", "sqlite:///lausers.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # SQLAlchemy engine options can be overridden in app.create_app (NullPool will be applied there)
+    SQLALCHEMY_ENGINE_OPTIONS = {}
 
     # JWT configuration
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY") or "dev-secret-key-please-change"

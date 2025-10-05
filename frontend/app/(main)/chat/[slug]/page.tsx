@@ -1192,17 +1192,21 @@ export default function ChatDetailPage() {
 
                   <div className="mt-3"><strong>Details</strong></div>
                   <div className="mt-1 text-xs">
+<div><strong>Name:</strong> {otherUserProfile.name}</div>
                     <div><strong>Username:</strong> @{otherUserProfile.username}</div>
-                    <div><strong>Location:</strong> {otherUserProfile.location || 'Not provided'}</div>
-                    <div><strong>Joined:</strong> {otherUserProfile.joined_at ? new Date(otherUserProfile.joined_at).toLocaleDateString() : 'Unknown'}</div>
+                   <div><strong>Name:</strong> {otherUserProfile.name}</div>
+<div><strong>Level:</strong> {otherUserProfile.level}</div>
+<div><strong>Age:</strong> {otherUserProfile.age}</div>
+<div><strong>Religion:</strong> {otherUserProfile.religious}</div>
+                    
                   </div>
 
                   <div className="mt-3"><strong>Photos</strong></div>
                   <div className="mt-2 grid grid-cols-3 gap-2">
-                    {(otherUserProfile.images || conversation.other_user.images || []).length === 0 ? (
+                    {(otherUserProfile.pictures || conversation.other_user.images || []).length === 0 ? (
                       <div className="col-span-3 text-xs text-gray-500">No photos</div>
                     ) : (
-                      (otherUserProfile.images || conversation.other_user.images || []).map((img: string, i: number) => (
+                      (otherUserProfile.pictures || conversation.other_user.images || []).map((img: string, i: number) => (
                         <img
                           key={i}
                           src={img}
@@ -1232,4 +1236,26 @@ export default function ChatDetailPage() {
       )}
     </div>
   );
+}
+
+
+interface ExploreProfile {
+  id: string;
+  username: string;
+  name: string;
+  age: number;
+  bio: string;
+  pictures: string[];
+  category: string;
+  isAnonymous: boolean;
+  department: string;
+  interests: string[];
+  distance: number;
+  compatibility: number;
+  level: string;
+  gender: string;
+  interestedIn: string;
+  religious: string;
+  genotype: string;
+  timestamp: string;
 }

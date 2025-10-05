@@ -1238,24 +1238,3 @@ export default function ChatDetailPage() {
   );
 }
 
-
-interface ExploreProfile {
-  id: string;
-  username: string;
-  name: string;
-  age: number;
-  bio: string;
-  pictures: string[];
-  category: string;
-  isAnonymous: boolean;
-  department: string;
-  interests: string[];
-  distance: number;
-  compatibility: number;
-  level: string;
-  gender: string;
-  interestedIn: string;
-  religious: string;
-  genotype: string;
-  timestamp: string;
-}

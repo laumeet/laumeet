@@ -1,4 +1,4 @@
-// hooks/useSocket.ts
+// hooks/useSocket.ts - Debug version
 import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 
@@ -6,6 +6,7 @@ export const useSocket = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
+
   const getBackendUrl = () => {
   if (process.env.NODE_ENV === "production" && process.env.BACKEND_URL) {
     return process.env.BACKEND_URL;
@@ -17,49 +18,54 @@ export const useSocket = () => {
   
   return "http://127.0.0.1:5000";
 };
+
   useEffect(() => {
     const backendUrl = getBackendUrl();
-    console.log(`🔌 Connecting to Socket.IO at: ${backendUrl}`);
 
-    // Connect to Socket.IO - cookies are sent automatically by browser
-    const socket = io(backendUrl, {
-      withCredentials: true, // This ensures cookies are sent
+    // Debug cookie situation
+    console.log('🍪 All cookies:', document.cookie);
+    console.log('🔐 Has access_token_cookie:', document.cookie.includes('access_token_cookie'));
+    
+    const tokenCookie = document.cookie.split(';').find(c => c.trim().startsWith('access_token_cookie='));
+    console.log('🔐 Token cookie value:', tokenCookie ? 'PRESENT' : 'MISSING');
+
+    const socketOptions: any = {
+      withCredentials: true,
       transports: ['websocket', 'polling'],
-      timeout: 10000,
+      timeout: 15000,
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 3, // Reduce for quicker debugging
       reconnectionDelay: 1000,
-    });
+    };
 
+    console.log(`🔌 Attempting connection to: ${backendUrl}`);
+
+    const socket = io(backendUrl, socketOptions);
     socketRef.current = socket;
 
-    // Connection established
     socket.on('connect', () => {
       console.log('✅ Connected to Socket.IO');
       setIsConnected(true);
       setConnectionError(null);
     });
 
-    // Connection lost
     socket.on('disconnect', (reason) => {
-      console.log('❌ Disconnected from Socket.IO:', reason);
+      console.log('❌ Disconnected. Reason:', reason);
       setIsConnected(false);
     });
 
-    // Connection error
     socket.on('connect_error', (error) => {
-      console.error('❌ Socket.IO connection error:', error);
+      console.error('❌ Connection error details:', {
+        message: error.message,
+        description: error.description,
+        context: error.context,
+        type: error.type
+      });
       setIsConnected(false);
-      setConnectionError(`Connection failed: ${error.message}`);
+      setConnectionError(`Connection rejected: ${error.message}`);
     });
 
-    // Cleanup function
     return () => {
-      console.log('🧹 Cleaning up Socket.IO connection');
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('connect_error');
-      
       if (socket.connected) {
         socket.disconnect();
       }

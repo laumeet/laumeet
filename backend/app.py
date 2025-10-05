@@ -1,8 +1,8 @@
-# app.py
 import eventlet
 eventlet.monkey_patch()  # 👈 Must be first to patch sockets/threads before any imports
 
 import os
+from datetime import timedelta
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
@@ -22,6 +22,18 @@ def create_app(config_name=None):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
 
+    # ✅ JWT Cookie Configuration for Cross-Origin
+    app.config.update(
+        JWT_COOKIE_SECURE=True,  # Required for HTTPS in production
+        JWT_COOKIE_SAMESITE='None',  # Required for cross-origin
+        JWT_COOKIE_CSRF_PROTECT=False,  # Disable CSRF for Socket.IO
+        JWT_TOKEN_LOCATION=['cookies'],
+        JWT_ACCESS_COOKIE_NAME='access_token_cookie',
+        JWT_ACCESS_TOKEN_EXPIRES=timedelta(hours=1),
+        JWT_REFRESH_COOKIE_NAME='refresh_token_cookie',
+        JWT_REFRESH_TOKEN_EXPIRES=timedelta(days=30)
+    )
+
     # ✅ Prevent connection pool threading conflicts
     app.config.setdefault('SQLALCHEMY_ENGINE_OPTIONS', {})
     engine_options = app.config['SQLALCHEMY_ENGINE_OPTIONS']
@@ -33,18 +45,29 @@ def create_app(config_name=None):
     db.init_app(app)
     jwt = JWTManager(app)
 
-    # Configure CORS
+    # Configure CORS - IMPORTANT: Must match SocketIO origins
+    cors_origins = [
+        "https://laumeet.vercel.app",
+        "http://localhost:3000", 
+        "http://127.0.0.1:3000"
+    ]
+    
     CORS(
         app,
-        supports_credentials=True,
-        resources={r"/*": {"origins": app.config.get('CORS_ORIGINS', '*')}},
+        supports_credentials=True,  # ✅ This allows cookies to be sent
+        origins=cors_origins,  # ✅ Explicitly set origins
     )
 
     # Register blueprints
     register_blueprints(app)
 
-    # ✅ Initialize SocketIO correctly
-    socketio.init_app(app, async_mode="eventlet", manage_session=False)
+    # ✅ Initialize SocketIO with same CORS origins
+    socketio.init_app(
+        app, 
+        async_mode="eventlet", 
+        manage_session=False,
+        cors_allowed_origins=cors_origins  # ✅ Ensure same origins as CORS
+    )
     register_socket_events()
 
     # JWT Configuration
@@ -65,6 +88,28 @@ def create_app(config_name=None):
     def user_lookup_callback(_jwt_header, jwt_data):
         identity = jwt_data["sub"]
         return User.query.filter_by(public_id=identity).first()
+
+    # JWT Error handlers
+    @jwt.unauthorized_loader
+    def missing_token_callback(error):
+        return jsonify({
+            "success": False,
+            "message": "Missing access token"
+        }), 401
+
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error):
+        return jsonify({
+            "success": False, 
+            "message": "Invalid token"
+        }), 422
+
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_data):
+        return jsonify({
+            "success": False,
+            "message": "Token has expired"
+        }), 401
 
     # Routes
     @app.route("/")

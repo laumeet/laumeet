@@ -1,13 +1,15 @@
+# app.py
+import os
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
 from config import config
 from models.core import db
 from routes import register_blueprints
+# Import socketio/register function *after* monkey-patch may have occurred in sockets.chatevent
 from sockets import socketio, register_socket_events
 from utils.helpers import initialize_database
-import os
-
+from sqlalchemy.pool import NullPool
 
 def create_app(config_name=None):
     """
@@ -18,8 +20,16 @@ def create_app(config_name=None):
 
     app = Flask(__name__)
 
-    # Load configuration
+    # Load configuration object/class
     app.config.from_object(config[config_name])
+
+    # Use NullPool to avoid threaded/greenlet pool locking issues in some deployment modes.
+    # pool_pre_ping = True to avoid using stale connections.
+    app.config.setdefault('SQLALCHEMY_ENGINE_OPTIONS', {})
+    engine_options = app.config['SQLALCHEMY_ENGINE_OPTIONS']
+    engine_options.setdefault('poolclass', NullPool)
+    engine_options.setdefault('pool_pre_ping', True)
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = engine_options
 
     # Initialize extensions
     db.init_app(app)
@@ -28,13 +38,16 @@ def create_app(config_name=None):
     # Configure CORS
     CORS(app,
          supports_credentials=True,
-         resources={r"/*": {"origins": app.config['CORS_ORIGINS']}})
+         resources={r"/*": {"origins": app.config.get('CORS_ORIGINS', [])}})
 
     # Register blueprints (routes)
     register_blueprints(app)
 
-    # Initialize SocketIO
-    socketio.init_app(app)
+    # Initialize SocketIO with the Flask app.
+    # Passing manage_session=False to avoid SocketIO trying to manage Flask sessions.
+    socketio.init_app(app, manage_session=False)
+
+    # Ensure event handlers are imported/registered
     register_socket_events()
 
     # JWT Configuration Callbacks
@@ -118,10 +131,10 @@ with app.app_context():
     initialize_database()
 
 if __name__ == "__main__":
-    # Use SocketIO instead of app.run() for WebSocket support
+    # Prefer running with socketio.run in development. In production, use gunicorn with the appropriate worker class.
     socketio.run(
         app,
-        debug=app.config['DEBUG'],
+        debug=app.config.get('DEBUG', False),
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 5000)),
         allow_unsafe_werkzeug=True

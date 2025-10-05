@@ -63,11 +63,12 @@ def create_app(config_name=None):
 
     # ✅ Initialize SocketIO with same CORS origins
     socketio.init_app(
-        app, 
-        async_mode="eventlet", 
-        manage_session=False,
-        cors_allowed_origins=cors_origins  # ✅ Ensure same origins as CORS
-    )
+    app,
+    async_mode="eventlet",
+    manage_session=False,
+    cors_allowed_origins=cors_origins,  # ✅ correct argument name
+    supports_credentials=True
+)
     register_socket_events()
 
     # JWT Configuration

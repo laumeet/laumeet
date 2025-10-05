@@ -1,27 +1,8 @@
-# sockets/chatevent.py
-import os
+# sockets/chat_events.py
+# ❌ REMOVE all the monkey patching and SocketIO creation at the top
+# ❌ REMOVE: import os, async worker selection, and socketio = SocketIO(...)
 
-# Allow selecting async worker mode via env var ASYNC_WORKER
-# Valid values: 'eventlet', 'gevent', 'threading' (default)
-_ASYNC_WORKER = os.environ.get("ASYNC_WORKER", "threading").lower()
-
-# If using eventlet/gevent we must monkey-patch *before* importing libraries that use sockets/threads.
-if _ASYNC_WORKER == "eventlet":
-    try:
-        import eventlet  # type: ignore
-        eventlet.monkey_patch()
-        print("DEBUG: eventlet monkey patched")
-    except Exception as e:
-        print(f"DEBUG: eventlet monkey patch failed: {e}")
-elif _ASYNC_WORKER == "gevent":
-    try:
-        from gevent import monkey  # type: ignore
-        monkey.patch_all()
-        print("DEBUG: gevent monkey patched")
-    except Exception as e:
-        print(f"DEBUG: gevent monkey patch failed: {e}")
-
-from flask_socketio import SocketIO, join_room, leave_room, emit
+from flask_socketio import join_room, leave_room, emit
 from flask import request as flask_request
 from datetime import datetime
 from models.core import db
@@ -32,37 +13,21 @@ from sqlalchemy import or_
 from sqlalchemy.exc import SQLAlchemyError
 import traceback
 
-# Initialize SocketIO with chosen async mode and avoid managing Flask sessions here
-socketio = SocketIO(
-    cors_allowed_origins=os.environ.get("SOCKETIO_CORS_ORIGINS", [
-        "https://laumeet.vercel.app",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000"
-    ]),
-    async_mode=_ASYNC_WORKER if _ASYNC_WORKER in ("eventlet", "gevent", "threading") else "threading",
-    manage_session=False
-)
+# ✅ Import the SHARED Socket.IO instance from our package
+from sockets import socketio, online_users
 
 
-# Store online users (in production, use Redis instead)
-online_users = {}
-
+# ❌ REMOVE this line: online_users = {}
 
 def register_socket_events():
-    """Register all SocketIO event handlers.
-    This file registers handlers with @socketio.on automatically,
-    but keeping this function allows your app factory to call it explicitly
-    if you want to ensure imports have run.
-    """
-    # Handlers are registered via decorators in this module.
-    # This function exists so create_app can call it after socketio.init_app.
+    """Register all SocketIO event handlers."""
+    print("🔧 Socket.IO event handlers registered")
     return
 
 
 def broadcast_online_status(user_id, is_online):
     """
     Broadcast user's online status to all their conversations.
-    This function reads DB state and emits to rooms.
     """
     try:
         # Use SQLAlchemy or_ correctly
@@ -78,7 +43,6 @@ def broadcast_online_status(user_id, is_online):
             'user_id': user.public_id,
             'username': user.username,
             'is_online': is_online,
-            'last_seen': user.last_seen.isoformat() + "Z" if user.last_seen else None,
             'timestamp': datetime.utcnow().isoformat() + "Z"
         }
 
@@ -92,9 +56,10 @@ def broadcast_online_status(user_id, is_online):
             room_name = f"conversation_{conversation.id}"
             emit('user_online_status', payload, room=room_name)
 
+        print(f"📢 Broadcasted online status: {user.username} -> {is_online}")
+
     except Exception as e:
-        # Print full traceback for debugging
-        print(f"DEBUG: Online status broadcast error: {e}")
+        print(f"❌ Online status broadcast error: {e}")
         traceback.print_exc()
 
 
@@ -102,71 +67,70 @@ def broadcast_online_status(user_id, is_online):
 def handle_connect():
     """
     Handle user connection with JWT authentication.
-    Update user's online status in database using transaction context.
     """
     try:
-        token = flask_request.cookies.get('access_token_cookie')
+        print(f"🔍 Socket.IO Connection Attempt - SID: {flask_request.sid}")
 
+        # Method 1: Check cookies (primary method)
+        token = flask_request.cookies.get('access_token_cookie')
+        print(f"🍪 Token from cookies: {'PRESENT' if token else 'MISSING'}")
+
+        # Method 2: Fallback to query parameters
         if not token:
-            # Fallback to Authorization header
+            token = flask_request.args.get('token')
+            print(f"🔍 Token from query: {'PRESENT' if token else 'MISSING'}")
+
+        # Method 3: Fallback to headers
+        if not token:
             auth_header = flask_request.headers.get('Authorization')
             if auth_header and auth_header.startswith('Bearer '):
                 token = auth_header[7:]
-            else:
-                print("DEBUG: No token provided for SocketIO connection")
-                return False
+            print(f"🔍 Token from headers: {'PRESENT' if token else 'MISSING'}")
 
-        # Verify JWT token
+        if not token:
+            print("❌ No authentication token found")
+            return False
+
+        # Verify the token
         from flask_jwt_extended import decode_token
         try:
             decoded_token = decode_token(token)
             user_public_id = decoded_token['sub']
-            print(f"DEBUG: Decoded token for user: {user_public_id}")
-
-            # Find user in database
-            user = User.query.filter_by(public_id=user_public_id).first()
-            if not user:
-                print(f"DEBUG: User not found for public_id: {user_public_id}")
-                return False
-
-            # Safely update user online status in a transaction
-            try:
-                with db.session.begin():
-                    user.is_online = True
-                    user.last_seen = datetime.utcnow()
-                    db.session.add(user)
-            except SQLAlchemyError as db_err:
-                db.session.rollback()
-                print(f"DEBUG: DB error on connect: {db_err}")
-                traceback.print_exc()
-                return False
-
-            # Store user connection info (in-memory; replace with Redis for multi-instance)
-            online_users[user.id] = {
-                'public_id': user.public_id,
-                'username': user.username,
-                'sid': flask_request.sid,
-                'is_online': True
-            }
-
-            # Join user to their personal room for private notifications
-            join_room(f"user_{user.id}")
-
-            # Broadcast online status to user's conversations (best-effort)
-            broadcast_online_status(user.id, True)
-
-            print(f"DEBUG: User {user.username} connected with SID: {flask_request.sid}")
-
-        except Exception as jwt_err:
-            print(f"DEBUG: JWT decode error: {jwt_err}")
-            traceback.print_exc()
+            print(f"✅ Token decoded successfully for user: {user_public_id}")
+        except Exception as e:
+            print(f"❌ Token verification failed: {str(e)}")
             return False
 
+        # Find user in database
+        user = User.query.filter_by(public_id=user_public_id).first()
+        if not user:
+            print(f"❌ User not found for public_id: {user_public_id}")
+            return False
+
+        # Store user connection info
+        online_users[user.id] = {
+            'public_id': user.public_id,
+            'username': user.username,
+            'sid': flask_request.sid,
+            'is_online': True
+        }
+
+        # Join user to their personal room
+        join_room(f"user_{user.id}")
+
+        # Broadcast online status
+        broadcast_online_status(user.id, True)
+
+        print(f"✅ User {user.username} connected successfully. Online users: {len(online_users)}")
+        return True
+
     except Exception as e:
-        print(f"DEBUG: Connection error: {e}")
+        print(f"💥 Unexpected error during connection: {str(e)}")
+        import traceback
         traceback.print_exc()
         return False
 
+    # ... rest of your socket event handlers remain the same ...
     return True
 
 

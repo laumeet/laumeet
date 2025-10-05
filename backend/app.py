@@ -1,4 +1,5 @@
 import eventlet
+
 eventlet.monkey_patch()  # 👈 Must be first to patch sockets/threads before any imports
 
 import os
@@ -31,7 +32,7 @@ def create_app(config_name=None):
         JWT_ACCESS_COOKIE_NAME='access_token_cookie',
         JWT_ACCESS_TOKEN_EXPIRES=timedelta(hours=1),
         JWT_REFRESH_COOKIE_NAME='refresh_token_cookie',
-        JWT_REFRESH_TOKEN_EXPIRES=timedelta(days=30)
+        JWT_REFRESH_TOKEN_EXPIRES=timedelta(days=30),
     )
 
     # ✅ Prevent connection pool threading conflicts
@@ -45,29 +46,42 @@ def create_app(config_name=None):
     db.init_app(app)
     jwt = JWTManager(app)
 
-    # Configure CORS - IMPORTANT: Must match SocketIO origins
+    # ✅ Configure CORS for Flask - IMPORTANT: Must match SocketIO origins
     cors_origins = [
         "https://laumeet.vercel.app",
-        "http://localhost:3000", 
+        "https://www.laumeet.vercel.app",  # Add www subdomain
+        "http://localhost:3000",
         "http://127.0.0.1:3000"
     ]
-    
+
     CORS(
         app,
         supports_credentials=True,  # ✅ This allows cookies to be sent
         origins=cors_origins,  # ✅ Explicitly set origins
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     )
 
     # Register blueprints
     register_blueprints(app)
 
-    # ✅ Initialize SocketIO with same CORS origins
+
+    # In your app.py - update the Socket.IO section:
+
+    # ✅ Initialize SocketIO with CORS configuration
     socketio.init_app(
-    app,
-    async_mode="eventlet",
-    manage_session=False,
-)
+        app,
+        async_mode="eventlet",
+        manage_session=False,
+        cors_allowed_origins=cors_origins,  # Use the same origins as Flask CORS
+        cors_credentials=True  # Allow credentials
+    )
+
+    # ✅ Register socket events AFTER init_app
     register_socket_events()
+
+    print("🚀 Socket.IO initialized with app")
+
 
     # JWT Configuration
     from models.user import User, TokenBlocklist
@@ -99,7 +113,7 @@ def create_app(config_name=None):
     @jwt.invalid_token_loader
     def invalid_token_callback(error):
         return jsonify({
-            "success": False, 
+            "success": False,
             "message": "Invalid token"
         }), 422
 

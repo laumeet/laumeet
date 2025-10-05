@@ -23,11 +23,19 @@ class Config:
     JWT_SESSION_COOKIE = False
 
     # CORS origins
-    CORS_ORIGINS = [
-        "https://laumeet.vercel.app",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000"
-    ]
+    CORS(
+        app,
+        supports_credentials=True,
+        origins=[
+            "https://laumeet.vercel.app",
+            "https://www.laumeet.vercel.app",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000"
+        ],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+        expose_headers=["Set-Cookie"]
+    )
 
 
 class DevelopmentConfig(Config):

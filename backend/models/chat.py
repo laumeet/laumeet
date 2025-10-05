@@ -68,7 +68,7 @@ class Conversation(db.Model):
 class Message(db.Model):
     """
     Message model for storing individual chat messages
-    Extended with delivery status tracking
+    Extended with delivery status tracking and reply functionality
     """
     __tablename__ = "messages"
 
@@ -77,7 +77,7 @@ class Message(db.Model):
         Integer, ForeignKey('conversations.id', ondelete='CASCADE'),
         nullable=False
     )
-    sender_id: Mapped[int] = mapped_column(  # ✅ Added missing column
+    sender_id: Mapped[int] = mapped_column(
         Integer, ForeignKey('users.id', ondelete='CASCADE'),
         nullable=False
     )
@@ -86,13 +86,32 @@ class Message(db.Model):
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     delivered_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     read_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    
+    # Reply functionality - self-referential foreign key
+    reply_to_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey('messages.id', ondelete='SET NULL'),
+        nullable=True
+    )
 
     # ✅ Relationships
     sender = relationship("User", back_populates="sent_messages", foreign_keys=[sender_id])
     conversation = relationship("Conversation", back_populates="messages")
+    
+    # Reply relationship
+    reply_to = relationship("Message", remote_side=[id], backref="replies", 
+                           foreign_keys=[reply_to_id], post_update=True)
 
     def to_dict(self):
         """Convert Message object to dictionary for JSON response"""
+        reply_data = None
+        if self.reply_to:
+            reply_data = {
+                "id": self.reply_to.id,
+                "content": self.reply_to.content,
+                "sender_username": self.reply_to.sender.username,
+                "timestamp": self.reply_to.timestamp.isoformat() + "Z" if self.reply_to.timestamp else None
+            }
+
         return {
             "id": self.id,
             "conversation_id": self.conversation_id,
@@ -103,7 +122,8 @@ class Message(db.Model):
             "timestamp": self.timestamp.isoformat() + "Z" if self.timestamp else None,
             "delivered_at": self.delivered_at.isoformat() + "Z" if self.delivered_at else None,
             "read_at": self.read_at.isoformat() + "Z" if self.read_at else None,
-            "status": self.get_status()
+            "status": self.get_status(),
+            "reply_to": reply_data
         }
 
     def get_status(self):

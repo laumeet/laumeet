@@ -23,10 +23,10 @@ export const useSocket = () => {
     const backendUrl = getBackendUrl();
 
     // Debug cookie situation
-    console.log('🍪 All cookies:', document.Cookies);
+    console.log('🍪 All cookies:', document.cookie);
     console.log('🔐 Has access_token_cookie:', document.cookie.includes('access_token_cookie'));
     
-    const tokenCookie = document.Cookies.split(';').find(c => c.trim().startsWith('access_token_cookie='));
+    const tokenCookie = document.cookie.split(';').find(c => c.trim().startsWith('access_token_cookie='));
     console.log('🔐 Token cookie value:', tokenCookie ? 'PRESENT' : 'MISSING');
     
     if (tokenCookie) {

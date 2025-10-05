@@ -1,18 +1,41 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/(main)/chat/[id]/page.tsx
+// app/(main)/chat/[slug]/page.tsx
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Send, Paperclip, Smile, Shield, Loader2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  Send,
+  Paperclip,
+  Smile,
+  Shield,
+  Loader2,
+  MoreVertical,
+  CheckCheck,
+  Check,
+  Search,
+  X,
+  Info
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import api from '@/lib/axio';
+import { useSocket } from '@/hooks/useSocket';
 
+// -----------------------------
+// Types
+// -----------------------------
 export interface Message {
-  id: string;
+  id: string | number;
   conversation_id: string;
   sender_id: string;
   sender_username: string;
@@ -22,10 +45,18 @@ export interface Message {
   delivered_at: string | null;
   read_at: string | null;
   status: 'sent' | 'delivered' | 'read';
+  reply_to?: {
+    id: string | number;
+    content?: string;
+    sender_username?: string;
+  } | null;
 }
 
 export interface Conversation {
-  id: string;
+  id: string | number;
+  created_at: string;
+  last_message: string;
+  last_message_at: string;
   other_user: {
     id: string;
     username: string;
@@ -34,59 +65,362 @@ export interface Conversation {
     isOnline: boolean;
     lastSeen: string | null;
   };
+  unread_count: number;
 }
 
+export interface UserProfile {
+  id: string;
+  username: string;
+  name: string;
+  bio?: string;
+  age?: number;
+  level?: string;
+  religious?: string;
+  avatar: string | null;
+  pictures?: string[];
+  isOnline: boolean;
+  lastSeen: string | null;
+}
+
+// -----------------------------
+// Utility helpers
+// -----------------------------
+const safeStr = (v: any) => (v === null || v === undefined ? '' : String(v));
+const isTempId = (id: any) => String(id).startsWith('temp-');
+
+// -----------------------------
+// Component
+// -----------------------------
 export default function ChatDetailPage() {
   const params = useParams();
   const router = useRouter();
+
+  // Basic states
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
-  const [showSecurityAlert, setShowSecurityAlert] = useState(false);
-  const [securityAlertMessage, setSecurityAlertMessage] = useState('');
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingUser, setTypingUser] = useState<string>('');
+  const [onlineStatus, setOnlineStatus] = useState<boolean>(true);
+
+  // Reply states
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [showReplyPreview, setShowReplyPreview] = useState(false);
+
+  // Modal states
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [showUserDetails, setShowUserDetails] = useState(false);
+
+  // refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  const chatId = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  // hold to reply detection
+  const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pressedMessageRef = useRef<string | number | null>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // socket
+  const { socket, isConnected: socketConnected, connectionError } = useSocket();
+
+  const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
+
+  // -----------------------------
+  // Helpers: formatting
+  // -----------------------------
+  const formatMessageTime = (timestamp: string) => {
+    try {
+      return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    } catch {
+      return timestamp;
+    }
   };
 
-  const fetchConversation = async () => {
-    if (!chatId) return;
+  const formatMessageDate = (timestamp: string) => {
+    try {
+      const date = new Date(timestamp);
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      if (date.toDateString() === today.toDateString()) {
+        return 'Today';
+      } else if (date.toDateString() === yesterday.toDateString()) {
+        return 'Yesterday';
+      } else {
+        return date.toLocaleDateString([], {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+      }
+    } catch {
+      return timestamp;
+    }
+  };
+
+  const isSameDay = (date1: string, date2: string) => {
+    try {
+      return new Date(date1).toDateString() === new Date(date2).toDateString();
+    } catch {
+      return false;
+    }
+  };
+
+  const formatLastSeen = (lastSeen: string | null) => {
+    if (!lastSeen) return 'Never seen';
+
+    const now = new Date();
+    const seen = new Date(lastSeen);
+    const diffMinutes = Math.floor((now.getTime() - seen.getTime()) / (1000 * 60));
+
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+    return `${Math.floor(diffMinutes / 1440)}d ago`;
+  };
+
+  // -----------------------------
+  // Fetch User Profile
+  // -----------------------------
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      // You'll need to create this API endpoint to get user details
+      const response = await api.get(`/users/${userId}/profile`);
+      
+      if (response.data.success) {
+        setUserProfile(response.data.user);
+      } else {
+        console.warn('Failed to fetch user profile:', response.data.message);
+      }
+    } catch (err: any) {
+      console.warn('Error fetching user profile:', err);
+      // Don't set error state for profile fetch failures
+    }
+  };
+
+  // -----------------------------
+  // Fetching conversation & messages
+  // -----------------------------
+  const fetchConversationById = async (id: string | number) => {
+    if (!id) return null;
 
     try {
       const response = await api.get('/chat/conversations');
+
       if (response.data.success) {
         const conversations = response.data.conversations || [];
-        const currentConv = conversations.find((conv: Conversation) => conv.id === chatId);
-        setConversation(currentConv || null);
+
+        const currentConv = conversations.find((conv: Conversation) => {
+          const convIdStr = String(conv.id);
+          const chatIdStr = String(id);
+
+          if (convIdStr === chatIdStr) {
+            return true;
+          }
+
+          if (String(conv.other_user.id) === chatIdStr) {
+            return true;
+          }
+
+          return false;
+        });
+
+        if (!currentConv) {
+          setError('Chat not found');
+          return null;
+        }
+
+        setConversation(currentConv);
+        setOnlineStatus(currentConv.other_user.isOnline);
+        
+        // Fetch user profile when conversation is loaded
+        fetchUserProfile(currentConv.other_user.id);
+        
+        return currentConv;
+      }
+      return null;
+    } catch (err: any) {
+      setError('Failed to load conversation');
+      return null;
+    }
+  };
+
+  const fetchMessagesById = async (id: string | number) => {
+    if (!id) return;
+
+    try {
+      const response = await api.get(`/chat/messages/${id}`);
+
+      if (response.data.success) {
+        const serverMessages: Message[] = response.data.messages || [];
+        setMessages(serverMessages);
+      } else {
+        setError('Failed to load messages');
       }
     } catch (err: any) {
-      console.error('Error fetching conversation:', err);
-      setError('Failed to load conversation');
+      setError(err.response?.data?.message || 'Failed to load messages');
     }
   };
 
   const fetchMessages = async () => {
     if (!chatId) return;
-
-    try {
-      const response = await api.get(`/chat/messages/${chatId}`);
-      if (response.data.success) {
-        setMessages(response.data.messages || []);
-      } else {
-        setError('Failed to load messages');
-      }
-    } catch (err: any) {
-      console.error('Error fetching messages:', err);
-      setError(err.response?.data?.message || 'Failed to load messages');
-    }
+    return fetchMessagesById(chatId);
   };
 
+  const fetchConversation = async () => {
+    if (!chatId) return null;
+    return fetchConversationById(chatId);
+  };
+
+  // -----------------------------
+  // Join room helper and resync
+  // -----------------------------
+  const joinConversationRoom = useCallback((convId?: string | number) => {
+    if (!socket) return;
+    const conversationId = convId ?? conversation?.id;
+    if (!conversationId) return;
+
+    try {
+      socket.emit('join_conversation', { conversation_id: conversationId });
+    } catch (err) {
+      console.warn('Failed to join conversation room', err);
+    }
+  }, [socket, conversation]);
+
+  // -----------------------------
+  // Socket listeners
+  // -----------------------------
+  useEffect(() => {
+    if (!socket || !conversation) return;
+
+    // Join room on start
+    joinConversationRoom(conversation.id);
+
+    // When socket connects or reconnects, rejoin
+    const onConnect = () => {
+      console.log('Socket connected/reconnected — rejoining');
+      joinConversationRoom(conversation.id);
+    };
+    socket.on('connect', onConnect);
+
+    // New message
+    const onNewMessage = async (newMessage: Message) => {
+      console.log('📨 New message received:', newMessage);
+
+      // Prevent duplicates
+      setMessages(prev => {
+        const exists = prev.some(msg => String(msg.id) === String(newMessage.id));
+        if (exists) return prev;
+        return [...prev, newMessage];
+      });
+
+      // Scroll to bottom
+      scrollToBottom();
+    };
+    socket.on('new_message', onNewMessage);
+
+    // Typing
+    const onTyping = (data: any) => {
+      if (data.user_id !== conversation.other_user.id) return;
+
+      setTypingUser(data.username);
+      setIsTyping(data.is_typing);
+
+      if (data.is_typing) {
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => {
+          setIsTyping(false);
+          setTypingUser('');
+        }, 3000);
+      } else {
+        setIsTyping(false);
+        setTypingUser('');
+      }
+    };
+    socket.on('user_typing', onTyping);
+
+    // Online status
+    const onOnlineStatus = (data: any) => {
+      if (data.user_id === conversation.other_user.id) {
+        setOnlineStatus(Boolean(data.is_online));
+        setConversation(prev =>
+          prev
+            ? {
+                ...prev,
+                other_user: {
+                  ...prev.other_user,
+                  isOnline: Boolean(data.is_online),
+                  lastSeen: data.last_seen ?? prev.other_user.lastSeen
+                }
+              }
+            : prev
+        );
+      }
+    };
+    socket.on('user_online_status', onOnlineStatus);
+
+    // Message status update (read/delivered)
+    const onMessageStatusUpdate = (data: any) => {
+      if (!data) return;
+      const messageId = data.message_id;
+      const status = data.status;
+      if (!messageId) return;
+
+      setMessages(prev =>
+        prev.map(msg => {
+          if (String(msg.id) !== String(messageId)) return msg;
+          if (status === 'delivered') {
+            return { ...msg, status: 'delivered', delivered_at: data.delivered_at ?? msg.delivered_at };
+          }
+          if (status === 'read') {
+            return { ...msg, status: 'read', read_at: data.read_at ?? msg.read_at, is_read: true };
+          }
+          return msg;
+        })
+      );
+    };
+    socket.on('message_status_update', onMessageStatusUpdate);
+
+    // Clean up on unmount or conversation change
+    return () => {
+      socket.off('connect', onConnect);
+      socket.off('new_message', onNewMessage);
+      socket.off('user_typing', onTyping);
+      socket.off('user_online_status', onOnlineStatus);
+      socket.off('message_status_update', onMessageStatusUpdate);
+
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+      if (longPressTimeoutRef.current) {
+        clearTimeout(longPressTimeoutRef.current);
+        longPressTimeoutRef.current = null;
+      }
+    };
+  }, [socket, conversation, joinConversationRoom]);
+
+  // -----------------------------
+  // scroll
+  // -----------------------------
+  const scrollToBottom = () => {
+    try {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } catch (err) { /* ignore */ }
+  };
+
+  // -----------------------------
+  // load chat data
+  // -----------------------------
   const loadChatData = async () => {
     if (!chatId) {
       router.push('/chat');
@@ -96,9 +430,13 @@ export default function ChatDetailPage() {
     try {
       setLoading(true);
       setError('');
-      await Promise.all([fetchConversation(), fetchMessages()]);
+
+      const conv = await fetchConversation();
+      if (conv) {
+        await fetchMessages();
+        if (socket) joinConversationRoom(conv.id);
+      }
     } catch (err) {
-      console.error('Error loading chat:', err);
       setError('Failed to load chat');
     } finally {
       setLoading(false);
@@ -107,162 +445,189 @@ export default function ChatDetailPage() {
 
   useEffect(() => {
     loadChatData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId]);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isTyping]);
 
-  const censorSensitiveInfo = (text: string): { content: string; hasSensitiveInfo: boolean } => {
-    let hasSensitiveInfo = false;
-    let censoredText = text;
+  // -----------------------------
+  // Auto-resize textarea
+  // -----------------------------
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+    }
+  }, [message]);
 
-    const patterns = {
-      phone: /\b(\+?[\d\s\-\(\)]{10,15})\b/g,
-      email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
-      url: /(https?:\/\/[^\s]+|www\.[^\s]+)/gi,
-      socialMedia: /\b(instagram|facebook|fb|twitter|x|tiktok|snapchat|telegram|whatsapp|signal|discord|reddit|linkedin)\b/gi,
-      externalRequests: /\b(move to|switch to|contact me on|dm me on|hit me up on|add me on|find me on)\s+[a-zA-Z0-9]+\b/gi
-    };
+  // -----------------------------
+  // Typing indicator
+  // -----------------------------
+  const handleTyping = (isTypingFlag: boolean) => {
+    if (!socket || !conversation) return;
 
-    Object.entries(patterns).forEach(([key, pattern]) => {
-      censoredText = censoredText.replace(pattern, (match) => {
-        hasSensitiveInfo = true;
-        if (key === 'email') {
-          const [local, domain] = match.split('@');
-          return local.charAt(0) + '#'.repeat(local.length - 1) + '@' + domain;
-        } else if (key === 'externalRequests') {
-          const words = match.split(' ');
-          const lastWord = words[words.length - 1];
-          return words.slice(0, -1).join(' ') + ' #' + '#'.repeat(lastWord.length - 1);
-        } else {
-          return '#' + '#'.repeat(Math.min(match.length - 1, 10));
-        }
-      });
+    socket.emit('typing', {
+      conversation_id: conversation.id,
+      is_typing: isTypingFlag
     });
-
-    return { content: censoredText, hasSensitiveInfo };
   };
 
-  const detectSensitivePatterns = (text: string): string[] => {
-    const detectedPatterns: string[] = [];
-    
-    const patterns = {
-      phone: { regex: /\b(\+?[\d\s\-\(\)]{10,15})\b/g, name: 'Phone number' },
-      email: { regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, name: 'Email address' },
-      url: { regex: /(https?:\/\/[^\s]+|www\.[^\s]+)/gi, name: 'Website link' },
-      socialMedia: { regex: /\b(instagram|facebook|fb|twitter|x|tiktok|snapchat|telegram|whatsapp|signal|discord|reddit|linkedin)\b/gi, name: 'Social media platform' },
-      externalRequest: { regex: /\b(move to|switch to|contact me on|dm me on|hit me up on|add me on|find me on)\s+[a-zA-Z0-9]+\b/gi, name: 'External platform request' }
-    };
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMessage(e.target.value);
 
-    Object.entries(patterns).forEach(([key, { regex, name }]) => {
-      if (regex.test(text)) {
-        detectedPatterns.push(name);
+    // Send typing start
+    if (e.target.value.trim() && !isTyping) {
+      handleTyping(true);
+    }
+
+    // Set timeout to send typing stop
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      handleTyping(false);
+    }, 1000);
+  };
+
+  // -----------------------------
+  // Hold/Long press (reply) - WhatsApp style
+  // -----------------------------
+  const startLongPress = (msgId: string | number) => {
+    if (longPressTimeoutRef.current) clearTimeout(longPressTimeoutRef.current);
+    pressedMessageRef.current = msgId;
+    longPressTimeoutRef.current = setTimeout(() => {
+      const msg = messages.find(m => String(m.id) === String(msgId));
+      if (msg) {
+        setReplyTo(msg);
+        setShowReplyPreview(true);
       }
-    });
-
-    return detectedPatterns;
+    }, 500); // 500ms for long press
   };
 
-  const showSecurityWarning = (patterns: string[]) => {
-    if (patterns.length > 0) {
-      setSecurityAlertMessage(
-        `For your safety, we've hidden ${patterns.join(', ')}. Please keep conversations within Campus Vibes.`
-      );
-      setShowSecurityAlert(true);
-      setTimeout(() => setShowSecurityAlert(false), 5000);
+  const cancelLongPress = () => {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
     }
+    pressedMessageRef.current = null;
   };
 
+  const cancelReply = () => {
+    setReplyTo(null);
+    setShowReplyPreview(false);
+  };
+
+  // -----------------------------
+  // Send message with reply functionality
+  // -----------------------------
   const sendMessage = async () => {
-    if (!message.trim() || !chatId || sending) return;
+    if (!message.trim() || !conversation || sending) return;
 
-    const { content: censoredContent, hasSensitiveInfo } = censorSensitiveInfo(message);
-    const detectedPatterns = detectSensitivePatterns(message);
-
-    if (hasSensitiveInfo) {
-      showSecurityWarning(detectedPatterns);
-    }
-
+    const content = message.trim();
     setSending(true);
 
     try {
-      const response = await api.post(`/chat/messages/${chatId}`, {
-        content: censoredContent
-      });
+      handleTyping(false);
 
-      if (response.data.success) {
-        const newMessage = response.data.message_data;
-        setMessages(prev => [...prev, newMessage]);
-        setMessage('');
-        
-        // Refresh conversation to update last message
-        await fetchConversation();
+      // optimistic message
+      const tempMessage: Message = {
+        id: `temp-${Date.now()}`,
+        conversation_id: String(conversation.id),
+        sender_id: 'current-user',
+        sender_username: 'You',
+        content,
+        is_read: false,
+        timestamp: new Date().toISOString(),
+        delivered_at: null,
+        read_at: null,
+        status: 'sent',
+        reply_to: replyTo ? { 
+          id: replyTo.id, 
+          content: replyTo.content, 
+          sender_username: replyTo.sender_username 
+        } : null,
+      };
+
+      setMessages(prev => [...prev, tempMessage]);
+      setMessage('');
+      cancelReply();
+
+      if (socket && socketConnected) {
+        socket.emit('send_message', {
+          conversation_id: conversation.id,
+          content,
+          reply_to: replyTo ? String(replyTo.id) : null
+        });
       } else {
-        setError('Failed to send message');
+        // Fallback to HTTP
+        const response = await api.post(`/chat/messages/send?conversationId=${conversation.id}`, {
+          content,
+          reply_to: replyTo ? String(replyTo.id) : null
+        });
+
+        if (response.data.success) {
+          setMessages(prev => prev.filter(m => !isTempId(m.id)));
+          await fetchMessagesById(conversation.id);
+          await fetchConversationById(conversation.id);
+        } else {
+          setError('Failed to send message');
+          setMessages(prev => prev.filter(m => !isTempId(m.id)));
+        }
       }
     } catch (err: any) {
-      console.error('Error sending message:', err);
       setError(err.response?.data?.message || 'Failed to send message');
+      setMessages(prev => prev.filter(m => !isTempId(m.id)));
     } finally {
       setSending(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
+  // -----------------------------
+  // Keyboard / cleanup
+  // -----------------------------
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (longPressTimeoutRef.current) clearTimeout(longPressTimeoutRef.current);
+    };
+  }, []);
 
-  const formatMessageContent = (content: string, containsSensitiveInfo?: boolean) => {
-    if (!containsSensitiveInfo) {
-      return content;
-    }
-
-    return (
-      <span className="relative">
-        {content}
-        {containsSensitiveInfo && (
-          <Shield className="h-3 w-3 text-blue-500 inline-block ml-1" />
-        )}
-      </span>
-    );
-  };
-
-  const formatMessageTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
-
+  // -----------------------------
+  // Back navigation
+  // -----------------------------
   const handleBack = () => {
     router.push('/chat');
   };
 
-  const markConversationAsRead = async () => {
-    if (!chatId) return;
+  // -----------------------------
+  // Avatar click: open lightbox
+  // -----------------------------
+  const openLightbox = (index = 0) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  };
 
-    try {
-      await api.post(`/chat/conversations/${chatId}/mark_read`);
-    } catch (err) {
-      console.error('Error marking conversation as read:', err);
+  const closeLightbox = () => {
+    setLightboxOpen(false);
+    setLightboxIndex(0);
+  };
+
+  const handleAvatarClick = () => {
+    if (userProfile?.pictures && userProfile.pictures.length > 0) {
+      openLightbox(0);
+    } else {
+      setShowUserDetails(true);
     }
   };
 
-  useEffect(() => {
-    if (messages.length > 0) {
-      markConversationAsRead();
-    }
-  }, [messages.length]);
-
+  // -----------------------------
+  // UI Render
+  // -----------------------------
   if (loading) {
     return (
-      <div className="h-[calc(100vh-140px)] flex items-center justify-center">
+      <div className="h-screen flex items-center justify-center bg-white dark:bg-gray-900">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-pink-500" />
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-green-500" />
           <p className="text-gray-500 dark:text-gray-400">Loading chat...</p>
         </div>
       </div>
@@ -271,7 +636,7 @@ export default function ChatDetailPage() {
 
   if (error || !conversation) {
     return (
-      <div className="h-[calc(100vh-140px)] flex flex-col items-center justify-center p-4">
+      <div className="h-screen flex flex-col items-center justify-center bg-white dark:bg-gray-900 p-4">
         <p className="text-gray-500 dark:text-gray-400 mb-4 text-center">
           {error || 'Chat not found'}
         </p>
@@ -283,126 +648,375 @@ export default function ChatDetailPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-70px)] flex flex-col">
-      {/* Security Alert */}
-      {showSecurityAlert && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md px-4">
-          <Alert className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-            <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            <AlertDescription className="text-blue-800 dark:text-blue-200 text-sm">
-              {securityAlertMessage}
-            </AlertDescription>
-          </Alert>
-        </div>
-      )}
+    <div className="h-screen no-scrollbar flex flex-col bg-gray-100 dark:bg-gray-900">
+      {/* Header */}
+      <div className="flex-none bg-green-500 dark:bg-green-600 text-white">
+        <div className="flex items-center justify-between p-3">
+          <div className="flex items-center space-x-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleBack}
+              className="hover:bg-green-600 dark:hover:bg-green-700 text-white"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
 
-      {/* Chat Header */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <Button variant="ghost" size="sm" onClick={handleBack} className="mr-2">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <Avatar>
-            <AvatarImage 
-              src={conversation.other_user.avatar || '/api/placeholder/40/40'} 
-              alt={conversation.other_user.name}
-            />
-            <AvatarFallback>
-              {conversation.other_user.name?.charAt(0) || conversation.other_user.username?.charAt(0)}
-            </AvatarFallback>
-          </Avatar>
-          <div>
-            <h3 className="font-semibold text-gray-900 dark:text-white">
-              {conversation.other_user.name || conversation.other_user.username}
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {conversation.other_user.isOnline ? 'Online' : 'Offline'}
-            </p>
+            <div className="flex items-center space-x-3">
+              <div onClick={handleAvatarClick} className="cursor-pointer">
+                <Avatar className="h-10 w-10 border-2 border-white">
+                  <AvatarImage
+                    src={conversation.other_user.avatar || '/api/placeholder/40/40'}
+                    alt={conversation.other_user.name}
+                    className="object-cover"
+                  />
+                  <AvatarFallback className="bg-green-600 text-white">
+                    {conversation.other_user.name?.charAt(0) || conversation.other_user.username?.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-white truncate">
+                  {conversation.other_user.name || conversation.other_user.username}
+                </h3>
+                <div className="flex items-center space-x-2">
+                  <p className="text-green-100 text-xs">
+                    {onlineStatus ? 'online' : `Last seen: ${formatLastSeen(conversation.other_user.lastSeen)}`}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Header dropdown: show user info */}
+          <div className="flex items-center space-x-2">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-white"
+              onClick={() => setShowUserDetails(true)}
+            >
+              <Info className="h-5 w-5" />
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
-            <p className="text-sm">No messages yet</p>
-            <p className="text-xs mt-1">Start the conversation!</p>
-          </div>
-        ) : (
-          messages.map((msg) => {
-            const isOwn = msg.sender_id !== conversation.other_user.id;
-            const { content: censoredContent, hasSensitiveInfo } = censorSensitiveInfo(msg.content);
+      {/* Messages Area */}
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto bg-[#e5ddd5] dark:bg-gray-800 bg-chat-background bg-repeat bg-center"
+      >
+        <div className="max-w-3xl mx-auto p-2 space-y-1">
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center py-12">
+              <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mb-4">
+                <span className="text-2xl text-white">💬</span>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                Start a conversation
+              </h3>
+              <p className="text-gray-500 dark:text-gray-400 max-w-sm">
+                Send your first message to {conversation.other_user.name || conversation.other_user.username} and get the chat started!
+              </p>
+            </div>
+          ) : (
+            messages.map((msg, index) => {
+              const isOwn = msg.sender_id !== conversation.other_user.id;
+              const showDate = index === 0 || !isSameDay(msg.timestamp, messages[index - 1].timestamp);
 
-            return (
-              <div
-                key={msg.id}
-                className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
-                    isOwn
-                      ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-br-none'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-none'
-                  } ${hasSensitiveInfo ? 'border border-yellow-400 dark:border-yellow-600' : ''}`}
-                >
-                  <p className="text-sm break-words">
-                    {formatMessageContent(censoredContent, hasSensitiveInfo)}
-                  </p>
-                  <div className={`text-xs mt-1 flex items-center justify-between ${
-                    isOwn ? 'text-pink-100' : 'text-gray-500'
-                  }`}>
-                    <span>{formatMessageTime(msg.timestamp)}</span>
-                    {isOwn && (
-                      <span className="ml-2 text-xs opacity-75">
-                        {msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}
-                      </span>
-                    )}
+              // Reply preview for the message being replied to
+              const replyPreview = msg.reply_to ? (
+                <div className="mb-1 px-2 py-1 rounded bg-black/10 dark:bg-white/10 text-xs text-gray-700 dark:text-gray-300 border-l-2 border-green-500">
+                  <div className="font-medium text-xs truncate">
+                    {msg.reply_to.sender_username || 'User'}
+                  </div>
+                  <div className="text-xs truncate">
+                    {msg.reply_to.content ? (msg.reply_to.content.length > 120 ? `${msg.reply_to.content.slice(0, 120)}...` : msg.reply_to.content) : ''}
+                  </div>
+                </div>
+              ) : null;
+
+              return (
+                <div key={String(msg.id)} className="space-y-1">
+                  {showDate && (
+                    <div className="flex justify-center">
+                      <div className="bg-black bg-opacity-20 px-3 py-1 rounded-full text-xs text-white">
+                        {formatMessageDate(msg.timestamp)}
+                      </div>
+                    </div>
+                  )}
+
+                  <div
+                    className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                    onMouseDown={() => startLongPress(msg.id)}
+                    onMouseUp={cancelLongPress}
+                    onMouseLeave={cancelLongPress}
+                    onTouchStart={() => startLongPress(msg.id)}
+                    onTouchEnd={cancelLongPress}
+                    onTouchCancel={cancelLongPress}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className={`max-w-[70%] ${isOwn ? 'ml-12' : 'mr-12'}`}>
+                      <div className={`relative px-3 py-2 rounded-lg ${isOwn ? 'bg-[#d9fdd3] dark:bg-green-900 rounded-br-none' : 'bg-white dark:bg-gray-700 rounded-bl-none'} shadow-sm`}>
+                        {/* reply preview */}
+                        {replyPreview}
+
+                        <p className="text-sm break-words leading-relaxed whitespace-pre-wrap">
+                          {msg.content}
+                        </p>
+
+                        <div className={`flex items-center justify-end space-x-1 mt-1 ${isOwn ? 'text-green-800 dark:text-green-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                          <span className="text-xs" style={{ fontSize: '11px' }}>
+                            {formatMessageTime(msg.timestamp)}
+                          </span>
+                          {isOwn && (
+                            <span className="flex items-center" style={{ fontSize: '11px' }}>
+                              {msg.status === 'read' ? (
+                                <CheckCheck size={14} className="text-blue-500" />
+                              ) : msg.status === 'delivered' ? (
+                                <CheckCheck size={14} />
+                              ) : (
+                                <Check size={14} />
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+
+          {/* Typing Indicator */}
+          {isTyping && (
+            <div className="flex justify-start">
+              <div className="max-w-[70%] mr-12">
+                <div className="bg-white dark:bg-gray-700 px-3 py-2 rounded-lg rounded-bl-none shadow-sm">
+                  <div className="flex items-center space-x-2">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                    </div>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {typingUser} is typing...
+                    </span>
                   </div>
                 </div>
               </div>
-            );
-          })
-        )}
-        <div ref={messagesEndRef} />
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      {/* Message Input */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+      {/* Reply preview/banner above input - WhatsApp style */}
+      {showReplyPreview && replyTo && (
+        <div className="flex-none p-3 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+          <div className="max-w-3xl mx-auto flex items-center justify-between">
+            <div className="flex items-start space-x-3 flex-1">
+              <div className="w-1 h-full bg-green-500 rounded-full mt-1" />
+              <div className="flex flex-col flex-1">
+                <span className="text-xs text-gray-700 dark:text-gray-200 font-medium">
+                  Replying to {replyTo.sender_username || 'them'}
+                </span>
+                <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                  {replyTo.content}
+                </span>
+              </div>
+            </div>
+            <div>
+              <Button variant="ghost" size="icon" onClick={cancelReply}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="flex-none p-3">
         {error && (
-          <div className="mb-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-2">
+          <div className="mb-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
             <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
           </div>
         )}
-        
-        <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="sm">
-            <Paperclip className="h-4 w-4" />
+
+        <div className="flex items-end space-x-2 max-w-3xl mx-auto">
+          <Button variant="ghost" size="icon" className="flex-none hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400" type="button">
+            <Paperclip className="h-5 w-5" />
           </Button>
-          <Input
-            placeholder="Type a message..."
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="flex-1"
-            disabled={sending}
-          />
-          <Button variant="ghost" size="sm">
-            <Smile className="h-4 w-4" />
-          </Button>
-          <Button 
+
+          <div className="flex-1 relative">
+            <textarea
+              ref={textareaRef}
+              placeholder="Type a message"
+              value={message}
+              onChange={handleInputChange}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+              className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-32 overflow-hidden"
+              rows={1}
+              disabled={sending}
+              style={{ overflow: 'hidden' }}
+            />
+            <Button variant="ghost" size="icon" className="absolute right-2 bottom-2 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-400" type="button">
+              <Smile className="h-5 w-5" />
+            </Button>
+          </div>
+
+          <Button
             onClick={sendMessage}
             disabled={!message.trim() || sending}
-            className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50"
+            size="icon"
+            className="flex-none bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed h-11 w-11 rounded-full shadow-lg"
+            type="button"
+            title="Send message"
           >
             {sending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin text-white" />
             ) : (
-              <Send className="h-4 w-4" />
+              <Send className="h-5 w-5 text-white" />
             )}
           </Button>
         </div>
       </div>
+
+      {/* Lightbox modal */}
+      {lightboxOpen && userProfile?.pictures && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+          <div className="relative max-w-3xl w-full mx-4">
+            <div className="bg-black rounded-lg overflow-hidden">
+              <div className="relative h-[60vh] md:h-[70vh]">
+                <img
+                  src={userProfile.pictures[lightboxIndex]}
+                  alt={`${userProfile.name || userProfile.username} - ${lightboxIndex + 1}`}
+                  className="object-contain w-full h-full bg-black"
+                />
+              </div>
+
+              {/* controls */}
+              <div className="absolute top-3 right-3">
+                <Button variant="ghost" size="icon" onClick={closeLightbox}>
+                  <X className="h-5 w-5 text-white" />
+                </Button>
+              </div>
+
+              {/* thumbnails */}
+              {userProfile.pictures.length > 1 && (
+                <div className="p-2 bg-black/60 flex space-x-2 overflow-x-auto">
+                  {userProfile.pictures.map((img, idx) => (
+                    <img
+                      key={idx}
+                      src={img}
+                      alt={`thumb-${idx}`}
+                      className={`h-16 w-16 object-cover rounded cursor-pointer ${idx === lightboxIndex ? 'ring-2 ring-white' : ''}`}
+                      onClick={() => setLightboxIndex(idx)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User details modal */}
+      {showUserDetails && conversation && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40">
+          <div className="relative z-50 bg-white dark:bg-gray-900 rounded-t-xl md:rounded-xl p-6 w-full md:w-96 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">User Details</h2>
+              <Button variant="ghost" size="icon" onClick={() => setShowUserDetails(false)}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+
+            <div className="flex items-center space-x-4 mb-6">
+              <Avatar className="h-16 w-16">
+                <AvatarImage src={conversation.other_user.avatar || '/api/placeholder/80/80'} />
+                <AvatarFallback className="bg-green-600 text-white text-lg">
+                  {conversation.other_user.name?.charAt(0) || conversation.other_user.username?.charAt(0)}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <h3 className="font-semibold text-lg">{conversation.other_user.name || conversation.other_user.username}</h3>
+                <p className="text-sm text-gray-500">@{conversation.other_user.username}</p>
+                <p className={`text-xs ${onlineStatus ? 'text-green-500' : 'text-gray-500'}`}>
+                  {onlineStatus ? 'Online' : `Last seen ${formatLastSeen(conversation.other_user.lastSeen)}`}
+                </p>
+              </div>
+            </div>
+
+            {userProfile ? (
+              <div className="space-y-4 text-sm">
+                {userProfile.bio && (
+                  <div>
+                    <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-1">Bio</h4>
+                    <p className="text-gray-600 dark:text-gray-400">{userProfile.bio}</p>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {userProfile.age && (
+                    <div>
+                      <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-1">Age</h4>
+                      <p className="text-gray-600 dark:text-gray-400">{userProfile.age}</p>
+                    </div>
+                  )}
+                  {userProfile.level && (
+                    <div>
+                      <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-1">Level</h4>
+                      <p className="text-gray-600 dark:text-gray-400">{userProfile.level}</p>
+                    </div>
+                  )}
+                  {userProfile.religious && (
+                    <div>
+                      <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-1">Religion</h4>
+                      <p className="text-gray-600 dark:text-gray-400">{userProfile.religious}</p>
+                    </div>
+                  )}
+                </div>
+
+                {userProfile.pictures && userProfile.pictures.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Photos</h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      {userProfile.pictures.map((img, index) => (
+                        <img
+                          key={index}
+                          src={img}
+                          alt={`Photo ${index + 1}`}
+                          className="h-20 w-full object-cover rounded cursor-pointer"
+                          onClick={() => {
+                            setLightboxIndex(index);
+                            setLightboxOpen(true);
+                            setShowUserDetails(false);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500">Loading user profile...</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,4 @@
-// pages/api/chat/messages/send.ts
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// pages/api/users/[userId]/profile.ts
 import { getCookieValue } from "@/lib/utils";
 import type { NextApiRequest, NextApiResponse } from "next";
 
@@ -15,19 +14,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ success: true });
   }
 
-  if (req.method === "POST") {
+  if (req.method === "GET") {
     try {
       const BACKEND_URL = getBackendUrl();
-      const { conversationId } = req.query;
+      const { userId } = req.query;
       
-      if (!conversationId) {
+      if (!userId) {
         return res.status(400).json({ 
           success: false,
-          message: "Conversation ID is required" 
+          message: "User ID is required" 
         });
       }
 
-      console.log(`🔧 Sending message to conversation: ${conversationId}`);
+      console.log(`🔧 Fetching user profile for: ${userId}`);
       
       const token = getCookieValue(req.headers.cookie, 'access_token_cookie');
       
@@ -38,26 +37,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
-      const backendRes = await fetch(`${BACKEND_URL}/messages/${conversationId}`, {
-        method: "POST",
+      const backendRes = await fetch(`${BACKEND_URL}/users/${userId}/profile`, {
+        method: "GET",
         headers: { 
           "Content-Type": "application/json",
           "Accept": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify(req.body),
       });
 
       const data = await backendRes.json();
       return res.status(backendRes.status).json(data);
       
     } catch (err: any) {
-      console.error("❌ Send message proxy error:", err);
+      console.error("❌ User profile proxy error:", err);
       
-      let errorMessage = "Unable to send message. Please try again later.";
+      let errorMessage = "Unable to fetch user profile. Please try again later.";
       
       if (err.message?.includes("ECONNREFUSED") || err.message?.includes("fetch failed")) {
-        errorMessage = "Cannot connect to chat service. Please check if the backend server is running.";
+        errorMessage = "Cannot connect to service. Please check if the backend server is running.";
       }
       
       return res.status(500).json({ 

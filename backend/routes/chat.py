@@ -130,7 +130,7 @@ def get_messages(conversation_id):
     """
     Get messages for a specific conversation
     Only accessible to conversation participants
-    Enhanced with delivery status information
+    Enhanced with delivery status information and reply functionality
     """
     current_user, error_response, status_code = get_current_user_from_jwt()
     if error_response:
@@ -146,7 +146,7 @@ def get_messages(conversation_id):
     limit = int(request.args.get("limit", 50))
     offset = (page - 1) * limit
 
-    # Get messages for this conversation
+    # Get messages for this conversation with reply data
     messages_query = Message.query.filter_by(conversation_id=conversation_id)
     total_messages = messages_query.count()
 
@@ -166,7 +166,7 @@ def get_messages(conversation_id):
     if unread_messages:
         db.session.commit()
 
-    # Format response - now includes delivery status
+    # Format response - now includes delivery status and reply data
     messages_data = [message.to_dict() for message in messages]
 
     return jsonify({
@@ -186,7 +186,7 @@ def get_messages(conversation_id):
 @jwt_required()
 def send_message(conversation_id):
     """
-    Send a message to a conversation
+    Send a message to a conversation with optional reply functionality
     Only accessible to conversation participants
     """
     current_user, error_response, status_code = get_current_user_from_jwt()
@@ -200,12 +200,24 @@ def send_message(conversation_id):
 
     data = request.json or {}
     content = data.get("content", "").strip()
+    reply_to_id = data.get("reply_to")
 
     if not content:
         return jsonify({"success": False, "message": "Message content cannot be empty"}), 400
 
     if len(content) > 1000:
         return jsonify({"success": False, "message": "Message too long (max 1000 characters)"}), 400
+
+    # Validate reply_to message if provided
+    reply_to_message = None
+    if reply_to_id:
+        reply_to_message = Message.query.filter_by(
+            id=reply_to_id,
+            conversation_id=conversation_id
+        ).first()
+        
+        if not reply_to_message:
+            return jsonify({"success": False, "message": "Reply message not found"}), 404
 
     # Create new message
     new_message = Message(
@@ -215,7 +227,8 @@ def send_message(conversation_id):
         is_read=False,
         timestamp=datetime.utcnow(),
         delivered_at=None,
-        read_at=None
+        read_at=None,
+        reply_to_id=reply_to_message.id if reply_to_message else None
     )
 
     # Update conversation's last message
@@ -348,3 +361,87 @@ def get_total_unread_count():
         "success": True,
         "total_unread": total_unread
     }), 200
+
+
+@chat_bp.route("/users/<string:user_id>/profile", methods=["GET"])
+@jwt_required()
+def get_user_profile(user_id):
+    """
+    Get user profile details by user ID
+    """
+    current_user, error_response, status_code = get_current_user_from_jwt()
+    if error_response:
+        return error_response, status_code
+
+    try:
+        # Find user by public_id or username
+        user = User.query.filter(
+            (User.public_id == user_id) | (User.username == user_id)
+        ).first()
+
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        # Return user profile data
+        profile_data = {
+            "id": user.public_id,
+            "username": user.username,
+            "name": user.name,
+            "bio": user.bio,
+            "age": user.age,
+            "level": user.level,
+            "religious": user.religious,
+            "avatar": user.pictures[0].image if user.pictures else None,
+            "pictures": [pic.image for pic in user.pictures] if user.pictures else [],
+            "isOnline": user.is_online,
+            "lastSeen": user.last_seen.isoformat() + "Z" if user.last_seen else None
+        }
+
+        return jsonify({
+            "success": True,
+            "user": profile_data
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching user profile: {str(e)}")
+        return jsonify({"success": False, "message": "Failed to fetch user profile"}), 500
+
+
+@chat_bp.route("/messages/<int:message_id>/reply", methods=["GET"])
+@jwt_required()
+def get_message_replies(message_id):
+    """
+    Get all replies to a specific message
+    """
+    current_user, error_response, status_code = get_current_user_from_jwt()
+    if error_response:
+        return error_response, status_code
+
+    try:
+        # Get the original message
+        original_message = Message.query.get(message_id)
+        if not original_message:
+            return jsonify({"success": False, "message": "Message not found"}), 404
+
+        # Validate user has access to this conversation
+        is_authorized, conversation, error_msg = validate_conversation_access(
+            original_message.conversation_id, current_user.id
+        )
+        if not is_authorized:
+            return jsonify({"success": False, "message": error_msg}), 403
+
+        # Get all replies to this message
+        replies = Message.query.filter_by(reply_to_id=message_id).order_by(Message.timestamp.asc()).all()
+
+        replies_data = [reply.to_dict() for reply in replies]
+
+        return jsonify({
+            "success": True,
+            "original_message": original_message.to_dict(),
+            "replies": replies_data,
+            "total_replies": len(replies)
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching message replies: {str(e)}")
+        return jsonify({"success": False, "message": "Failed to fetch message replies"}), 500

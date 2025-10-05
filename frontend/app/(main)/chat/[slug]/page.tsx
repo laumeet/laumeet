@@ -14,7 +14,7 @@ import api from '@/lib/axio';
 import { useSocket } from '@/hooks/useSocket';
 
 export interface Message {
-  id: string;
+  id: string | number; // Changed to accept both string and number
   conversation_id: string;
   sender_id: string;
   sender_username: string;
@@ -107,7 +107,7 @@ export default function ChatDetailPage() {
       console.log('📨 New message received:', newMessage);
       setMessages(prev => {
         // Check if message already exists to prevent duplicates
-        const exists = prev.some(msg => msg.id === newMessage.id);
+        const exists = prev.some(msg => String(msg.id) === String(newMessage.id));
         if (exists) return prev;
         return [...prev, newMessage];
       });
@@ -118,11 +118,6 @@ export default function ChatDetailPage() {
           message_id: newMessage.id,
           conversation_id: conversation.id
         });
-      }
-      
-      // If the new message is from current user, handle status based on recipient's status
-      if (newMessage.sender_id !== conversation.other_user.id) {
-        handleOutgoingMessageStatus(newMessage);
       }
     });
 
@@ -160,52 +155,30 @@ export default function ChatDetailPage() {
             lastSeen: data.last_seen
           }
         } : null);
-
-        // Update message statuses based on new online status
-        updateMessageStatusesBasedOnOnlineStatus(data.is_online);
       }
     });
 
-    // Listen for message status updates
-    socket.on('message_status_update', (data: any) => {
-      console.log('📨 Message status update:', data);
-      setMessages(prev => prev.map(msg => 
-        msg.id === data.message_id 
-          ? { 
-              ...msg, 
-              status: data.status,
-              delivered_at: data.delivered_at || msg.delivered_at,
-              read_at: data.read_at || msg.read_at,
-              is_read: data.status === 'read' ? true : msg.is_read
-            } 
-          : msg
-      ));
-    });
-     
-
-
     // Message delivered update
-    socket.on('message_delivered', ({ message_id }) => {
+    socket.on('message_delivered', (data: any) => {
+      console.log('📬 Message delivered:', data);
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === message_id ? { ...msg, status: 'delivered' } : msg
+          String(msg.id) === String(data.message_id) ? { ...msg, status: 'delivered' } : msg
         )
       );
     });
 
     // Message read update
-    socket.on('messages_read', ({ message_ids }) => {
+    socket.on('messages_read', (data: any) => {
+      console.log('👀 Messages read:', data);
       setMessages((prev) =>
         prev.map((msg) =>
-          message_ids.includes(msg.id)
+          data.message_ids.map(String).includes(String(msg.id))
             ? { ...msg, is_read: true, status: 'read' }
             : msg
         )
       );
     });
-
-    
-
 
     // Listen for user join/leave chat room events
     socket.on('user_joined_chat', (data: any) => {
@@ -238,13 +211,11 @@ export default function ChatDetailPage() {
       socket.off('new_message');
       socket.off('user_typing');
       socket.off('user_online_status');
-      socket.off('message_status_update');
+      socket.off('message_delivered');
+      socket.off('messages_read');
       socket.off('user_joined_chat');
       socket.off('user_left_chat');
       socket.off('conversation_updated');
-      socket.off('receive_message');
-      socket.off('message_delivered');
-      socket.off('messages_read');
       
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
@@ -252,55 +223,6 @@ export default function ChatDetailPage() {
       }
     };
   }, [socket, conversation, isUserInChatRoom]);
-
-  // Handle outgoing message status based on recipient's status
-  const handleOutgoingMessageStatus = (message: Message) => {
-    if (!socket || !conversation) return;
-
-    // If recipient is online AND in the chat room → mark as READ
-    if (onlineStatus && isUserInChatRoom) {
-      setTimeout(() => {
-        socket.emit('message_read', {
-          message_id: message.id,
-          conversation_id: conversation.id
-        });
-      }, 1000); // Small delay to simulate real-world timing
-    }
-    // If recipient is online but NOT in chat room → mark as DELIVERED
-    else if (onlineStatus) {
-      setTimeout(() => {
-        socket.emit('message_delivered', {
-          message_id: message.id,
-          conversation_id: conversation.id
-        });
-      }, 500);
-    }
-    // If recipient is offline → status remains SENT
-    // No action needed, status stays as 'sent'
-  };
-
-  // Update all pending messages when recipient's online status changes
-  const updateMessageStatusesBasedOnOnlineStatus = (isOnline: boolean) => {
-    if (!socket || !conversation) return;
-
-    // Get messages sent by current user that are not yet read
-    const pendingMessages = messages.filter(msg => 
-      msg.sender_id !== conversation.other_user.id && 
-      msg.status !== 'read'
-    );
-
-    if (isOnline) {
-      // If user comes online, update delivered messages
-      pendingMessages.forEach(msg => {
-        if (msg.status === 'sent') {
-          socket.emit('message_delivered', {
-            message_id: msg.id,
-            conversation_id: conversation.id
-          });
-        }
-      });
-    }
-  };
 
   // Mark all our messages as read (when recipient views the chat)
   const markOurMessagesAsRead = () => {
@@ -311,12 +233,13 @@ export default function ChatDetailPage() {
       msg.status !== 'read'
     );
 
-    ourUnreadMessages.forEach(msg => {
-      socket.emit('message_read', {
-        message_id: msg.id,
+    if (ourUnreadMessages.length > 0) {
+      const messageIds = ourUnreadMessages.map(msg => msg.id);
+      socket.emit('mark_messages_read', {
+        message_ids: messageIds,
         conversation_id: conversation.id
       });
-    });
+    }
   };
 
   // Mark all messages from other user as read
@@ -324,19 +247,33 @@ export default function ChatDetailPage() {
     if (!conversation) return;
 
     try {
-      // Also emit socket event for real-time updates
-      if (socket) {
-        socket.emit('mark_conversation_read', {
-          conversation_id: conversation.id
-        });
+      // Get unread messages from other user
+      const unreadMessages = messages.filter(msg => 
+        msg.sender_id === conversation.other_user.id && 
+        !msg.is_read
+      );
+
+      if (unreadMessages.length > 0) {
+        const messageIds = unreadMessages.map(msg => msg.id);
+        
+        // Emit socket event to mark messages as read
+        if (socket) {
+          socket.emit('mark_messages_read', {
+            message_ids: messageIds,
+            conversation_id: conversation.id
+          });
+        }
+
+        // Also mark conversation as read via API
+        await api.post(`/api/chat/conversations/mark-read?conversationId=${conversation.id}`);
       }
 
       // Update local state
       setMessages(prev => prev.map(msg => ({
         ...msg,
-        is_read: true,
-        status: msg.status === 'delivered' || msg.status === 'sent' ? 'read' : msg.status,
-        read_at: msg.read_at || new Date().toISOString()
+        is_read: msg.sender_id === conversation.other_user.id ? true : msg.is_read,
+        status: msg.sender_id === conversation.other_user.id && (msg.status === 'delivered' || msg.status === 'sent') ? 'read' : msg.status,
+        read_at: msg.sender_id === conversation.other_user.id && !msg.read_at ? new Date().toISOString() : msg.read_at
       })));
 
     } catch (err) {
@@ -358,8 +295,8 @@ export default function ChatDetailPage() {
         const conversations = response.data.conversations || [];
 
         const currentConv = conversations.find((conv: Conversation) => {
-          const convIdStr = conv.id.toString();
-          const chatIdStr = chatId.toString();
+          const convIdStr = String(conv.id);
+          const chatIdStr = String(chatId);
 
           if (convIdStr === chatIdStr) {
             return true;
@@ -392,21 +329,14 @@ export default function ChatDetailPage() {
     if (!chatId) return;
 
     try {
-  
-      
       const response = await api.get(`/chat/messages/${chatId}`);
-
-      
 
       if (response.data.success) {
         setMessages(response.data.messages || []);
-    
       } else {
         setError('Failed to load messages');
-        
       }
     } catch (err: any) {
-   
       setError(err.response?.data?.message || 'Failed to load messages');
     }
   };
@@ -422,9 +352,8 @@ export default function ChatDetailPage() {
       setError('');
 
       const conv = await fetchConversation();
-     
       if (conv){
-      await fetchMessages();
+        await fetchMessages();
       }
     } catch (err) {
       setError('Failed to load chat');
@@ -486,7 +415,6 @@ export default function ChatDetailPage() {
     };
   }, []);
 
-
   const sendMessage = async () => {
     if (!message.trim() || !conversation || sending) return;
 
@@ -497,8 +425,22 @@ export default function ChatDetailPage() {
       // Stop typing when sending
       handleTyping(false);
 
-      // Create optimistic message
+      // Create optimistic message with temporary ID (ensure it's a string)
+      const tempMessage: Message = {
+        id: `temp-${Date.now()}`,
+        conversation_id: String(conversation.id),
+        sender_id: 'current-user', // This should be your actual user ID
+        sender_username: 'You',
+        content: content,
+        is_read: false,
+        timestamp: new Date().toISOString(),
+        delivered_at: null,
+        read_at: null,
+        status: 'sent'
+      };
 
+      // Add optimistic message immediately for instant UI update
+      setMessages(prev => [...prev, tempMessage]);
       setMessage('');
 
       // Use Socket.IO for real-time messaging
@@ -507,6 +449,8 @@ export default function ChatDetailPage() {
           conversation_id: conversation.id,
           content: content
         });
+
+        // The real message will replace the temp one via socket event
       } else {
         // Fallback to HTTP API
         const response = await api.post(`/chat/messages/send?conversationId=${conversation.id}`, {
@@ -514,17 +458,26 @@ export default function ChatDetailPage() {
         });
 
         if (response.data.success) {
-        
+          // Remove temp message and refresh to get the real message
+          setMessages(prev => prev.filter(msg => String(msg.id) !== String(tempMessage.id)));
+          await fetchMessages();
           await fetchConversation();
         } else {
           setError('Failed to send message');
-          // Remove optimistic message on error
+          // Remove optimistic message on error - FIXED: Use String comparison
+          setMessages(prev => prev.filter(msg => {
+            const msgId = String(msg.id);
+            return !msgId.startsWith('temp-');
+          }));
         }
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to send message');
-      // Remove optimistic message on error
-      setMessages(prev => prev.filter(msg => msg.id.startsWith('temp-')));
+      // Remove optimistic message on error - FIXED: Use String comparison
+      setMessages(prev => prev.filter(msg => {
+        const msgId = String(msg.id);
+        return !msgId.startsWith('temp-');
+      }));
     } finally {
       setSending(false);
     }
@@ -584,7 +537,7 @@ export default function ChatDetailPage() {
     if (diffMinutes < 60) return `${diffMinutes}m ago`;
     if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
     return `${Math.floor(diffMinutes / 1440)}d ago`;
-  } ;
+  };
 
   if (loading) {
     return (
@@ -611,9 +564,9 @@ export default function ChatDetailPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900">
+    <div className="h-screen no-scrollbar flex flex-col bg-gray-100 dark:bg-gray-900">
       {/* WhatsApp-like Header */}
-      <div className="flex-none bg-green-500 text-white">
+      <div className="flex-none  text-white">
         <div className="flex items-center justify-between p-3">
           <div className="flex items-center space-x-3">
             <Button 
@@ -640,9 +593,8 @@ export default function ChatDetailPage() {
               </h3>
               <div className="flex items-center space-x-2">
                 <p className="text-green-100 text-xs">
-                  {onlineStatus ? 'online' : formatLastSeen(conversation.other_user.lastSeen)}
+                  {onlineStatus ? 'online' : `Last seen: ${formatLastSeen(conversation.other_user.lastSeen)}`}
                 </p>
-                
               </div>
             </div>
           </div>
@@ -673,7 +625,7 @@ export default function ChatDetailPage() {
               const showDate = index === 0 || !isSameDay(msg.timestamp, messages[index - 1].timestamp);
 
               return (
-                <div key={msg.id} className="space-y-1">
+                <div key={String(msg.id)} className="space-y-1">
                   {/* Date Separator */}
                   {showDate && (
                     <div className="flex justify-center">
@@ -745,8 +697,8 @@ export default function ChatDetailPage() {
         </div>
       </div>
 
-      {/* Message Input - WhatsApp Style */}
-      <div className="flex-none bg-gray-100 dark:bg-gray-800 p-3">
+      {/* Message Input - WhatsApp Style - FIXED FOR MOBILE */}
+      <div className="flex-none p-3">
         {error && (
           <div className="mb-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
             <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
@@ -754,7 +706,12 @@ export default function ChatDetailPage() {
         )}
 
         <div className="flex items-end space-x-2 max-w-3xl mx-auto">
-          <Button variant="ghost" size="icon" className="flex-none hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="flex-none hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
+            type="button"
+          >
             <Paperclip className="h-5 w-5" />
           </Button>
 
@@ -774,6 +731,7 @@ export default function ChatDetailPage() {
               variant="ghost" 
               size="icon" 
               className="absolute right-2 bottom-2 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-400"
+              type="button"
             >
               <Smile className="h-5 w-5" />
             </Button>
@@ -781,10 +739,11 @@ export default function ChatDetailPage() {
 
           <Button 
             onClick={sendMessage}
-            disabled={!message.trim() || sending || !socketConnected}
+            disabled={!message.trim() || sending}
             size="icon"
             className="flex-none bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed h-11 w-11 rounded-full shadow-lg"
-            title={!socketConnected ? "Waiting for connection..." : "Send message"}
+            type="button"
+            title="Send message"
           >
             {sending ? (
               <Loader2 className="h-5 w-5 animate-spin text-white" />

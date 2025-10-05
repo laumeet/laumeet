@@ -6,9 +6,19 @@ export const useSocket = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
-
+  const getBackendUrl = () => {
+  if (process.env.NODE_ENV === "production" && process.env.BACKEND_URL) {
+    return process.env.BACKEND_URL;
+  }
+  
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("BACKEND_URL environment variable is required in production");
+  }
+  
+  return "http://127.0.0.1:5000";
+};
   useEffect(() => {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = getBackendUrl();
     console.log(`🔌 Connecting to Socket.IO at: ${backendUrl}`);
 
     // Connect to Socket.IO - cookies are sent automatically by browser

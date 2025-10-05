@@ -142,9 +142,18 @@
   }
 }
 
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
 
 /* Hide on large screens */
-/* @media (min-width: 768px) {
+@media (min-width: 768px) {
   .max-w-md {
     display: none;
   }
@@ -162,4 +171,4 @@
     align-items: center;
     justify-content: center;
   }
-} */
+}

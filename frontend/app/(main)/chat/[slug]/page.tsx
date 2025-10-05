@@ -1082,7 +1082,7 @@ export default function ChatDetailPage() {
               placeholder="Type a message"
               value={message}
               onChange={handleInputChange}
-              onKeyDown={handleKeyPress}
+              
               className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-26 overflow-hidden"
               rows={1}
               disabled={sending}

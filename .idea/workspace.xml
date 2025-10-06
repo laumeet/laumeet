@@ -4,13 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="latet">
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="message palava">
+      <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.agent.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/material_theme_project_new.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/chat.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/chat.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/sockets/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/sockets/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/sockets/chat_events.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/sockets/chat_events.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/hooks/useSocket.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/hooks/useSocket.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -45,14 +44,16 @@
   "keyToString": {
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "Python.app.executor": "Run",
+    "Python.config.executor": "Run",
     "Python.main.executor": "Run",
     "Python.user.executor": "Debug",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
     "RunOnceActivity.git.unshallow": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "git-widget-placeholder": "main",
     "last_opened_file_path": "C:/Users/Samuel/Desktop/kwp/SchoolProjectBackend/frontend/public",
-    "settings.editor.selected.configurable": "vcs.Git"
+    "settings.editor.selected.configurable": "preferences.pluginManager"
   }
 }]]></component>
   <component name="RecentsManager">
@@ -415,7 +416,15 @@
       <option name="project" value="LOCAL" />
       <updated>1759680177076</updated>
     </task>
-    <option name="localTasksCounter" value="40" />
+    <task id="LOCAL-00040" summary="message palava">
+      <option name="closed" value="true" />
+      <created>1759688204461</created>
+      <option name="number" value="00040" />
+      <option name="presentableId" value="LOCAL-00040" />
+      <option name="project" value="LOCAL" />
+      <updated>1759688204461</updated>
+    </task>
+    <option name="localTasksCounter" value="41" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -462,7 +471,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="nownow" />
     <MESSAGE value="nownow23" />
     <MESSAGE value="i love u tori toru" />
     <MESSAGE value="i love u tori toru &#10;toba na u i dey follow talk" />
@@ -487,6 +495,23 @@
     <MESSAGE value="cor" />
     <MESSAGE value="cornnnn" />
     <MESSAGE value="latet" />
-    <option name="LAST_COMMIT_MESSAGE" value="latet" />
+    <MESSAGE value="message palava" />
+    <option name="LAST_COMMIT_MESSAGE" value="message palava" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/backend/sockets/chat_events.py</url>
+          <line>66</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/backend/sockets/chat_events.py</url>
+          <line>291</line>
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>

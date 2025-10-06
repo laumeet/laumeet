@@ -13,15 +13,18 @@ from utils.helpers import initialize_database
 from sqlalchemy.pool import NullPool
 
 
+# In your app.py - make sure you're using ProductionConfig
 def create_app(config_name=None):
-    """Application factory pattern for creating Flask app"""
     if config_name is None:
-        config_name = os.environ.get('FLASK_CONFIG', 'default')
+        config_name = os.environ.get('FLASK_CONFIG', 'production')  # ✅ Default to production
 
     app = Flask(__name__)
-    
-    # ✅ Load configuration from config.py
-    app.config.from_object(config[config_name])
+    app.config.from_object(config[config_name])  # ✅ This loads ALL config including JWT_COOKIE_DOMAIN
+
+    # ✅ REMOVE duplicate JWT config - it's already in config.py
+    # Just keep the SQLALCHEMY_ENGINE_OPTIONS part
+
+    # ... rest of your app.py ...
 
     # ✅ Prevent connection pool threading conflicts
     app.config.setdefault('SQLALCHEMY_ENGINE_OPTIONS', {})
@@ -118,6 +121,7 @@ def create_app(config_name=None):
     @jwt_required()
     def protected():
         public_id = get_jwt_identity()
+        print(public_id)
         user = User.query.filter_by(public_id=public_id).first()
         if not user:
             return jsonify({"success": False, "message": "User not found"}), 404

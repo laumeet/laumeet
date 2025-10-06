@@ -4,14 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="message palava">
-      <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.agent.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/material_theme_project_new.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/hooks/useSocket.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/hooks/useSocket.ts" afterDir="false" />
-    </list>
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="noww" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -424,7 +417,31 @@
       <option name="project" value="LOCAL" />
       <updated>1759688204461</updated>
     </task>
-    <option name="localTasksCounter" value="41" />
+    <task id="LOCAL-00041" summary="noww">
+      <option name="closed" value="true" />
+      <created>1759778213026</created>
+      <option name="number" value="00041" />
+      <option name="presentableId" value="LOCAL-00041" />
+      <option name="project" value="LOCAL" />
+      <updated>1759778213026</updated>
+    </task>
+    <task id="LOCAL-00042" summary="noww">
+      <option name="closed" value="true" />
+      <created>1759778679575</created>
+      <option name="number" value="00042" />
+      <option name="presentableId" value="LOCAL-00042" />
+      <option name="project" value="LOCAL" />
+      <updated>1759778679575</updated>
+    </task>
+    <task id="LOCAL-00043" summary="noww">
+      <option name="closed" value="true" />
+      <created>1759778733731</created>
+      <option name="number" value="00043" />
+      <option name="presentableId" value="LOCAL-00043" />
+      <option name="project" value="LOCAL" />
+      <updated>1759778733732</updated>
+    </task>
+    <option name="localTasksCounter" value="44" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -471,7 +488,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="nownow23" />
     <MESSAGE value="i love u tori toru" />
     <MESSAGE value="i love u tori toru &#10;toba na u i dey follow talk" />
     <MESSAGE value="Jesus is Lord" />
@@ -496,19 +512,20 @@
     <MESSAGE value="cornnnn" />
     <MESSAGE value="latet" />
     <MESSAGE value="message palava" />
-    <option name="LAST_COMMIT_MESSAGE" value="message palava" />
+    <MESSAGE value="noww" />
+    <option name="LAST_COMMIT_MESSAGE" value="noww" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/backend/sockets/chat_events.py</url>
-          <line>66</line>
+          <line>64</line>
           <option name="timeStamp" value="1" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/backend/sockets/chat_events.py</url>
-          <line>291</line>
+          <line>306</line>
           <option name="timeStamp" value="2" />
         </line-breakpoint>
       </breakpoints>

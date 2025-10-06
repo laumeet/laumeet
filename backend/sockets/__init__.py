@@ -3,7 +3,7 @@ import os
 # Allow selecting async worker mode via env var ASYNC_WORKER
 _ASYNC_WORKER = os.environ.get("ASYNC_WORKER", "eventlet").lower()
 
-# Monkey patching - MUST be done before any imports
+# Monkey patching - MUST be done before any other imports
 if _ASYNC_WORKER == "eventlet":
     try:
         import eventlet
@@ -23,40 +23,38 @@ elif _ASYNC_WORKER == "gevent":
 
 from flask_socketio import SocketIO
 
-# ✅ Get CORS origins from environment or use defaults
-cors_origins = os.environ.get("CORS_ORIGINS", "").split(",") or [
-    "https://laumeet.vercel.app",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
-]
+# ✅ Load allowed origins
+cors_origins_env = os.environ.get("CORS_ORIGINS", "")
+cors_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+if not cors_origins:
+    cors_origins = [
+        "https://laumeet.vercel.app",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
 
-# Filter out empty strings and clean up
-cors_origins = [origin.strip() for origin in cors_origins if origin.strip()]
-
-# ✅ Create SINGLE shared Socket.IO instance here
+# ✅ Create a single shared Socket.IO instance
 socketio = SocketIO(
-    cors_allowed_origins=cors_origins,  # ✅ Correct parameter name
+    cors_allowed_origins=cors_origins,
     async_mode=_ASYNC_WORKER if _ASYNC_WORKER in ("eventlet", "gevent", "threading") else "threading",
     manage_session=False,
-    cors_credentials=True,  # ✅ Allow credentials for cross-origin
-    logger=True,            # ✅ Enable logging
-    engineio_logger=True,   # ✅ Enable Engine.IO logging
-    ping_timeout=60,        # ✅ Increase timeout for better stability
-    ping_interval=25        # ✅ Reduce ping interval for faster detection
+    cors_credentials=True,
+    logger=True,
+    engineio_logger=True,
+    ping_timeout=60,
+    ping_interval=25,
 )
 
 print(f"🔧 Socket.IO initialized with async_mode: {_ASYNC_WORKER}")
 print(f"🔧 CORS Origins: {cors_origins}")
 
-# ✅ Import event handlers to register them (this runs the @socketio.on decorators)
-from . import chat_events
-
-# Store online users (shared instance)
+# ✅ Shared global data (safe to import anywhere)
 online_users = {}
 
 def register_socket_events():
-    """Ensure all socket events are registered."""
+    """Called by app.py after the app and DB are ready."""
+    from sockets import chat_events  # Import here (lazy import)
     print("✅ Socket.IO events registration complete")
     print(f"📊 Online users storage initialized: {len(online_users)} users")
 
-__all__ = ['socketio', 'online_users', 'register_socket_events']
+__all__ = ["socketio", "online_users", "register_socket_events"]

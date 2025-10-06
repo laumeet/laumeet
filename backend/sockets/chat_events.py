@@ -1,4 +1,3 @@
-from flask_jwt_extended import jwt_required
 from flask_socketio import join_room, leave_room, emit
 from flask import request as flask_request
 from datetime import datetime
@@ -9,7 +8,7 @@ from utils.security import get_authenticated_user_from_socket, validate_socket_c
 from sqlalchemy import or_
 from sqlalchemy.exc import SQLAlchemyError
 import traceback
-from utils.security import get_current_user_from_jwt
+
 # ✅ Import the SHARED Socket.IO instance from our package
 from sockets import socketio, online_users
 
@@ -59,20 +58,60 @@ def broadcast_online_status(user_id, is_online):
 
 
 @socketio.on('connect')
-@jwt_required()
 def handle_connect():
     """
     Handle user connection with JWT authentication.
     """
     try:
-        current_user, error_response, status_code = get_current_user_from_jwt()
-        if error_response:
-            return error_response, status_code
-        
+        print(f"🔍 Socket.IO Connection Attempt - SID: {flask_request.sid}")
+        print(f"🔍 Headers: {dict(flask_request.headers)}")
+        print(f"🔍 Cookies: {flask_request.cookies}")
+
+        # Method 1: Check cookies (primary method)
+        token = flask_request.cookies.get('access_token_cookie')
+        print(f"🍪 Token from cookies: {'PRESENT' if token else 'MISSING'}")
+
+        # Method 2: Fallback to query parameters
+        if not token:
+            token = flask_request.args.get('token')
+            print(f"🔍 Token from query: {'PRESENT' if token else 'MISSING'}")
+
+        # Method 3: Fallback to headers
+        if not token:
+            auth_header = flask_request.headers.get('Authorization')
+            if auth_header and auth_header.startswith('Bearer '):
+                token = auth_header[7:]
+            print(f"🔍 Token from headers: {'PRESENT' if auth_header else 'MISSING'}")
+
+        if not token:
+            print("❌ No authentication token found")
+            emit('auth_error', {'message': 'No authentication token provided'})
+            return False
+
+        # Verify the token
+        from flask_jwt_extended import decode_token
+        from jwt import ExpiredSignatureError, InvalidTokenError
+        try:
+            decoded_token = decode_token(token)
+            user_public_id = decoded_token['sub']
+            print(f"✅ Token decoded successfully for user: {user_public_id}")
+        except ExpiredSignatureError:
+            print("❌ Token has expired")
+            emit('auth_error', {'message': 'Token has expired'})
+            return False
+        except InvalidTokenError as e:
+            print(f"❌ Invalid token: {str(e)}")
+            emit('auth_error', {'message': 'Invalid token'})
+            return False
+        except Exception as e:
+            print(f"❌ Token verification failed: {str(e)}")
+            emit('auth_error', {'message': 'Token verification failed'})
+            return False
+
         # Find user in database
-        user = User.query.filter_by(public_id=current_user.id).first()
+        user = User.query.filter_by(public_id=user_public_id).first()
         if not user:
-            print(f"❌ User not found for public_id: {current_user.id}")
+            print(f"❌ User not found for public_id: {user_public_id}")
             emit('auth_error', {'message': 'User not found'})
             return False
 

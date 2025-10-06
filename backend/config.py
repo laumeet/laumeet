@@ -2,6 +2,9 @@
 import os
 from datetime import timedelta
 
+from flask import app
+from flask_cors import CORS
+
 class Config:
     """Base configuration"""
     SQLALCHEMY_DATABASE_URI = os.environ.get("DB_URL", "sqlite:///lausers.db")

@@ -1,11 +1,14 @@
+# config.py
 import os
 from datetime import timedelta
-
 
 class Config:
     """Base configuration"""
     SQLALCHEMY_DATABASE_URI = os.environ.get("DB_URL", "sqlite:///lausers.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # SQLAlchemy engine options can be overridden in app.create_app (NullPool will be applied there)
+    SQLALCHEMY_ENGINE_OPTIONS = {}
 
     # JWT configuration
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY") or "dev-secret-key-please-change"
@@ -20,11 +23,19 @@ class Config:
     JWT_SESSION_COOKIE = False
 
     # CORS origins
-    CORS_ORIGINS = [
-        "https://laumeet.vercel.app",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000"
-    ]
+    CORS(
+        app,
+        supports_credentials=True,
+        origins=[
+            "https://laumeet.vercel.app",
+            "https://www.laumeet.vercel.app",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000"
+        ],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+        expose_headers=["Set-Cookie"]
+    )
 
 
 class DevelopmentConfig(Config):

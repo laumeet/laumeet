@@ -208,7 +208,7 @@ export default function ChatPage() {
                       src={conversation.other_user.avatar || '/api/placeholder/40/40'}
                       alt={conversation.other_user.name}
                     />
-                    <AvatarFallback className="bg-green-500 text-white">
+                    <AvatarFallback className="bg-gradient-to-r from-pink-500 to-purple-600 text-white">
                       {conversation.other_user.name?.charAt(0) ||
                         conversation.other_user.username?.charAt(0)}
                     </AvatarFallback>

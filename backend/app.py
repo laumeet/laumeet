@@ -1,3 +1,9 @@
+import eventlet
+
+eventlet.monkey_patch()  # 👈 Must be first to patch sockets/threads before any imports
+
+import os
+from datetime import timedelta
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
@@ -6,63 +12,121 @@ from models.core import db
 from routes import register_blueprints
 from sockets import socketio, register_socket_events
 from utils.helpers import initialize_database
-import os
+from sqlalchemy.pool import NullPool
 
 
 def create_app(config_name=None):
-    """
-    Application factory pattern for creating Flask app
-    """
+    """Application factory pattern for creating Flask app"""
     if config_name is None:
         config_name = os.environ.get('FLASK_CONFIG', 'default')
 
     app = Flask(__name__)
-
-    # Load configuration
     app.config.from_object(config[config_name])
+
+    # ✅ JWT Cookie Configuration for Cross-Origin
+    app.config.update(
+        JWT_COOKIE_SECURE=True,  # Required for HTTPS in production
+        JWT_COOKIE_SAMESITE='None',  # Required for cross-origin
+        JWT_COOKIE_CSRF_PROTECT=False,  # Disable CSRF for Socket.IO
+        JWT_TOKEN_LOCATION=['cookies'],
+        JWT_ACCESS_COOKIE_NAME='access_token_cookie',
+        JWT_ACCESS_TOKEN_EXPIRES=timedelta(hours=1),
+        JWT_REFRESH_COOKIE_NAME='refresh_token_cookie',
+        JWT_REFRESH_TOKEN_EXPIRES=timedelta(days=30),
+    )
+
+    # ✅ Prevent connection pool threading conflicts
+    app.config.setdefault('SQLALCHEMY_ENGINE_OPTIONS', {})
+    engine_options = app.config['SQLALCHEMY_ENGINE_OPTIONS']
+    engine_options.setdefault('poolclass', NullPool)
+    engine_options.setdefault('pool_pre_ping', True)
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = engine_options
 
     # Initialize extensions
     db.init_app(app)
     jwt = JWTManager(app)
 
-    # Configure CORS
-    CORS(app,
-         supports_credentials=True,
-         resources={r"/*": {"origins": app.config['CORS_ORIGINS']}})
+    # ✅ Configure CORS for Flask - IMPORTANT: Must match SocketIO origins
+    cors_origins = [
+        "https://laumeet.vercel.app",
+        "https://www.laumeet.vercel.app",  # Add www subdomain
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+    ]
 
-    # Register blueprints (routes)
+    CORS(
+        app,
+        supports_credentials=True,  # ✅ This allows cookies to be sent
+        origins=cors_origins,  # ✅ Explicitly set origins
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    )
+
+    # Register blueprints
     register_blueprints(app)
 
-    # Initialize SocketIO
-    socketio.init_app(app)
+
+    # In your app.py - update the Socket.IO section:
+
+    # ✅ Initialize SocketIO with CORS configuration
+    socketio.init_app(
+        app,
+        async_mode="eventlet",
+        manage_session=False,
+        cors_allowed_origins=cors_origins,  # Use the same origins as Flask CORS
+        cors_credentials=True  # Allow credentials
+    )
+
+    # ✅ Register socket events AFTER init_app
     register_socket_events()
 
-    # JWT Configuration Callbacks
+    print("🚀 Socket.IO initialized with app")
+
+
+    # JWT Configuration
     from models.user import User, TokenBlocklist
 
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
-        """Check if a JWT token has been revoked"""
         jti = jwt_payload["jti"]
         return TokenBlocklist.query.filter_by(jti=jti).first() is not None
 
     @jwt.user_identity_loader
     def user_identity_lookup(user):
-        """Specify what data to use as identity in JWT tokens"""
         if isinstance(user, User):
             return user.public_id
         return user
 
     @jwt.user_lookup_loader
     def user_lookup_callback(_jwt_header, jwt_data):
-        """Load user from database based on JWT identity"""
         identity = jwt_data["sub"]
         return User.query.filter_by(public_id=identity).first()
 
-    # Root endpoint
+    # JWT Error handlers
+    @jwt.unauthorized_loader
+    def missing_token_callback(error):
+        return jsonify({
+            "success": False,
+            "message": "Missing access token"
+        }), 401
+
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error):
+        return jsonify({
+            "success": False,
+            "message": "Invalid token"
+        }), 422
+
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_data):
+        return jsonify({
+            "success": False,
+            "message": "Token has expired"
+        }), 401
+
+    # Routes
     @app.route("/")
     def home():
-        """Root endpoint - API information"""
         return jsonify({
             "message": "Dating App API",
             "version": "1.0",
@@ -70,25 +134,18 @@ def create_app(config_name=None):
             "environment": config_name
         })
 
-    # Protected test endpoint
     @app.route("/protected")
     @jwt_required()
     def protected():
-        """Protected endpoint example - requires authentication"""
-        from flask_jwt_extended import get_jwt_identity
         public_id = get_jwt_identity()
         user = User.query.filter_by(public_id=public_id).first()
-
         if not user:
             return jsonify({"success": False, "message": "User not found"}), 404
-
         return jsonify({"success": True, "user": user.to_dict()})
 
-    # Admin endpoint
     @app.route("/admin/users", methods=["GET"])
     @jwt_required()
     def get_all_users():
-        """Admin endpoint: Fetch all registered users"""
         public_id = get_jwt_identity()
         current_user = User.query.filter_by(public_id=public_id).first()
 
@@ -99,29 +156,27 @@ def create_app(config_name=None):
             return jsonify({"success": False, "message": "Access denied: Admins only"}), 403
 
         users = User.query.all()
-        users_data = [user.to_dict() for user in users]
-
         return jsonify({
             "success": True,
-            "total_users": len(users_data),
-            "users": users_data
+            "total_users": len(users),
+            "users": [user.to_dict() for user in users]
         }), 200
 
     return app
 
 
-# Create application instance
+# Create the app instance
 app = create_app()
 
 # Initialize database
 with app.app_context():
     initialize_database()
 
+# Development entry point
 if __name__ == "__main__":
-    # Use SocketIO instead of app.run() for WebSocket support
     socketio.run(
         app,
-        debug=app.config['DEBUG'],
+        debug=app.config.get('DEBUG', False),
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 5000)),
         allow_unsafe_werkzeug=True

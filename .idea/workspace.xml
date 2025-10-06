@@ -4,9 +4,14 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="Merge remote-tracking branch 'origin/main'">
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="latet">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/public/favicon.ico" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/routes/chat.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/chat.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/sockets/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/sockets/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/sockets/chat_events.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/sockets/chat_events.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/hooks/useSocket.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/hooks/useSocket.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -378,7 +383,39 @@
       <option name="project" value="LOCAL" />
       <updated>1759594524442</updated>
     </task>
-    <option name="localTasksCounter" value="36" />
+    <task id="LOCAL-00036" summary="python verion">
+      <option name="closed" value="true" />
+      <created>1759596299487</created>
+      <option name="number" value="00036" />
+      <option name="presentableId" value="LOCAL-00036" />
+      <option name="project" value="LOCAL" />
+      <updated>1759596299488</updated>
+    </task>
+    <task id="LOCAL-00037" summary="cor">
+      <option name="closed" value="true" />
+      <created>1759596682001</created>
+      <option name="number" value="00037" />
+      <option name="presentableId" value="LOCAL-00037" />
+      <option name="project" value="LOCAL" />
+      <updated>1759596682001</updated>
+    </task>
+    <task id="LOCAL-00038" summary="cornnnn">
+      <option name="closed" value="true" />
+      <created>1759596881957</created>
+      <option name="number" value="00038" />
+      <option name="presentableId" value="LOCAL-00038" />
+      <option name="project" value="LOCAL" />
+      <updated>1759596881957</updated>
+    </task>
+    <task id="LOCAL-00039" summary="latet">
+      <option name="closed" value="true" />
+      <created>1759680177076</created>
+      <option name="number" value="00039" />
+      <option name="presentableId" value="LOCAL-00039" />
+      <option name="project" value="LOCAL" />
+      <updated>1759680177076</updated>
+    </task>
+    <option name="localTasksCounter" value="40" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -425,8 +462,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="new" />
-    <MESSAGE value="YES NEW" />
     <MESSAGE value="nownow" />
     <MESSAGE value="nownow23" />
     <MESSAGE value="i love u tori toru" />
@@ -448,6 +483,10 @@
     <MESSAGE value="pillow" />
     <MESSAGE value="added message system" />
     <MESSAGE value="Merge remote-tracking branch 'origin/main'" />
-    <option name="LAST_COMMIT_MESSAGE" value="Merge remote-tracking branch 'origin/main'" />
+    <MESSAGE value="python verion" />
+    <MESSAGE value="cor" />
+    <MESSAGE value="cornnnn" />
+    <MESSAGE value="latet" />
+    <option name="LAST_COMMIT_MESSAGE" value="latet" />
   </component>
 </project>

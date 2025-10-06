@@ -443,5 +443,4 @@ def get_message_replies(message_id):
         }), 200
 
     except Exception as e:
-        print(f"Error fetching message replies: {str(e)}")
         return jsonify({"success": False, "message": "Failed to fetch message replies"}), 500

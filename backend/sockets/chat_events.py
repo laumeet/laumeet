@@ -60,51 +60,27 @@ def broadcast_online_status(user_id, is_online):
 @socketio.on('connect')
 def handle_connect():
     """
-    Handle user connection with JWT authentication.
+    Handle user connection with JWT authentication using flask_jwt_extended.
     """
     try:
         print(f"🔍 Socket.IO Connection Attempt - SID: {flask_request.sid}")
         print(f"🔍 Headers: {dict(flask_request.headers)}")
         print(f"🔍 Cookies: {flask_request.cookies}")
 
-        # Method 1: Check cookies (primary method)
-        token = flask_request.cookies.get('access_token_cookie')
-        print(f"🍪 Token from cookies: {'PRESENT' if token else 'MISSING'}")
+        # Use flask_jwt_extended to get JWT from request (header, query param, etc.)
+        from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+        from flask_jwt_extended.exceptions import NoAuthorizationError
 
-        # Method 2: Fallback to query parameters
-        if not token:
-            token = flask_request.args.get('token')
-            print(f"🔍 Token from query: {'PRESENT' if token else 'MISSING'}")
-
-        # Method 3: Fallback to headers
-        if not token:
-            auth_header = flask_request.headers.get('Authorization')
-            if auth_header and auth_header.startswith('Bearer '):
-                token = auth_header[7:]
-            print(f"🔍 Token from headers: {'PRESENT' if auth_header else 'MISSING'}")
-
-        if not token:
-            print("❌ No authentication token found")
-            emit('auth_error', {'message': 'No authentication token provided'})
-            return False
-
-        # Verify the token
-        from flask_jwt_extended import decode_token
-        from jwt import ExpiredSignatureError, InvalidTokenError
         try:
-            decoded_token = decode_token(token)
-            user_public_id = decoded_token['sub']
-            print(f"✅ Token decoded successfully for user: {user_public_id}")
-        except ExpiredSignatureError:
-            print("❌ Token has expired")
-            emit('auth_error', {'message': 'Token has expired'})
-            return False
-        except InvalidTokenError as e:
-            print(f"❌ Invalid token: {str(e)}")
-            emit('auth_error', {'message': 'Invalid token'})
+            verify_jwt_in_request()
+            user_public_id = get_jwt_identity()
+            print(f"✅ JWT verified for user: {user_public_id}")
+        except NoAuthorizationError as e:
+            print(f"❌ JWT not found or invalid: {str(e)}")
+            emit('auth_error', {'message': 'No valid authentication token provided'})
             return False
         except Exception as e:
-            print(f"❌ Token verification failed: {str(e)}")
+            print(f"❌ JWT verification failed: {str(e)}")
             emit('auth_error', {'message': 'Token verification failed'})
             return False
 

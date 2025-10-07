@@ -12,7 +12,6 @@ from sockets import socketio, register_socket_events
 from utils.helpers import initialize_database
 from sqlalchemy.pool import NullPool
 
-
 def create_app(config_name=None):
     """Application factory pattern for creating Flask app"""
     if config_name is None:
@@ -23,18 +22,11 @@ def create_app(config_name=None):
     # ✅ Load configuration from config.py
     app.config.from_object(config[config_name])
 
-    # ✅ Prevent connection pool threading conflicts
-    app.config.setdefault('SQLALCHEMY_ENGINE_OPTIONS', {})
-    engine_options = app.config['SQLALCHEMY_ENGINE_OPTIONS']
-    engine_options.setdefault('poolclass', NullPool)
-    engine_options.setdefault('pool_pre_ping', True)
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = engine_options
-
-    # Initialize extensions
+    # ✅ Initialize extensions FIRST
     db.init_app(app)
     jwt = JWTManager(app)
 
-    # ✅ Configure CORS - Use origins from config
+    # ✅ Configure CORS
     CORS(
         app,
         supports_credentials=True,
@@ -46,7 +38,7 @@ def create_app(config_name=None):
     # Register blueprints
     register_blueprints(app)
 
-    # ✅ Initialize SocketIO with same CORS origins as config
+    # ✅ Initialize SocketIO
     socketio.init_app(
         app,
         async_mode="eventlet",
@@ -54,6 +46,20 @@ def create_app(config_name=None):
         cors_allowed_origins=app.config.get('CORS_ORIGINS', []),
         supports_credentials=True
     )
+
+    # ✅ FIXED: Import and register socket events AFTER app context is set up
+    with app.app_context():
+        # ✅ Initialize database and test connection
+        try:
+            initialize_database()
+            # Test database connection
+            db.session.execute('SELECT 1')
+            print("✅ Database connection successful")
+        except Exception as e:
+            print(f"❌ Database connection failed: {e}")
+
+    # ✅ FIXED: Register socket events after SocketIO is initialized
+    # This imports and triggers the @socketio.on decorators
     register_socket_events()
 
     # JWT Configuration
@@ -86,7 +92,7 @@ def create_app(config_name=None):
     @jwt.invalid_token_loader
     def invalid_token_callback(error):
         return jsonify({
-            "success": False, 
+            "success": False,
             "message": "Invalid token"
         }), 422
 
@@ -119,9 +125,12 @@ def create_app(config_name=None):
     def protected():
         public_id = get_jwt_identity()
         user = User.query.filter_by(public_id=public_id).first()
+
         if not user:
             return jsonify({"success": False, "message": "User not found"}), 404
+
         return jsonify({"success": True, "user": user.to_dict()})
+    
 
     @app.route("/admin/users", methods=["GET"])
     @jwt_required()
@@ -142,26 +151,30 @@ def create_app(config_name=None):
             "users": [user.to_dict() for user in users]
         }), 200
 
-    # Health check endpoint
+    # ✅ FIXED: Better health check endpoint
     @app.route("/health")
     def health_check():
+        db_status = "connected"
+        try:
+            db.session.execute('SELECT 1')
+        except Exception as e:
+            db_status = f"disconnected: {str(e)}"
+            
         return jsonify({
             "status": "healthy",
-            "database": "connected" if db.session.bind else "disconnected"
+            "database": db_status,
+            "socketio": "initialized",
+            "environment": config_name
         }), 200
 
     return app
 
-
 # Create the app instance
 app = create_app()
 
-# Initialize database
-with app.app_context():
-    initialize_database()
-
 # Development entry point
 if __name__ == "__main__":
+    print("🚀 Starting Flask-SocketIO server...")
     socketio.run(
         app,
         debug=app.config.get('DEBUG', False),

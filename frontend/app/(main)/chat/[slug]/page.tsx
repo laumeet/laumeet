@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import api from '@/lib/axio';
-import { useSocket } from '@/lib/socket-context';
+import { useSocketContext } from '@/lib/socket-context';
 
 // -----------------------------
 // Types
@@ -130,8 +130,8 @@ export default function ChatDetailPage() {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [swipingMessageId, setSwipingMessageId] = useState<string | number | null>(null);
 
-  // socket
-  const { socket, isConnected: socketConnected, onlineUsers } = useSocket();
+  // socket - FIXED: use useSocketContext instead of useSocket
+  const { socket, isConnected: socketConnected, onlineUsers } = useSocketContext();
 
   const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
 
@@ -262,30 +262,49 @@ export default function ChatDetailPage() {
   };
 
   // -----------------------------
-  // Socket Connection & Event Handlers
+  // Socket Connection & Event Handlers - FIXED VERSION
   // -----------------------------
   useEffect(() => {
-    if (!socket || !conversation) return;
+    if (!socket || !conversation) {
+      console.log('🚫 Socket or conversation not available');
+      return;
+    }
+
+    console.log('🔌 Setting up socket events for conversation:', conversation.id);
 
     const joinRoom = () => {
       try {
+        console.log('🚪 Joining conversation room:', conversation.id);
         socket.emit('join_conversation', { conversation_id: conversation.id });
       } catch (err) {
         console.warn('Failed to join conversation room', err);
       }
     };
 
+    // Join room immediately and on reconnect
     joinRoom();
     socket.on('connect', joinRoom);
 
-    const handleNewMessage = (newMessage: Message) => {
+    const handleNewMessage = (newMessage: any) => {
+      console.log('📨 New message received:', newMessage);
+      
       setMessages(prev => {
         const exists = prev.some(msg => String(msg.id) === String(newMessage.id));
-        if (exists) return prev;
-        return [...prev, newMessage];
+        if (exists) {
+          console.log('📨 Message already exists, skipping');
+          return prev;
+        }
+        
+        console.log('📨 Adding new message to state');
+        return [...prev, {
+          ...newMessage,
+          status: newMessage.is_read ? 'read' : 'sent'
+        }];
       });
 
+      // Mark as delivered if it's not our message
       if (newMessage.sender_id !== 'current-user' && socket) {
+        console.log('📬 Marking message as delivered:', newMessage.id);
         socket.emit('message_delivered', {
           message_id: newMessage.id,
           conversation_id: conversation.id
@@ -296,24 +315,34 @@ export default function ChatDetailPage() {
     };
 
     const handleTyping = (data: any) => {
-      if (data.user_id !== conversation.other_user.id) return;
+      console.log('⌨️ Typing event received:', data);
+      
+      if (data.user_id !== conversation.other_user.id) {
+        console.log('⌨️ Typing from different user, ignoring');
+        return;
+      }
 
       setTypingUser(data.username);
       setIsTyping(data.is_typing);
 
       if (data.is_typing) {
+        console.log('⌨️ User started typing');
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = setTimeout(() => {
+          console.log('⌨️ Typing timeout - stopping');
           setIsTyping(false);
           setTypingUser('');
         }, 3000);
       } else {
+        console.log('⌨️ User stopped typing');
         setIsTyping(false);
         setTypingUser('');
       }
     };
 
     const handleOnlineStatus = (data: any) => {
+      console.log('👤 Online status update:', data);
+      
       if (data.user_id === conversation.other_user.id) {
         setOnlineStatus(Boolean(data.is_online));
         setConversation(prev =>
@@ -332,43 +361,58 @@ export default function ChatDetailPage() {
     };
 
     const handleMessageStatusUpdate = (data: any) => {
+      console.log('📬 Message status update:', data);
+      
       if (!data) return;
       
       setMessages(prev =>
         prev.map(msg => {
           if (String(msg.id) !== String(data.message_id)) return msg;
           
+          let updatedMsg = { ...msg };
+          
           if (data.status === 'delivered') {
-            return { 
+            updatedMsg = { 
               ...msg, 
               status: 'delivered', 
               delivered_at: data.delivered_at ?? msg.delivered_at 
             };
-          }
-          if (data.status === 'read') {
-            return { 
+          } else if (data.status === 'read') {
+            updatedMsg = { 
               ...msg, 
               status: 'read', 
               read_at: data.read_at ?? msg.read_at, 
               is_read: true 
             };
           }
-          return msg;
+          
+          console.log('📬 Updated message status:', updatedMsg);
+          return updatedMsg;
         })
       );
     };
 
+    const handleJoinedConversation = (data: any) => {
+      console.log('✅ Joined conversation room:', data);
+    };
+
+    // Register all event listeners
     socket.on('new_message', handleNewMessage);
     socket.on('user_typing', handleTyping);
     socket.on('user_online_status', handleOnlineStatus);
     socket.on('message_status_update', handleMessageStatusUpdate);
+    socket.on('joined_conversation', handleJoinedConversation);
 
+    // Cleanup function
     return () => {
+      console.log('🧹 Cleaning up socket event listeners');
+      
       socket.off('connect', joinRoom);
       socket.off('new_message', handleNewMessage);
       socket.off('user_typing', handleTyping);
       socket.off('user_online_status', handleOnlineStatus);
       socket.off('message_status_update', handleMessageStatusUpdate);
+      socket.off('joined_conversation', handleJoinedConversation);
 
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
@@ -377,9 +421,12 @@ export default function ChatDetailPage() {
     };
   }, [socket, conversation]);
 
+  // Update online status when onlineUsers changes
   useEffect(() => {
     if (conversation && onlineUsers) {
-      setOnlineStatus(onlineUsers.has(conversation.other_user.id));
+      const isOnline = onlineUsers.has(conversation.other_user.id);
+      console.log('👤 Online users update:', { onlineUsers: Array.from(onlineUsers), isOnline });
+      setOnlineStatus(isOnline);
     }
   }, [conversation, onlineUsers]);
 
@@ -387,7 +434,12 @@ export default function ChatDetailPage() {
   // Typing Indicator Functions
   // -----------------------------
   const handleTypingStart = useCallback(() => {
-    if (!socket || !conversation) return;
+    if (!socket || !conversation) {
+      console.log('🚫 Cannot send typing start - socket or conversation not available');
+      return;
+    }
+    
+    console.log('⌨️ Sending typing start');
     socket.emit('typing', {
       conversation_id: conversation.id,
       is_typing: true
@@ -395,7 +447,12 @@ export default function ChatDetailPage() {
   }, [socket, conversation]);
 
   const handleTypingStop = useCallback(() => {
-    if (!socket || !conversation) return;
+    if (!socket || !conversation) {
+      console.log('🚫 Cannot send typing stop - socket or conversation not available');
+      return;
+    }
+    
+    console.log('⌨️ Sending typing stop');
     socket.emit('typing', {
       conversation_id: conversation.id,
       is_typing: false
@@ -465,6 +522,8 @@ export default function ChatDetailPage() {
 
   const markMessagesAsRead = useCallback((messageIds: (string | number)[]) => {
     if (!socket || !conversation) return;
+    
+    console.log('📖 Marking messages as read:', messageIds);
     socket.emit('read_messages', {
       conversation_id: conversation.id,
       message_ids: messageIds
@@ -477,6 +536,7 @@ export default function ChatDetailPage() {
       .map(msg => msg.id);
 
     if (unreadMessages.length > 0) {
+      console.log('📖 Auto-marking messages as read:', unreadMessages);
       markMessagesAsRead(unreadMessages);
     }
   }, [messages, markMessagesAsRead]);
@@ -508,18 +568,21 @@ export default function ChatDetailPage() {
         } : null,
       };
 
+      console.log('📤 Sending message:', tempMessage);
       setMessages(prev => [...prev, tempMessage]);
       setMessage('');
       cancelReply();
 
       if (socket && socketConnected) {
+        console.log('📤 Sending via socket');
         socket.emit('send_message', {
           conversation_id: conversation.id,
           content,
           reply_to: replyTo ? String(replyTo.id) : null
         });
       } else {
-        const response = await api.post(`/chat/messages/send?conversationId=${conversation.id}`, {
+        console.log('📤 Sending via HTTP API');
+        const response = await api.post(`/chat/messages/send?${conversation.id}`, {
           content,
           reply_to: replyTo ? String(replyTo.id) : null
         });
@@ -533,6 +596,7 @@ export default function ChatDetailPage() {
         }
       }
     } catch (err: any) {
+      console.error('❌ Error sending message:', err);
       setError(err.response?.data?.message || 'Failed to send message');
       setMessages(prev => prev.filter(m => !isTempId(m.id)));
     } finally {
@@ -690,7 +754,7 @@ export default function ChatDetailPage() {
             </div>
           ) : (
             messages.map((msg, index) => {
-              const isOwn = msg.sender_id !== conversation.other_user.id;
+              const isOwn = msg.sender_id === 'current-user';
               const showDate = index === 0 || !isSameDay(msg.timestamp, messages[index - 1].timestamp);
               const isSwiping = swipingMessageId === msg.id;
 

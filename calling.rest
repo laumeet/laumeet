@@ -14,7 +14,7 @@ POST  http://localhost:3000/api/auth/signup
 Content-Type: application/json
 
 {
-    "username": "Emmanueli",
+    "username": "Samuel",
     "password": "helloE@123",
     "security_question": "Who is your mother",
     "security_answer":"Hello",
@@ -25,12 +25,13 @@ Content-Type: application/json
 GET https://laumeet.onrender.com/debug/auth
 ###
 GET  http://127.0.0.1:5000/profile
-Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc1OTQ5MDgwOSwianRpIjoiZWYyOTE3NjUtZjNiYS00ODkyLTllMTItMmQyYmQyNGZmYmMzIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjIiLCJuYmYiOjE3NTk0OTA4MDksImV4cCI6MTc1OTU3NzIwOX0.5aGAiAegmJI9wTtIrxL_TDhFw7AYgObZ1JpYKtNUtbU
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc1OTg0NTQ2OSwianRpIjoiNDgzNzU1MTMtZGRiMS00NzBlLTkwMTktYjlmYWFjYzkzOGI2IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjJiNGI5NWYxLWZlYjQtNGMzZC05OTAzLWI1ZWFhODAzMGFjMiIsIm5iZiI6MTc1OTg0NTQ2OSwiZXhwIjoxNzU5OTMxODY5fQ.mmVw2t0PKxYXY6ZLjCEsl-9ISZ_zKJfS3hz-SrMicyE
 ###
-POST  http://127.0.0.1:5000/login
-Content-Type: application/json
+GET  http://127.0.0.1:5000//health
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc1OTg0NTQ2OSwianRpIjoiNDgzNzU1MTMtZGRiMS00NzBlLTkwMTktYjlmYWFjYzkzOGI2IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjJiNGI5NWYxLWZlYjQtNGMzZC05OTAzLWI1ZWFhODAzMGFjMiIsIm5iZiI6MTc1OTg0NTQ2OSwiZXhwIjoxNzU5OTMxODY5fQ.mmVw2t0PKxYXY6ZLjCEsl-9ISZ_zKJfS3hz-SrMicyE
+# Content-Type: application/json
 
-{
-    "username": "hello",
-    "password": "helloE@123"
-}
+# {
+#     "username": "hello",
+#     "password": "helloE@123"
+# }

@@ -2,7 +2,7 @@
 // app/(main)/chat/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, Loader2, Check, CheckCheck, MoreVertical } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import api from '@/lib/axio';
-import { useSocket } from '@/lib/socket-context';
+import { useSocketContext } from '@/lib/socket-context';
 
 export interface Conversation {
   id: string;
@@ -41,7 +41,7 @@ export interface Conversation {
 
 export default function ChatPage() {
   const router = useRouter();
-  const { socket, isConnected, onlineUsers } = useSocket();
+  const { socket, isConnected, onlineUsers, connectionError } = useSocketContext();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,17 +52,25 @@ export default function ChatPage() {
   useEffect(() => {
     const pinned = localStorage.getItem('pinned-conversations');
     if (pinned) {
-      setPinnedConversations(new Set(JSON.parse(pinned)));
+      try {
+        setPinnedConversations(new Set(JSON.parse(pinned)));
+      } catch (err) {
+        console.error('Error loading pinned conversations:', err);
+      }
     }
   }, []);
 
   // Save pinned conversations to localStorage
   useEffect(() => {
-    localStorage.setItem('pinned-conversations', JSON.stringify(Array.from(pinnedConversations)));
+    try {
+      localStorage.setItem('pinned-conversations', JSON.stringify(Array.from(pinnedConversations)));
+    } catch (err) {
+      console.error('Error saving pinned conversations:', err);
+    }
   }, [pinnedConversations]);
 
   // Fetch conversations
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -85,9 +93,12 @@ export default function ChatPage() {
         const sortedConversations = updatedConversations.sort((a: Conversation, b: Conversation) => {
           if (a.isPinned && !b.isPinned) return -1;
           if (!a.isPinned && b.isPinned) return 1;
-          return new Date(b.last_message_at || b.created_at).getTime() - new Date(a.last_message_at || a.created_at).getTime();
+          const aTime = new Date(a.last_message_at || a.created_at).getTime();
+          const bTime = new Date(b.last_message_at || b.created_at).getTime();
+          return bTime - aTime;
         });
 
+        console.log('📋 Loaded conversations:', sortedConversations.length);
         setConversations(sortedConversations);
       } else {
         setError('Failed to load conversations');
@@ -98,56 +109,69 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [onlineUsers, pinnedConversations]);
 
+  // Initial fetch and refetch when socket connects
   useEffect(() => {
     fetchConversations();
-  }, []);
+  }, [fetchConversations]);
 
-  // Socket event handlers for real-time updates
+  // Refetch conversations when socket connects
   useEffect(() => {
-    if (!socket || !isConnected) return;
+    if (isConnected) {
+      console.log('🔄 Socket connected, refreshing conversations...');
+      fetchConversations();
+    }
+  }, [isConnected, fetchConversations]);
 
-    // Handle new message and conversation updates
-    const handleNewMessage = async (message: any) => {
+  // Socket event handlers for real-time updates - FIXED VERSION
+  useEffect(() => {
+    if (!socket || !isConnected) {
+      console.log('🚫 Socket not available, skipping event listeners');
+      return;
+    }
+
+    console.log('🔌 Setting up socket event listeners for chat page');
+
+    // Handle new message
+    const handleNewMessage = (message: any) => {
       console.log('📨 New message received in list:', message);
       
-      // Check if this is a new conversation
-      const isNewConversation = !conversations.some(c => c.id === message.conversation_id);
-      
-      if (isNewConversation) {
-        // Fetch the updated conversation list
-        await fetchConversations();
-      } else {
-        // Update existing conversation
-        setConversations(prev => {
+      setConversations(prev => {
+        const existingConvIndex = prev.findIndex(c => c.id === message.conversation_id);
+        
+        if (existingConvIndex !== -1) {
+          // Update existing conversation
           const updated = [...prev];
-          const conversationIndex = updated.findIndex(c => c.id === message.conversation_id);
+          const conversation = updated[existingConvIndex];
           
-          if (conversationIndex !== -1) {
-            // Move conversation to top and update last message
-            const conversation = updated[conversationIndex];
-            updated.splice(conversationIndex, 1);
-            
-            const updatedConversation: Conversation = {
-              ...conversation,
-              last_message: message.content,
-              last_message_at: message.timestamp,
-              last_message_id: message.id,
-              last_message_sender_id: message.sender_id,
-              last_message_status: "sent",
-              unread_count: message.sender_id !== 'current-user' ? conversation.unread_count + 1 : conversation.unread_count
-            };
-            
-            return [updatedConversation, ...updated] as Conversation[];
-          }
+          const updatedConversation: Conversation = {
+            ...conversation,
+            last_message: message.content,
+            last_message_at: message.timestamp,
+            last_message_id: message.id,
+            last_message_sender_id: message.sender_id,
+            last_message_status: "sent",
+            unread_count: message.sender_id !== conversation.other_user.id ? 
+              conversation.unread_count + 1 : conversation.unread_count
+          };
+
+          console.log('📨 Updated conversation:', updatedConversation);
+          // Remove from current position and add to top
+          updated.splice(existingConvIndex, 1);
+          return [updatedConversation, ...updated];
+        } else {
+          // New conversation - fetch the updated list
+          console.log('🆕 New conversation detected, refreshing list...');
+          setTimeout(() => fetchConversations(), 100);
           return prev;
-        });
-      }
+        }
+      });
     };
 
     // Handle conversation updates
     const handleConversationUpdate = (updatedConv: Conversation) => {
+      console.log('🔄 Conversation update received:', updatedConv);
       setConversations(prev => {
         const exists = prev.find(c => c.id === updatedConv.id);
         if (exists) {
@@ -157,7 +181,7 @@ export default function ChatPage() {
               : c
           );
         }
-        // If it's a new conversation, add it
+        // If it's a new conversation, add it to the top
         return [{ ...updatedConv, isPinned: pinnedConversations.has(updatedConv.id) }, ...prev];
       });
     };
@@ -169,6 +193,7 @@ export default function ChatPage() {
       username: string;
       is_typing: boolean;
     }) => {
+      console.log('⌨️ Typing indicator in list:', data);
       setConversations(prev =>
         prev.map(c =>
           c.id === data.conversation_id
@@ -188,6 +213,7 @@ export default function ChatPage() {
       is_online: boolean;
       username: string;
     }) => {
+      console.log('👤 Online status update in list:', data);
       setConversations(prev =>
         prev.map(c =>
           c.other_user.id === data.user_id
@@ -209,6 +235,7 @@ export default function ChatPage() {
       conversation_id: string;
       status: 'delivered' | 'read';
     }) => {
+      console.log('📬 Message status update in list:', data);
       setConversations(prev =>
         prev.map(c => {
           if (c.id === data.conversation_id && c.last_message_id === data.message_id) {
@@ -222,25 +249,34 @@ export default function ChatPage() {
       );
     };
 
+    // Handle connection success
+    const handleConnectionSuccess = (data: any) => {
+      console.log('✅ Socket connection authenticated in list:', data);
+    };
+
     // Register event listeners
     socket.on('new_message', handleNewMessage);
     socket.on('conversation_update', handleConversationUpdate);
     socket.on('user_typing', handleTyping);
     socket.on('user_online_status', handleOnlineStatus);
     socket.on('message_status_update', handleMessageStatusUpdate);
+    socket.on('connection_success', handleConnectionSuccess);
 
     // Cleanup
     return () => {
+      console.log('🧹 Cleaning up socket event listeners from chat list');
       socket.off('new_message', handleNewMessage);
       socket.off('conversation_update', handleConversationUpdate);
       socket.off('user_typing', handleTyping);
       socket.off('user_online_status', handleOnlineStatus);
       socket.off('message_status_update', handleMessageStatusUpdate);
+      socket.off('connection_success', handleConnectionSuccess);
     };
-  }, [socket, isConnected, conversations, pinnedConversations]);
+  }, [socket, isConnected, pinnedConversations, fetchConversations]);
 
   // Update conversations when onlineUsers changes
   useEffect(() => {
+    console.log('👥 Online users changed:', Array.from(onlineUsers));
     setConversations(prev =>
       prev.map(conv => ({
         ...conv,
@@ -253,6 +289,7 @@ export default function ChatPage() {
   }, [onlineUsers]);
 
   const handleChatSelect = (conversationId: string) => {
+    console.log('💬 Selecting conversation:', conversationId);
     router.push(`/chat/${conversationId}`);
   };
 
@@ -275,24 +312,31 @@ export default function ChatPage() {
       ).sort((a, b) => {
         if (a.isPinned && !b.isPinned) return -1;
         if (!a.isPinned && b.isPinned) return 1;
-        return new Date(b.last_message_at || b.created_at).getTime() - new Date(a.last_message_at || a.created_at).getTime();
+        const aTime = new Date(a.last_message_at || a.created_at).getTime();
+        const bTime = new Date(b.last_message_at || b.created_at).getTime();
+        return bTime - aTime;
       })
     );
   };
 
   const formatTimestamp = (timestamp: string | null) => {
     if (!timestamp) return '';
-    const date = new Date(timestamp);
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-    const isYesterday = new Date(now.setDate(now.getDate() - 1)).toDateString() === date.toDateString();
-    
-    if (isToday) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (isYesterday) {
-      return 'Yesterday';
-    } else {
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    try {
+      const date = new Date(timestamp);
+      const now = new Date();
+      const isToday = date.toDateString() === now.toDateString();
+      const isYesterday = new Date(now.setDate(now.getDate() - 1)).toDateString() === date.toDateString();
+      
+      if (isToday) {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } else if (isYesterday) {
+        return 'Yesterday';
+      } else {
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      }
+    } catch (err) {
+      console.error('Error formatting timestamp:', err);
+      return '';
     }
   };
 
@@ -307,7 +351,12 @@ export default function ChatPage() {
       );
     }
     
-    if (conversation.last_message_sender_id === 'current-user') {
+    // Check if the last message was sent by the current user
+    // This would need to be adjusted based on how you identify the current user
+    const isCurrentUserMessage = conversation.last_message_sender_id && 
+                                 conversation.last_message_sender_id !== conversation.other_user.id;
+    
+    if (isCurrentUserMessage) {
       return `You: ${conversation.last_message}`;
     }
     
@@ -315,8 +364,11 @@ export default function ChatPage() {
   };
 
   const getMessageStatusIcon = (conversation: Conversation) => {
-    if (!conversation.last_message_sender_id || conversation.last_message_sender_id === conversation.other_user.id)
-      return null;
+    // Only show status for messages sent by current user
+    const isCurrentUserMessage = conversation.last_message_sender_id && 
+                                 conversation.last_message_sender_id !== conversation.other_user.id;
+    
+    if (!isCurrentUserMessage) return null;
 
     if (conversation.last_message_status === 'read')
       return <CheckCheck size={14} className="text-purple-500" />;
@@ -325,6 +377,23 @@ export default function ChatPage() {
     if (conversation.last_message_status === 'sent')
       return <Check size={14} className="text-gray-400" />;
     return null;
+  };
+
+  const markConversationAsRead = async (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await api.post(`/chat/conversations/${conversationId}/mark_read`);
+      // Update local state to reflect read status
+      setConversations(prev =>
+        prev.map(conv =>
+          conv.id === conversationId
+            ? { ...conv, unread_count: 0 }
+            : conv
+        )
+      );
+    } catch (err) {
+      console.error('Error marking conversation as read:', err);
+    }
   };
 
   const filteredConversations = conversations.filter((c) =>
@@ -336,7 +405,10 @@ export default function ChatPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-white dark:bg-gray-900">
-        <Loader2 className="animate-spin h-6 w-6 text-gray-500" />
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="animate-spin h-8 w-8 text-purple-500" />
+          <p className="text-gray-500 dark:text-gray-400">Loading conversations...</p>
+        </div>
       </div>
     );
   }
@@ -344,15 +416,8 @@ export default function ChatPage() {
   return (
     <div className="h-screen bg-white dark:bg-gray-900 flex flex-col">
       {/* Header */}
-      <div className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-semibold">Chats</h1>
-          <div className="flex items-center space-x-4">
-            <button className="text-white">
-              <MoreVertical size={20} />
-            </button>
-          </div>
-        </div>
+      <div className="bg-gradient-to-r  text-white px-4 py-6">
+   
         
         {/* Search Bar */}
         <div className="relative">
@@ -370,13 +435,24 @@ export default function ChatPage() {
       <div className={`px-4 py-2 text-xs text-center ${
         isConnected ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'
       }`}>
-        {isConnected ? 'Connected' : 'Connecting...'}
+        {isConnected ? '✅ Connected to chat' : '🔄 Connecting to chat...'}
+        {connectionError && (
+          <div className="mt-1 text-red-600">
+            {connectionError}
+          </div>
+        )}
       </div>
 
       {error && (
         <div className="p-4">
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
             <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+            <button 
+              onClick={() => fetchConversations()}
+              className="mt-2 text-xs bg-red-100 dark:bg-red-800 px-2 py-1 rounded"
+            >
+              Retry
+            </button>
           </div>
         </div>
       )}
@@ -389,7 +465,9 @@ export default function ChatPage() {
               {searchQuery ? 'No conversations found' : 'No conversations yet'}
             </p>
             {!searchQuery && (
-              <p className="text-xs mt-1">Start a conversation by matching with someone!</p>
+              <p className="text-xs mt-1 text-center px-4">
+                Start a conversation by matching with someone!
+              </p>
             )}
           </div>
         ) : (
@@ -420,7 +498,7 @@ export default function ChatPage() {
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center space-x-2">
                       {conversation.isPinned && (
-                        <span className="text-purple-500">📌</span>
+                        <span className="text-purple-500" title="Pinned conversation">📌</span>
                       )}
                       <h3 className="font-semibold text-gray-900 dark:text-white truncate">
                         {conversation.other_user.name || conversation.other_user.username}
@@ -447,7 +525,7 @@ export default function ChatPage() {
 
                     {conversation.unread_count > 0 && (
                       <Badge className="bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xs min-w-[20px] h-5 flex items-center justify-center rounded-full">
-                        {conversation.unread_count}
+                        {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
                       </Badge>
                     )}
                   </div>
@@ -467,8 +545,14 @@ export default function ChatPage() {
                     <DropdownMenuItem onClick={(e) => togglePinConversation(conversation.id, e)}>
                       {conversation.isPinned ? 'Unpin chat' : 'Pin chat'}
                     </DropdownMenuItem>
-                    <DropdownMenuItem>Mark as read</DropdownMenuItem>
-                    <DropdownMenuItem className="text-red-600">Delete chat</DropdownMenuItem>
+                    {conversation.unread_count > 0 && (
+                      <DropdownMenuItem onClick={(e) => markConversationAsRead(conversation.id, e)}>
+                        Mark as read
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem className="text-red-600">
+                      Delete chat
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

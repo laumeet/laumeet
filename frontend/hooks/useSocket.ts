@@ -1,6 +1,7 @@
-// hooks/useSocket.ts - FIXED VERSION
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// hooks/useSocket.ts
+import { useEffect, useRef, useState, useCallback } from "react";
+import { io, Socket } from "socket.io-client";
 
 interface UseSocketReturn {
   socket: Socket | null;
@@ -15,131 +16,116 @@ export const useSocket = (): UseSocketReturn => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
-  const getBackendUrl = useCallback(() => {
-    // ✅ FIXED: Always use production URL in production
-    if (process.env.NODE_ENV === "production") {
-      return "https://laumeet.onrender.com";
+  const backendUrl =
+    process.env.NODE_ENV === "production"
+      ? "https://laumeet.onrender.com"
+      : "http://127.0.0.1:5000";
+
+  // 🔐 Authenticate user through Next.js API route
+  const authenticate = useCallback(async (): Promise<boolean> => {
+    try {
+      console.log("🔐 Authenticating socket via /api/socket/auth...");
+      const res = await fetch("/api/socket/auth", {
+        method: "GET",
+        credentials: "include",
+      });
+      const data = await res.json();
+
+      if (data.success && data.authenticated) {
+        console.log("✅ Socket authentication success!");
+        return true;
+      } else {
+        setConnectionError(data.message || "Authentication failed");
+        return false;
+      }
+    } catch (err) {
+      console.error("💥 Socket auth failed:", err);
+      setConnectionError("Authentication service unavailable");
+      return false;
     }
-    return "http://127.0.0.1:5000";
   }, []);
 
-  const initializeSocket = useCallback(() => {
-    // Clean up existing socket
+  const initializeSocket = useCallback(async () => {
+    // 🧹 Clean up old connection first
     if (socketRef.current) {
       socketRef.current.removeAllListeners();
       socketRef.current.disconnect();
       socketRef.current = null;
     }
 
-    const backendUrl = getBackendUrl();
-
-    console.log('🔧 Socket.IO Debug - Starting connection...');
-    console.log('🌐 Backend URL:', backendUrl);
-    console.log('🏷️ Environment:', process.env.NODE_ENV);
-
-    // ✅ Cookie Debugging
-    if (typeof window !== 'undefined') {
-      console.log('🍪 All cookies:', document.cookie);
-
-      const cookies = document.cookie.split(';');
-      let hasAccessToken = false;
-
-      cookies.forEach(cookie => {
-        const [name, value] = cookie.trim().split('=');
-        if (name === 'access_token_cookie') {
-          hasAccessToken = true;
-          console.log('✅ Found access_token_cookie, length:', value?.length || 0);
-        }
-      });
-
-      if (!hasAccessToken) {
-        console.log('❌ access_token_cookie NOT found in cookies');
-        console.log('💡 User might need to log in again');
-      }
+    const authed = await authenticate();
+    if (!authed) {
+      console.log("❌ Auth failed. Socket not connecting.");
+      return;
     }
 
-    // ✅ Improved Socket Options
-    const socketOptions: any = {
-      withCredentials: true, // ✅ CRITICAL for cookies
-      transports: ['websocket', 'polling'],
-      timeout: 15000,
+    const socket = io(backendUrl, {
+      withCredentials: true,
+      transports: ["websocket", "polling"],
       reconnection: true,
-      reconnectionAttempts: 3,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
+      timeout: 10000,
       forceNew: true,
-    };
+    });
 
-    console.log('🔌 Socket.IO connection options:', socketOptions);
+    socketRef.current = socket;
 
-    try {
-      const socket = io(backendUrl, socketOptions);
-      socketRef.current = socket;
+    // Connection Events
+    socket.on("connect", () => {
+      console.log("✅ Connected to Socket.IO server:", socket.id);
+      setIsConnected(true);
+      setConnectionError(null);
+    });
 
-      // ✅ Connection Events
-      socket.on('connect', () => {
-        console.log('✅ ✅ ✅ SOCKET.IO CONNECTED SUCCESSFULLY!');
-        console.log('📡 Socket ID:', socket.id);
-        setIsConnected(true);
-        setConnectionError(null);
-      });
+    socket.on("disconnect", (reason) => {
+      console.warn("❌ Socket disconnected:", reason);
+      setIsConnected(false);
+    });
 
-      socket.on('disconnect', (reason) => {
-        console.log('❌ Socket.IO Disconnected. Reason:', reason);
-        setIsConnected(false);
-      });
+    socket.on("connect_error", (err) => {
+      console.error("💥 Socket connect error:", err.message);
+      setIsConnected(false);
+      setConnectionError(err.message);
+    });
 
-      socket.on('connect_error', (error) => {
-        console.error('💥 Socket.IO Connection Error:', error.message);
-        setIsConnected(false);
-        setConnectionError(`Connection failed: ${error.message}`);
-      });
+    socket.on("auth_error", (data) => {
+      console.error("🔐 Socket authentication failed:", data);
+      setConnectionError("Authentication failed. Please log in again.");
+    });
 
-      // ✅ Authentication events
-      socket.on('auth_error', (data) => {
-        console.error('🔐 Socket authentication failed:', data);
-        setConnectionError('Authentication failed. Please log in again.');
-      });
+    return socket;
+  }, [authenticate, backendUrl]);
 
-      return socket;
-    } catch (error) {
-      console.error('💥 Failed to initialize socket:', error);
-      setConnectionError('Failed to initialize connection');
-      return null;
-    }
-  }, [getBackendUrl]);
-
-  const reconnect = useCallback(() => {
-    console.log('🔄 Manual reconnect triggered');
-    setConnectionError(null);
-    initializeSocket();
+  const reconnect = useCallback(async () => {
+    console.log("🔄 Manual reconnect requested");
+    await initializeSocket();
   }, [initializeSocket]);
 
   const disconnect = useCallback(() => {
-    console.log('🔌 Manual disconnect triggered');
+    console.log("🔌 Disconnecting socket...");
     if (socketRef.current) {
       socketRef.current.disconnect();
+      socketRef.current = null;
     }
     setIsConnected(false);
-    setConnectionError(null);
   }, []);
 
-  // ✅ Initialize socket on mount
   useEffect(() => {
-    initializeSocket();
-
+    let mounted = true;
+    if (mounted) initializeSocket();
     return () => {
-      console.log('🧹 Cleaning up Socket.IO connection');
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
+      mounted = false;
+      console.log("🧹 Cleaning up socket connection...");
+      socketRef.current?.disconnect();
     };
   }, [initializeSocket]);
 
-  return { 
+  return {
     socket: socketRef.current,
-    isConnected, 
+    isConnected,
     connectionError,
     reconnect,
-    disconnect
+    disconnect,
   };
 };

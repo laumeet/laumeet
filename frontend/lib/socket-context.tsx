@@ -1,97 +1,35 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { Socket } from 'socket.io-client';
+import { useSocket } from '@/hooks/useSocket';
 
 interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
+  connectionError: string | null;
   onlineUsers: Set<string>;
-  typingUsers: Map<string, { username: string; conversationId: string }>;
+  reconnect: () => void;
+  disconnect: () => void;
 }
 
-const SocketContext = createContext<SocketContextType>({
-  socket: null,
-  isConnected: false,
-  onlineUsers: new Set(),
-  typingUsers: new Map(),
-});
-
-export const useSocket = () => useContext(SocketContext);
+const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
 interface SocketProviderProps {
   children: ReactNode;
 }
 
 export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const { socket, isConnected, connectionError, reconnect, disconnect } = useSocket();
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
-  const [typingUsers, setTypingUsers] = useState<Map<string, { username: string; conversationId: string }>>(new Map());
-   const getBackendUrl = useCallback(() => {
-     // ✅ Use environment variable if available, otherwise fallback
-     if (typeof window !== 'undefined') {
-       // Client-side: Use environment variable or fallback
-       const socketUrl = process.env.BACKEND_URL;
-       if (socketUrl) return socketUrl;
-       
-       // Fallback URLs based on environment
-       if (process.env.NODE_ENV === "production") {
-         return "https://laumeet.onrender.com";
-       }
-     }
-     
-     // Default development URL
-     return "http://127.0.0.1:5000";
-   }, []);
+
+  // Handle online status updates
   useEffect(() => {
-    // Only connect if we're in the browser
-    if (typeof window === 'undefined') return;
-    
-    const socketUrl = process.env.BACKEND_URL || 'http://localhost:5000';
-    
-    console.log('🔌 Connecting to Socket.IO:', socketUrl);
+    if (!socket || !isConnected) return;
+    console.log('Hello world')
 
-    const socketInstance = io(socketUrl, {
-      withCredentials: true, // ✅ This sends cookies for JWT authentication
-      transports: ['websocket', 'polling'], // Fallback options
-      autoConnect: true,
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
-
-    // Connection events
-    socketInstance.on('connect', () => {
-      console.log('✅ Socket.IO Connected:', socketInstance.id);
-      setIsConnected(true);
-    });
-
-    socketInstance.on('disconnect', (reason) => {
-      console.log('❌ Socket.IO Disconnected:', reason);
-      setIsConnected(false);
-    });
-
-    socketInstance.on('connect_error', (error) => {
-      console.error('💥 Socket.IO Connection Error:', error);
-      setIsConnected(false);
-    });
-
-    socketInstance.on('connection_success', (data) => {
-      console.log('🎉 Socket.IO Authenticated:', data);
-    });
-
-    socketInstance.on('auth_error', (data) => {
-      console.error('🔐 Socket.IO Auth Error:', data);
-      // Redirect to login if authentication fails
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
-    });
-
-    // Online status events
-    socketInstance.on('user_online_status', (data) => {
-      console.log('👤 Online status update:', data);
+    const handleUserOnlineStatus = (data: { user_id: string; is_online: boolean }) => {
+      console.log('dataaa',data)
       setOnlineUsers(prev => {
         const newSet = new Set(prev);
         if (data.is_online) {
@@ -99,43 +37,43 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         } else {
           newSet.delete(data.user_id);
         }
+        console.log(`👥 Online users updated: ${newSet.size} users`);
         return newSet;
       });
-    });
-
-    // Typing events
-    socketInstance.on('user_typing', (data) => {
-      console.log('⌨️ Typing event:', data);
-      setTypingUsers(prev => {
-        const newMap = new Map(prev);
-        const userKey = `${data.user_id}-${data.conversation_id}`;
-        
-        if (data.is_typing) {
-          newMap.set(userKey, {
-            username: data.username,
-            conversationId: data.conversation_id
-          });
-        } else {
-          newMap.delete(userKey);
-        }
-        return newMap;
-      });
-    });
-
-    setSocket(socketInstance);
-
-    // Cleanup on unmount
-    return () => {
-      console.log('🧹 Cleaning up Socket.IO connection');
-      socketInstance.disconnect();
     };
-  }, []);
+
+    socket.on('user_online_status', handleUserOnlineStatus);
+
+    return () => {
+      socket.off('user_online_status', handleUserOnlineStatus);
+    };
+  }, [socket, isConnected]);
+
+  // Reset online users when disconnected
+  useEffect(() => {
+    if (!isConnected) {
+      setOnlineUsers(new Set());
+    }
+  }, [isConnected]);
+
+  // Auto-reconnect on authentication errors
+  useEffect(() => {
+    if (connectionError?.includes('Authentication') && !isConnected) {
+      console.log('🔄 Authentication error detected, attempting reconnect in 2s...');
+      const timer = setTimeout(() => {
+        reconnect();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [connectionError, isConnected, reconnect]);
 
   const value: SocketContextType = {
     socket,
     isConnected,
+    connectionError,
     onlineUsers,
-    typingUsers,
+    reconnect,
+    disconnect
   };
 
   return (
@@ -143,4 +81,12 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       {children}
     </SocketContext.Provider>
   );
+};
+
+export const useSocketContext = (): SocketContextType => {
+  const context = useContext(SocketContext);
+  if (context === undefined) {
+    throw new Error('useSocketContext must be used within a SocketProvider');
+  }
+  return context;
 };

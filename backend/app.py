@@ -43,9 +43,16 @@ def create_app(config_name=None):
         app,
         async_mode="eventlet",
         manage_session=False,
-        cors_allowed_origins=app.config.get('CORS_ORIGINS', []),
-        supports_credentials=True
+        cors_allowed_origins= app.config.get('CORS_ORIGINS', []),
+        allow_upgrades=True,
+        always_connect=True,  # ✅ ensure cookie headers persist in upgrade
+        logger=True,
+        engineio_logger=True,
+        ping_timeout=60000,
+        ping_interval=25000,
+        supports_credentials=True,
     )
+
 
     # ✅ FIXED: Import and register socket events AFTER app context is set up
     with app.app_context():

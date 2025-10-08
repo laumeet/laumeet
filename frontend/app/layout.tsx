@@ -6,7 +6,6 @@ import { ThemeProvider } from '@/components/ui/theme-provider';
 import { Toaster } from 'sonner';
 import ModelPreloader from '@/components/providers/ModelPreloader';
 import { SocketProvider } from '@/lib/socket-context';
-import LoginCheck from '@/components/auth/LoginCheck';
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -38,7 +37,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <LoginCheck>
+          
             
           <SocketProvider>  
             
@@ -48,7 +47,6 @@ export default function RootLayout({
             {children}
           </div>
           </SocketProvider>
-          </LoginCheck>
         </ThemeProvider>
       </body>
     </html>

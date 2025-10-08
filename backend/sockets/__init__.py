@@ -57,7 +57,7 @@ print(f"🔧 CORS Origins: {cors_origins}")
 
 # ✅ Global in-memory storage
 online_users = {}
-
+print(f"🔧 Online users store initialized {online_users}")
 
 from .chat_events import register_socket_events
 

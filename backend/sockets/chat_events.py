@@ -1,4 +1,4 @@
-from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
+from flask_jwt_extended import decode_token
 from flask_socketio import join_room, leave_room, emit
 from flask import request as flask_request
 from datetime import datetime
@@ -63,62 +63,56 @@ def broadcast_online_status(user_id, is_online):
 # -------------------------------------------------
 # ✅ Socket Connection Handlers
 # -------------------------------------------------
-
 @socketio.on("connect")
 def handle_connect():
+    print(f"🔗 Socket connected (SID: {flask_request.sid})")
+    print(f"🔍 Query Params: {flask_request.args}")
+    print(f"🔍 Headers: {dict(flask_request.headers)}")
+    print(f"🔍 Cookies: {flask_request.cookies}")
+
+    # ✅ 1. Read token from query string
+    token = flask_request.args.get("token")
+
+    # ✅ 2. Fallback: check Authorization header if missing
+    if not token:
+        auth_header = flask_request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split("Bearer ")[1]
+
+    # ✅ 3. Abort if token missing
+    if not token:
+        print("💥 Missing JWT in query, cookies, or headers")
+        return False  # ❌ disconnect socket
+
     try:
-        print(f"🔗 Socket connected (SID: {flask_request.sid})")
-        print(f"🔍 Headers: {dict(flask_request.headers)}")
-        print(f"🔍 Cookies: {flask_request.cookies}")
+        # ✅ 4. Decode and authenticate
+        decoded = decode_token(token)
+        public_id = decoded.get("sub")
 
-        # ✅ Automatically verify the JWT from cookies or headers
-        verify_jwt_in_request(optional=False)
-        public_id = get_jwt_identity()  # ✅ comes from @jwt.user_identity_loader
-
-        # ✅ Retrieve the user from database
         user = User.query.filter_by(public_id=public_id).first()
         if not user:
-            emit("auth_error", {"message": "User not found"})
+            print("❌ No user found for token")
             return False
 
-        # ✅ Store user session in memory
-        online_users[user.id] = {
-            "public_id": user.public_id,
-            "username": user.username,
-            "sid": flask_request.sid,
-            "is_online": True,
-            "connected_at": datetime.utcnow(),
-        }
-
-        # ✅ Update user status in DB
         user.is_online = True
+        user.last_seen = datetime.utcnow()
         db.session.commit()
 
-        # ✅ Join private room for direct messages
-        join_room(f"user_{user.id}")
+        # ✅ 5. Store user in online_users for lookup
+        online_users[user.id] = {
+            "sid": flask_request.sid,
+            "public_id": user.public_id,
+            "username": user.username,
+        }
 
-        # ✅ Broadcast to others that user is online
+        join_room(f"user_{user.id}")
         broadcast_online_status(user.id, True)
 
-        # ✅ Confirm success to connected user
-        emit(
-            "connection_success",
-            {
-                "message": "Connected successfully",
-                "user": {
-                    "public_id": user.public_id,
-                    "username": user.username,
-                },
-            },
-        )
-
-        print(f"✅ {user.username} connected (public_id={user.public_id})")
-        return True
+        print(f"✅ Authenticated socket for user: {user.username} ({user.public_id})")
 
     except Exception as e:
-        print(f"💥 Connect error: {e}")
+        print(f"❌ Invalid JWT or decode error: {e}")
         traceback.print_exc()
-        emit("auth_error", {"message": str(e)})
         return False
 
 

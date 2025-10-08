@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // hooks/useSocket.ts
+import api from "@/lib/axio";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 
@@ -15,7 +15,7 @@ export const useSocket = (): UseSocketReturn => {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
-
+  const [token, setToken] = useState<string | null>(null);
   const backendUrl =
     process.env.NODE_ENV === "production"
       ? "https://laumeet.onrender.com"
@@ -25,13 +25,13 @@ export const useSocket = (): UseSocketReturn => {
   const authenticate = useCallback(async (): Promise<boolean> => {
     try {
       console.log("🔐 Authenticating socket via /api/socket/auth...");
-      const res = await fetch("/api/socket/auth", {
-        method: "GET",
-        credentials: "include",
+      const res = await api.get("/socket/auth", {
+        withCredentials: true,
       });
-      const data = await res.json();
-
-      if (data.success && data.authenticated) {
+      const data = res.data;
+        console.log("The datattttat",data)
+        setToken(data.token);
+      if (data.success) {
         console.log("✅ Socket authentication success!");
         return true;
       } else {
@@ -61,6 +61,7 @@ export const useSocket = (): UseSocketReturn => {
 
     const socket = io(backendUrl, {
       withCredentials: true,
+     query: { token },
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: 5,
@@ -95,7 +96,7 @@ export const useSocket = (): UseSocketReturn => {
     });
 
     return socket;
-  }, [authenticate, backendUrl]);
+  }, [authenticate, backendUrl, token]);
 
   const reconnect = useCallback(async () => {
     console.log("🔄 Manual reconnect requested");

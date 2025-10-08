@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/api/socket/auth/route.ts (App Router version)
-// or pages/api/socket/auth.ts (Pages Router version)
-import type { NextApiRequest, NextApiResponse } from "next";
+//pages/api/socket/auth.ts (Pages Router version)
 
+import { getCookieValue } from "@/lib/utils";
+import type { NextApiRequest, NextApiResponse } from "next";
 const BACKEND_URL =
   process.env.NODE_ENV === "development"
     ? "http://127.0.0.1:5000"
@@ -14,50 +14,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    console.log("🔧 [Socket Auth] Request cookies:", req.headers.cookie);
-
-    // ✅ Verify the cookie/JWT via backend protected route
+    console.log("🔧 Explore profiles request cookies:", req.headers.cookie);
+    
     const backendRes = await fetch(`${BACKEND_URL}/protected`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        // Forward cookies to backend for auth
-        Cookie: req.headers.cookie || "",
+        "Cookie": req.headers.cookie || "",
       },
       credentials: "include",
     });
 
-    console.log("🔧 [Socket Auth] Backend status:", backendRes.status);
+    console.log("🔧 Backend explore response status:", backendRes.status);
 
-    if (backendRes.status === 401) {
-      return res.status(401).json({
-        success: false,
-        authenticated: false,
-        message: "Authentication failed",
-      });
-    }
-
+    // Check if the response is OK
     if (!backendRes.ok) {
-      const text = await backendRes.text();
-      throw new Error(`Backend error ${backendRes.status}: ${text}`);
+      throw new Error(`Backend returned ${backendRes.status}: ${backendRes.statusText}`);
     }
 
     const data = await backendRes.json();
-
-    console.log("✅ [Socket Auth] User verified:", data.user?.public_id);
-
-    return res.status(200).json({
-      success: true,
-      authenticated: true,
-      user: data.user,
-      message: "Authentication successful",
-    });
+    
+    // Ensure the response has the correct structure
+    const responseData = {
+      token: getCookieValue(req.headers.cookie, 'access_token_cookie'),
+      success: data.success || false,
+      profiles: data.profiles || [],
+      total_profiles: data.total_profiles || (data.profiles ? data.profiles.length : 0),
+      message: data.message
+    };
+    
+    console.log("🔧 Processed explore response:", responseData);
+    
+    return res.status(backendRes.status).json(responseData);
+    
   } catch (err: any) {
-    console.error("❌ [Socket Auth] Proxy error:", err.message);
-    return res.status(500).json({
-      success: false,
-      authenticated: false,
-      message: err.message || "Cannot connect to authentication service",
+    console.error("❌ Explore profiles proxy error:", err);
+    return res.status(500).json({ 
+      success: false, 
+      message: err.message || "Cannot connect to explore service",
+      profiles: [],
+      total_profiles: 0
     });
   }
 }

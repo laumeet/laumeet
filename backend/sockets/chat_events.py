@@ -32,13 +32,13 @@ def broadcast_online_status(user_id, is_online):
         conversations = Conversation.query.filter(
             or_(Conversation.user1_id == user_id, Conversation.user2_id == user_id)
         ).all()
-
+        print(f"Conversation for broadcast {conversations}")
         user = User.query.get(user_id)
         if not user:
             return
 
         payload = {
-            "user_id": user.public_id,
+            "user_id": user.id,
             "username": user.username,
             "is_online": is_online,
             "timestamp": datetime.utcnow().isoformat() + "Z",

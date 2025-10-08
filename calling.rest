@@ -2,12 +2,12 @@ POST  http://laumeet.vercel.app/api/auth/signup
 Content-Type: application/json
 
 {
-    "username": "Samuel",
+    "username": "Emmanueli",
     "password": "helloE@123",
     "security_question": "Who is your mother",
     "security_answer":"Hello",
     "age":"47",
-    "gender":"female"
+    "gender":"male"
 }
 ###
 POST  http://localhost:3000/api/auth/signup

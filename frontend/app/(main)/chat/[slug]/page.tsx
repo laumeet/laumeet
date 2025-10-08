@@ -10,26 +10,17 @@ import {
   Paperclip,
   Smile,
   Loader2,
-  MoreVertical,
   CheckCheck,
   Check,
-  Search,
   X,
   Info,
   Video,
   Phone,
-  Image
+
 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+
 import api from '@/lib/axio';
 import { useSocketContext } from '@/lib/socket-context';
 import { useProfile } from '@/hooks/get-profile';
@@ -419,7 +410,7 @@ const { profile } = useProfile();
         typingTimeoutRef.current = null;
       }
     };
-  }, [socket, conversation]);
+  }, [socket, conversation, profile?.id]);
 
   // Update online status when onlineUsers changes
   useEffect(() => {
@@ -539,7 +530,7 @@ const { profile } = useProfile();
       console.log('📖 Auto-marking messages as read:', unreadMessages);
       markMessagesAsRead(unreadMessages);
     }
-  }, [messages, markMessagesAsRead]);
+  }, [messages, markMessagesAsRead, profile?.id]);
 
   const sendMessage = async () => {
     if (!message.trim() || !conversation || sending) return;
@@ -577,6 +568,8 @@ const { profile } = useProfile();
       setError(err.response?.data?.message || 'Failed to send message');
       setMessages(prev => prev.filter(m => !isTempId(m.id)));
     } finally {
+      setMessage('')
+      cancelReply()
       setSending(false);
     }
   };
@@ -873,13 +866,8 @@ const { profile } = useProfile();
               placeholder="Type a message"
               value={message}
               onChange={handleInputChange}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  sendMessage();
-                }
-              }}
-              className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-32 overflow-hidden"
+             
+              className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-[50px] overflow-hidden"
               rows={1}
               disabled={sending}
               style={{ overflow: 'hidden' }}

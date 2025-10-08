@@ -416,7 +416,7 @@ export default function ChatPage() {
   return (
     <div className="h-screen bg-white dark:bg-gray-900 flex flex-col">
       {/* Header */}
-      <div className="bg-gradient-to-r  text-white px-4 py-6">
+      <div className="text-white px-4 py-4">
    
         
         {/* Search Bar */}
@@ -431,17 +431,7 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Connection Status */}
-      <div className={`px-4 py-2 text-xs text-center ${
-        isConnected ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'
-      }`}>
-        {isConnected ? '✅ Connected to chat' : '🔄 Connecting to chat...'}
-        {connectionError && (
-          <div className="mt-1 text-red-600">
-            {connectionError}
-          </div>
-        )}
-      </div>
+ 
 
       {error && (
         <div className="p-4">

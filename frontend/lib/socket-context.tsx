@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, ReactNode } from 'react';
 import { Socket } from 'socket.io-client';
 import { useSocket } from '@/hooks/useSocket';
 
@@ -20,52 +20,36 @@ interface SocketProviderProps {
 }
 
 export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
-  const { socket, isConnected, connectionError, reconnect, disconnect } = useSocket();
-  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const { socket, isConnected, connectionError, reconnect, disconnect, onlineUsers } = useSocket();
 
-  // Handle online status updates
+  // Enhanced auto-reconnect logic
   useEffect(() => {
-    if (!socket || !isConnected) return;
-    console.log('Hello world')
-
-    const handleUserOnlineStatus = (data: { user_id: string; is_online: boolean }) => {
-      console.log('dataaa',data)
-      setOnlineUsers(prev => {
-        const newSet = new Set(prev);
-        if (data.is_online) {
-          newSet.add(data.user_id);
-        } else {
-          newSet.delete(data.user_id);
-        }
-        console.log(`👥 Online users updated: ${newSet.size} users`);
-        return newSet;
-      });
-    };
-
-    socket.on('user_online_status', handleUserOnlineStatus);
-
-    return () => {
-      socket.off('user_online_status', handleUserOnlineStatus);
-    };
-  }, [socket, isConnected]);
-
-  // Reset online users when disconnected
-  useEffect(() => {
-    if (!isConnected) {
-      setOnlineUsers(new Set());
-    }
-  }, [isConnected]);
-
-  // Auto-reconnect on authentication errors
-  useEffect(() => {
-    if (connectionError?.includes('Authentication') && !isConnected) {
-      console.log('🔄 Authentication error detected, attempting reconnect in 2s...');
+    if (connectionError && !isConnected) {
+      console.log('🔄 Connection error detected, attempting reconnect...');
       const timer = setTimeout(() => {
         reconnect();
-      }, 2000);
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [connectionError, isConnected, reconnect]);
+
+  // Monitor connection health
+  useEffect(() => {
+    if (!socket || isConnected) return;
+
+    const checkConnection = () => {
+      if (!isConnected && !connectionError) {
+        console.log('🔄 Connection lost, attempting to reconnect...');
+        reconnect();
+      }
+    };
+
+    const interval = setInterval(checkConnection, 10000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [socket, isConnected, connectionError, reconnect]);
 
   const value: SocketContextType = {
     socket,

@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import api from '@/lib/axio';
 import { useSocketContext } from '@/lib/socket-context';
+import { useProfile } from '@/hooks/get-profile';
 
 // -----------------------------
 // Types
@@ -87,7 +88,6 @@ export interface UserProfile {
 // -----------------------------
 // Utility helpers
 // -----------------------------
-const safeStr = (v: any) => (v === null || v === undefined ? '' : String(v));
 const isTempId = (id: any) => String(id).startsWith('temp-');
 
 // -----------------------------
@@ -134,7 +134,7 @@ export default function ChatDetailPage() {
   const { socket, isConnected: socketConnected, onlineUsers } = useSocketContext();
 
   const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
-
+const { profile } = useProfile();
   // -----------------------------
   // Formatting helpers
   // -----------------------------
@@ -303,7 +303,7 @@ export default function ChatDetailPage() {
       });
 
       // Mark as delivered if it's not our message
-      if (newMessage.sender_id !== 'current-user' && socket) {
+      if (newMessage.sender_id !== profile?.id && socket) {
         console.log('📬 Marking message as delivered:', newMessage.id);
         socket.emit('message_delivered', {
           message_id: newMessage.id,
@@ -532,7 +532,7 @@ export default function ChatDetailPage() {
 
   useEffect(() => {
     const unreadMessages = messages
-      .filter(msg => !msg.is_read && msg.sender_id !== 'current-user')
+      .filter(msg => !msg.is_read && msg.sender_id !== profile?.id)
       .map(msg => msg.id);
 
     if (unreadMessages.length > 0) {
@@ -549,29 +549,6 @@ export default function ChatDetailPage() {
 
     try {
       handleTypingStop();
-
-      const tempMessage: Message = {
-        id: `temp-${Date.now()}`,
-        conversation_id: String(conversation.id),
-        sender_id: 'current-user',
-        sender_username: 'You',
-        content,
-        is_read: false,
-        timestamp: new Date().toISOString(),
-        delivered_at: null,
-        read_at: null,
-        status: 'sent',
-        reply_to: replyTo ? { 
-          id: replyTo.id, 
-          content: replyTo.content, 
-          sender_username: replyTo.sender_username 
-        } : null,
-      };
-
-      console.log('📤 Sending message:', tempMessage);
-      setMessages(prev => [...prev, tempMessage]);
-      setMessage('');
-      cancelReply();
 
       if (socket && socketConnected) {
         console.log('📤 Sending via socket');
@@ -754,14 +731,14 @@ export default function ChatDetailPage() {
             </div>
           ) : (
             messages.map((msg, index) => {
-              const isOwn = msg.sender_id === 'current-user';
+              const isOwn = msg.sender_id === profile?.id;
               const showDate = index === 0 || !isSameDay(msg.timestamp, messages[index - 1].timestamp);
               const isSwiping = swipingMessageId === msg.id;
 
               const replyPreview = msg.reply_to ? (
                 <div className="mb-1 px-2 py-1 rounded bg-black/10 dark:bg-white/10 text-xs text-gray-700 dark:text-gray-300 border-l-2 border-purple-500">
                   <div className="font-medium text-xs truncate">
-                    {msg.reply_to.sender_username || 'User'}
+                    {msg.reply_to.sender_username || profile?.username}
                   </div>
                   <div className="text-xs truncate">
                     {msg.reply_to.content ? (msg.reply_to.content.length > 120 ? `${msg.reply_to.content.slice(0, 120)}...` : msg.reply_to.content) : ''}

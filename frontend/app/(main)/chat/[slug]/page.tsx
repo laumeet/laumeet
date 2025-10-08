@@ -729,12 +729,7 @@ export default function ChatDetailPage() {
           </div>
 
           <div className="flex items-center space-x-2">
-            <Button variant="ghost" size="icon" className="text-white">
-              <Video className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="text-white">
-              <Phone className="h-5 w-5" />
-            </Button>
+     
             <Button 
               variant="ghost" 
               size="icon" 
@@ -890,12 +885,6 @@ export default function ChatDetailPage() {
               placeholder="Type a message"
               value={message}
               onChange={handleInputChange}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  sendMessage();
-                }
-              }}
               className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-32 overflow-hidden"
               rows={1}
               disabled={sending}

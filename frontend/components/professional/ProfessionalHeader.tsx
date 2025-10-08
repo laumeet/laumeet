@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import api from '@/lib/axio';
 import { useProfile } from '@/hooks/get-profile';
 import { Button } from '../ui/button';
+import { useSocketContext } from '@/lib/socket-context';
 
 interface ProfessionalHeaderProps {
   activeTab: string;
@@ -35,7 +36,7 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
   };
  const { profile, loading, error, refetch } = useProfile();
 
-
+  const { socket, disconnect } = useSocketContext();
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -52,7 +53,9 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
     setLogoutLoading(true);
     try {
       const response = await api.post("/auth/logout");
-
+      if (socket && socket.connected) {
+      disconnect(); // close the socket gracefully
+    }
       if (response.data.success) {
         toast.success("Logged out successfully");
         

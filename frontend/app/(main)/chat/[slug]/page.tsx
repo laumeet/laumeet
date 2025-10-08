@@ -16,11 +16,9 @@ import {
   Info,
   Video,
   Phone,
-
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-
 import api from '@/lib/axio';
 import { useSocketContext } from '@/lib/socket-context';
 import { useProfile } from '@/hooks/get-profile';
@@ -93,12 +91,10 @@ export default function ChatDetailPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [typingUser, setTypingUser] = useState<string>('');
   const [onlineStatus, setOnlineStatus] = useState<boolean>(true);
 
   // Reply states
@@ -114,6 +110,7 @@ export default function ChatDetailPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Swipe states
@@ -121,11 +118,11 @@ export default function ChatDetailPage() {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [swipingMessageId, setSwipingMessageId] = useState<string | number | null>(null);
 
-  // socket - FIXED: use useSocketContext instead of useSocket
+  // socket
   const { socket, isConnected: socketConnected, onlineUsers } = useSocketContext();
-
   const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
-const { profile } = useProfile();
+  const { profile } = useProfile();
+
   // -----------------------------
   // Formatting helpers
   // -----------------------------
@@ -253,7 +250,7 @@ const { profile } = useProfile();
   };
 
   // -----------------------------
-  // Socket Connection & Event Handlers - FIXED VERSION
+  // Socket Connection & Event Handlers
   // -----------------------------
   useEffect(() => {
     if (!socket || !conversation) {
@@ -272,12 +269,29 @@ const { profile } = useProfile();
       }
     };
 
-    // Join room immediately and on reconnect
+    // Join room immediately
     joinRoom();
-    socket.on('connect', joinRoom);
 
+    // Debounced join room on reconnect to prevent duplicates
+    let reconnectTimer: NodeJS.Timeout;
+    const handleReconnect = () => {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        joinRoom();
+      }, 1000);
+    };
+
+    socket.on('connect', handleReconnect);
+
+    // Event handlers
     const handleNewMessage = (newMessage: any) => {
       console.log('📨 New message received:', newMessage);
+      
+      // Only add message if it belongs to current conversation
+      if (String(newMessage.conversation_id) !== String(conversation.id)) {
+        console.log('📨 Message for different conversation, ignoring');
+        return;
+      }
       
       setMessages(prev => {
         const exists = prev.some(msg => String(msg.id) === String(newMessage.id));
@@ -289,7 +303,7 @@ const { profile } = useProfile();
         console.log('📨 Adding new message to state');
         return [...prev, {
           ...newMessage,
-          status: newMessage.is_read ? 'read' : 'sent'
+          status: newMessage.is_read ? 'read' : (!onlineStatus ? 'sent' : 'delivered')
         }];
       });
 
@@ -301,7 +315,6 @@ const { profile } = useProfile();
           conversation_id: conversation.id
         });
       }
-
       scrollToBottom();
     };
 
@@ -312,22 +325,19 @@ const { profile } = useProfile();
         console.log('⌨️ Typing from different user, ignoring');
         return;
       }
-
-      setTypingUser(data.username);
+      
       setIsTyping(data.is_typing);
-
+      
       if (data.is_typing) {
         console.log('⌨️ User started typing');
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = setTimeout(() => {
           console.log('⌨️ Typing timeout - stopping');
           setIsTyping(false);
-          setTypingUser('');
         }, 3000);
       } else {
         console.log('⌨️ User stopped typing');
         setIsTyping(false);
-        setTypingUser('');
       }
     };
 
@@ -398,16 +408,21 @@ const { profile } = useProfile();
     return () => {
       console.log('🧹 Cleaning up socket event listeners');
       
-      socket.off('connect', joinRoom);
+      socket.off('connect', handleReconnect);
       socket.off('new_message', handleNewMessage);
       socket.off('user_typing', handleTyping);
       socket.off('user_online_status', handleOnlineStatus);
       socket.off('message_status_update', handleMessageStatusUpdate);
       socket.off('joined_conversation', handleJoinedConversation);
-
+      
+      clearTimeout(reconnectTimer);
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = null;
+      }
+      if (typingDebounceRef.current) {
+        clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = null;
       }
     };
   }, [socket, conversation, profile?.id]);
@@ -425,8 +440,7 @@ const { profile } = useProfile();
   // Typing Indicator Functions
   // -----------------------------
   const handleTypingStart = useCallback(() => {
-    if (!socket || !conversation) {
-      console.log('🚫 Cannot send typing start - socket or conversation not available');
+    if (!socket || !conversation || isTyping) {
       return;
     }
     
@@ -435,11 +449,10 @@ const { profile } = useProfile();
       conversation_id: conversation.id,
       is_typing: true
     });
-  }, [socket, conversation]);
+  }, [socket, conversation, isTyping]);
 
   const handleTypingStop = useCallback(() => {
-    if (!socket || !conversation) {
-      console.log('🚫 Cannot send typing stop - socket or conversation not available');
+    if (!socket || !conversation || !isTyping) {
       return;
     }
     
@@ -448,13 +461,18 @@ const { profile } = useProfile();
       conversation_id: conversation.id,
       is_typing: false
     });
-  }, [socket, conversation]);
+  }, [socket, conversation, isTyping]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value);
 
+    // Debounced typing start
+    if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+    
     if (e.target.value.trim() && !isTyping) {
-      handleTypingStart();
+      typingDebounceRef.current = setTimeout(() => {
+        handleTypingStart();
+      }, 500);
     }
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -534,13 +552,18 @@ const { profile } = useProfile();
 
   const sendMessage = async () => {
     if (!message.trim() || !conversation || sending) return;
-
     const content = message.trim();
     setSending(true);
+    
+    
+    setMessage('');
+    setReplyTo(null);
+    setShowReplyPreview(false);
+    scrollToBottom();
 
     try {
       handleTypingStop();
-
+      
       if (socket && socketConnected) {
         console.log('📤 Sending via socket');
         socket.emit('send_message', {
@@ -549,13 +572,15 @@ const { profile } = useProfile();
           reply_to: replyTo ? String(replyTo.id) : null
         });
       } else {
-        console.log('📤 Sending via HTTP API');
-        const response = await api.post(`/chat/messages/send?${conversation.id}`, {
+        console.log('📤 Sending via HTTP API - socket not available');
+        const response = await api.post('/chat/messages/send', {
+          conversation_id: conversation.id,
           content,
           reply_to: replyTo ? String(replyTo.id) : null
         });
-
+        
         if (response.data.success) {
+          // Remove temp message and fetch fresh messages
           setMessages(prev => prev.filter(m => !isTempId(m.id)));
           await fetchMessagesById(conversation.id);
           await fetchConversationById(conversation.id);
@@ -566,10 +591,9 @@ const { profile } = useProfile();
     } catch (err: any) {
       console.error('❌ Error sending message:', err);
       setError(err.response?.data?.message || 'Failed to send message');
+      // Remove temp message on error
       setMessages(prev => prev.filter(m => !isTempId(m.id)));
     } finally {
-      setMessage('')
-      cancelReply()
       setSending(false);
     }
   };
@@ -617,6 +641,25 @@ const { profile } = useProfile();
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
     }
   }, [message]);
+
+  // -----------------------------
+  // Typing Bubble Component
+  // -----------------------------
+  const TypingBubble = () => (
+    <div className="flex justify-start">
+      <div className="max-w-[70%] mr-12">
+        <div className="bg-white dark:bg-gray-700 px-4 py-3 rounded-lg rounded-bl-none shadow-sm">
+          <div className="flex items-center space-x-2">
+            <div className="flex space-x-1">
+              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   // -----------------------------
   // UI Render
@@ -782,7 +825,7 @@ const { profile } = useProfile();
                           {isOwn && (
                             <span className="flex items-center" style={{ fontSize: '11px' }}>
                               {msg.status === 'read' ? (
-                                <CheckCheck size={14} className="text-white" />
+                                <CheckCheck size={14} className="text-[blue]" />
                               ) : msg.status === 'delivered' ? (
                                 <CheckCheck size={14} className="text-white/80" />
                               ) : (
@@ -800,24 +843,7 @@ const { profile } = useProfile();
           )}
 
           {/* Typing Indicator */}
-          {isTyping && (
-            <div className="flex justify-start">
-              <div className="max-w-[70%] mr-12">
-                <div className="bg-white dark:bg-gray-700 px-3 py-2 rounded-lg rounded-bl-none shadow-sm">
-                  <div className="flex items-center space-x-2">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-                    </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {typingUser} is typing...
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {isTyping && <TypingBubble />}
 
           <div ref={messagesEndRef} />
         </div>
@@ -856,9 +882,7 @@ const { profile } = useProfile();
         )}
 
         <div className="flex items-end space-x-2 max-w-3xl mx-auto">
-          <Button variant="ghost" size="icon" className="flex-none hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400">
-            <Paperclip className="h-5 w-5" />
-          </Button>
+
 
           <div className="flex-1 relative">
             <textarea
@@ -866,15 +890,18 @@ const { profile } = useProfile();
               placeholder="Type a message"
               value={message}
               onChange={handleInputChange}
-             
-              className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-[50px] overflow-hidden"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+              className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-32 overflow-hidden"
               rows={1}
               disabled={sending}
               style={{ overflow: 'hidden' }}
             />
-            <Button variant="ghost" size="icon" className="absolute right-2 bottom-2 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-400">
-              <Smile className="h-5 w-5" />
-            </Button>
+           
           </div>
 
           <Button

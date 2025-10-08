@@ -111,20 +111,12 @@ export default function ChatPage() {
     }
   }, [onlineUsers, pinnedConversations]);
 
-  // Initial fetch and refetch when socket connects
+  // Initial fetch
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
 
-  // Refetch conversations when socket connects
-  useEffect(() => {
-    if (isConnected) {
-      console.log('🔄 Socket connected, refreshing conversations...');
-      fetchConversations();
-    }
-  }, [isConnected, fetchConversations]);
-
-  // Socket event handlers for real-time updates - FIXED VERSION
+  // Socket event handlers for real-time updates
   useEffect(() => {
     if (!socket || !isConnected) {
       console.log('🚫 Socket not available, skipping event listeners');
@@ -152,7 +144,7 @@ export default function ChatPage() {
             last_message_id: message.id,
             last_message_sender_id: message.sender_id,
             last_message_status: "sent",
-            unread_count: message.sender_id !== conversation.other_user.id ? 
+            unread_count: message.sender_id === conversation.other_user.id ? 
               conversation.unread_count + 1 : conversation.unread_count
           };
 
@@ -205,6 +197,19 @@ export default function ChatPage() {
             : c
         )
       );
+
+      // Auto-clear typing after 3 seconds
+      if (data.is_typing) {
+        setTimeout(() => {
+          setConversations(prev =>
+            prev.map(c =>
+              c.id === data.conversation_id && c.typing
+                ? { ...c, typing: false, typing_user: undefined }
+                : c
+            )
+          );
+        }, 3000);
+      }
     };
 
     // Handle online status updates
@@ -249,18 +254,12 @@ export default function ChatPage() {
       );
     };
 
-    // Handle connection success
-    const handleConnectionSuccess = (data: any) => {
-      console.log('✅ Socket connection authenticated in list:', data);
-    };
-
     // Register event listeners
     socket.on('new_message', handleNewMessage);
     socket.on('conversation_update', handleConversationUpdate);
     socket.on('user_typing', handleTyping);
     socket.on('user_online_status', handleOnlineStatus);
     socket.on('message_status_update', handleMessageStatusUpdate);
-    socket.on('connection_success', handleConnectionSuccess);
 
     // Cleanup
     return () => {
@@ -270,7 +269,6 @@ export default function ChatPage() {
       socket.off('user_typing', handleTyping);
       socket.off('user_online_status', handleOnlineStatus);
       socket.off('message_status_update', handleMessageStatusUpdate);
-      socket.off('connection_success', handleConnectionSuccess);
     };
   }, [socket, isConnected, pinnedConversations, fetchConversations]);
 
@@ -352,7 +350,6 @@ export default function ChatPage() {
     }
     
     // Check if the last message was sent by the current user
-    // This would need to be adjusted based on how you identify the current user
     const isCurrentUserMessage = conversation.last_message_sender_id && 
                                  conversation.last_message_sender_id !== conversation.other_user.id;
     
@@ -416,9 +413,8 @@ export default function ChatPage() {
   return (
     <div className="h-screen bg-white dark:bg-gray-900 flex flex-col">
       {/* Header */}
-      <div className="text-white px-4 py-4">
-   
-        
+      <div className=" text-white px-4 py-4">
+
         {/* Search Bar */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -430,8 +426,6 @@ export default function ChatPage() {
           />
         </div>
       </div>
-
- 
 
       {error && (
         <div className="p-4">

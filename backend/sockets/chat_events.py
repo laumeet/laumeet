@@ -22,8 +22,6 @@ from sockets import socketio, online_users
 def register_socket_events():
     """Register all SocketIO event handlers with the application"""
     print("🔧 Socket.IO event handlers registered successfully")
-    # All @socketio.on decorators below are automatically registered
-    # This function just serves as an import trigger and confirmation
 
 
 # -------------------------------------------------
@@ -37,6 +35,7 @@ def broadcast_online_status(user_id, is_online):
 
         user = User.query.get(user_id)
         if not user:
+            print(f"❌ No user found with ID {user_id}")
             return
 
         payload = {
@@ -46,14 +45,24 @@ def broadcast_online_status(user_id, is_online):
             "timestamp": datetime.utcnow().isoformat() + "Z",
         }
 
+        print(f"🟢 Broadcasting status for {user.username}: {is_online}")
+        print(f"Conversations found: {[c.id for c in conversations]}")
+
         for convo in conversations:
+            # Identify the other user in the conversation
             other_user_id = (
                 convo.user2_id if convo.user1_id == user_id else convo.user1_id
             )
-            emit("user_online_status", payload, room=f"user_{other_user_id}")
-            emit("user_online_status", payload, room=f"conversation_{convo.id}")
 
-        print(f"📢 Online status broadcast: {user.username} -> {is_online}")
+            # Notify the other user about this user's status
+            emit("user_online_status", payload, room=f"user_{other_user_id}")
+            print(f"📡 Emitting to user_{other_user_id}")
+
+            # Also notify anyone in the conversation room
+            emit("user_online_status", payload, room=f"conversation_{convo.id}")
+            print(f"📡 Emitting to conversation_{convo.id}")
+
+        print(f"✅ Broadcast complete: {user.username} -> {is_online}")
 
     except Exception as e:
         print(f"❌ Online status broadcast error: {e}")
@@ -67,8 +76,6 @@ def broadcast_online_status(user_id, is_online):
 def handle_connect():
     print(f"🔗 Socket connected (SID: {flask_request.sid})")
     print(f"🔍 Query Params: {flask_request.args}")
-    print(f"🔍 Headers: {dict(flask_request.headers)}")
-    print(f"🔍 Cookies: {flask_request.cookies}")
 
     # ✅ 1. Read token from query string
     token = flask_request.args.get("token")
@@ -81,8 +88,8 @@ def handle_connect():
 
     # ✅ 3. Abort if token missing
     if not token:
-        print("💥 Missing JWT in query, cookies, or headers")
-        return False  # ❌ disconnect socket
+        print("💥 Missing JWT in query or headers")
+        return False
 
     try:
         # ✅ 4. Decode and authenticate
@@ -106,14 +113,48 @@ def handle_connect():
         }
 
         join_room(f"user_{user.id}")
+        
+        # Send online status of all users in conversations to this newly connected user
+        send_initial_online_statuses(user.id)
+        
+        # Broadcast that this user is now online
         broadcast_online_status(user.id, True)
 
         print(f"✅ Authenticated socket for user: {user.username} ({user.public_id})")
+        return True
 
     except Exception as e:
         print(f"❌ Invalid JWT or decode error: {e}")
         traceback.print_exc()
         return False
+
+
+def send_initial_online_statuses(user_id):
+    """Send online status of all users in conversations to the newly connected user"""
+    try:
+        conversations = Conversation.query.filter(
+            or_(Conversation.user1_id == user_id, Conversation.user2_id == user_id)
+        ).all()
+
+        for convo in conversations:
+            other_user_id = (
+                convo.user2_id if convo.user1_id == user_id else convo.user1_id
+            )
+            other_user = User.query.get(other_user_id)
+            
+            if other_user:
+                payload = {
+                    "user_id": other_user.public_id,
+                    "username": other_user.username,
+                    "is_online": other_user.is_online,
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                }
+                emit("user_online_status", payload, room=f"user_{user_id}")
+                print(f"📡 Sent initial status for {other_user.username} to user_{user_id}")
+
+    except Exception as e:
+        print(f"❌ Error sending initial online statuses: {e}")
+        traceback.print_exc()
 
 
 @socketio.on("disconnect")
@@ -172,6 +213,7 @@ def handle_join_conversation(data):
         room = f"conversation_{conversation_id}"
         join_room(room)
 
+        # Mark unread messages as read
         unread = Message.query.filter(
             Message.conversation_id == conversation_id,
             Message.sender_id != user_id,
@@ -183,6 +225,15 @@ def handle_join_conversation(data):
                 msg.mark_read()
                 db.session.add(msg)
             db.session.commit()
+
+            # Emit message status updates for all read messages
+            for msg in unread:
+                emit("message_status_update", {
+                    "message_id": msg.id,
+                    "conversation_id": conversation_id,
+                    "status": "read",
+                    "read_at": msg.read_at.isoformat() + "Z" if msg.read_at else None
+                }, room=f"conversation_{conversation_id}")
 
         emit("joined_conversation", {"conversation_id": conversation_id})
         print(f"✅ User {user_id} joined {room}")
@@ -214,7 +265,7 @@ def handle_send_message(data):
             emit("error", {"message": "Invalid message"})
             return
 
-        user_id, _, error = get_authenticated_user_from_socket(online_users, flask_request)
+        user_id, user_data, error = get_authenticated_user_from_socket(online_users, flask_request)
         if not user_id:
             emit("error", {"message": error})
             return
@@ -224,12 +275,21 @@ def handle_send_message(data):
             emit("error", {"message": error})
             return
 
+        # Create message with initial status
         msg = Message(
             conversation_id=conversation_id,
             sender_id=user_id,
             content=content,
             timestamp=datetime.utcnow(),
+            delivered_at=None,
+            read_at=None,
+            is_read=False
         )
+
+        # Handle reply if present
+        reply_to_id = data.get("reply_to")
+        if reply_to_id:
+            msg.reply_to_id = reply_to_id
 
         db.session.add(msg)
         convo.last_message = content
@@ -239,10 +299,88 @@ def handle_send_message(data):
 
         payload = msg.to_dict()
         emit("new_message", payload, room=f"conversation_{conversation_id}")
-        print(f"💬 Message sent by {user_id} in convo {conversation_id}")
+        print(f"💬 Message sent by {user_data['username']} in convo {conversation_id}")
 
     except Exception as e:
         print(f"❌ Send error: {e}")
+        traceback.print_exc()
+
+
+@socketio.on("message_delivered")
+def handle_message_delivered(data):
+    try:
+        message_id = data.get("message_id")
+        conversation_id = data.get("conversation_id")
+        
+        if not message_id or not conversation_id:
+            return
+
+        user_id, user_data, error = get_authenticated_user_from_socket(online_users, flask_request)
+        if not user_id:
+            return
+
+        # Mark message as delivered (only if not sender)
+        message = Message.query.get(message_id)
+        if message and message.sender_id != user_id:
+            if not message.delivered_at:
+                message.delivered_at = datetime.utcnow()
+                db.session.commit()
+                
+                emit("message_status_update", {
+                    "message_id": message_id,
+                    "conversation_id": conversation_id,
+                    "status": "delivered",
+                    "delivered_at": message.delivered_at.isoformat() + "Z"
+                }, room=f"conversation_{conversation_id}")
+                
+                print(f"📬 Message {message_id} marked as delivered by {user_data['username']}")
+
+    except Exception as e:
+        print(f"❌ Message delivered error: {e}")
+        traceback.print_exc()
+
+
+@socketio.on("read_messages")
+def handle_read_messages(data):
+    try:
+        conversation_id = data.get("conversation_id")
+        message_ids = data.get("message_ids", [])
+        
+        if not conversation_id:
+            return
+
+        user_id, user_data, error = get_authenticated_user_from_socket(online_users, flask_request)
+        if not user_id:
+            return
+
+        # If no specific message IDs provided, mark all unread messages in conversation as read
+        if not message_ids:
+            unread_messages = Message.query.filter(
+                Message.conversation_id == conversation_id,
+                Message.sender_id != user_id,
+                Message.is_read == False
+            ).all()
+            message_ids = [msg.id for msg in unread_messages]
+
+        # Mark messages as read
+        for msg_id in message_ids:
+            message = Message.query.get(msg_id)
+            if message and message.sender_id != user_id and not message.is_read:
+                message.mark_read()
+                db.session.add(message)
+                
+                emit("message_status_update", {
+                    "message_id": msg_id,
+                    "conversation_id": conversation_id,
+                    "status": "read",
+                    "read_at": message.read_at.isoformat() + "Z" if message.read_at else None
+                }, room=f"conversation_{conversation_id}")
+        
+        db.session.commit()
+        print(f"📖 {len(message_ids)} messages marked as read by {user_data['username']}")
+
+    except Exception as e:
+        print(f"❌ Read messages error: {e}")
         traceback.print_exc()
 
 

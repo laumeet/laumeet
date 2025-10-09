@@ -15,7 +15,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     console.log("🔧 Explore profiles request cookies:", req.headers.cookie);
-    
     const backendRes = await fetch(`${BACKEND_URL}/protected`, {
       method: "GET",
       headers: {

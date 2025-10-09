@@ -41,7 +41,7 @@ export interface Conversation {
 
 export default function ChatPage() {
   const router = useRouter();
-  const { socket, isConnected, onlineUsers, connectionError } = useSocketContext();
+  const { socket, isConnected, onlineUsers } = useSocketContext();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

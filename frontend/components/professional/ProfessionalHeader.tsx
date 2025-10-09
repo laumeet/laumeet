@@ -34,7 +34,7 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
     };
     return config[activeTab as keyof typeof config] || config.feed;
   };
- const { profile, loading, error, refetch } = useProfile();
+ const { profile } = useProfile();
 
   const { socket, disconnect } = useSocketContext();
   useEffect(() => {

@@ -1,7 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import React, { createContext, useContext, useEffect, ReactNode, useCallback, useState } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  ReactNode,
+  useCallback,
+  useState,
+  useMemo,
+} from 'react';
 import { Socket } from 'socket.io-client';
 import { useSocket } from '@/hooks/useSocket';
 import { useProfile } from '@/hooks/get-profile';
@@ -23,14 +31,29 @@ interface SocketProviderProps {
 }
 
 export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
+  // ✅ All hooks declared unconditionally
   const { socket, isConnected, connectionError, reconnect, disconnect, onlineUsers: initialOnlineUsers } = useSocket();
+  const { profile } = useProfile();
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(initialOnlineUsers);
-  const {profile} = useProfile(); // useProfile is a hook that fetches the current user's profile
-  const userId = profile?.id
-  // 🔹 Handle user_online_status updates from server
+  const [isAuthPage, setIsAuthPage] = useState(false);
+
+  const userId = profile?.id;
+
+  // ✅ Determine if current page is unauthenticated (login/signup/root)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      setIsAuthPage(['/login', '/signup', '/'].includes(path));
+    }
+  }, []);
+
+  // ✅ Do not run socket-related effects when on auth pages or without user
+  const shouldUseSocket = !isAuthPage && !!userId;
+
+  // 🔹 Handle user_online_status updates
   const handleOnlineStatus = useCallback((data: any) => {
     console.log('👤 Global online status update:', data);
-    setOnlineUsers(prev => {
+    setOnlineUsers((prev) => {
       const updated = new Set(prev);
       if (data.is_online) {
         updated.add(data.user_id);
@@ -41,64 +64,57 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     });
   }, []);
 
-  // 🔹 Emit user online when socket connects
+  // 🔹 Emit online when connected
   useEffect(() => {
-    if (socket && isConnected && userId) {
-      console.log('✅ Socket connected — marking user online:', userId);
-      socket.emit('set_online', { user_id: userId, is_online: true });
-    }
-  }, [socket, isConnected, userId]);
+    if (!shouldUseSocket || !socket || !isConnected || !userId) return;
+    console.log('✅ Socket connected — marking user online:', userId);
+    socket.emit('set_online', { user_id: userId, is_online: true });
+  }, [shouldUseSocket, socket, isConnected, userId]);
 
-  // 🔹 Emit offline before disconnect/unload
+  // 🔹 Emit offline before unload
   useEffect(() => {
+    if (!shouldUseSocket || !socket || !userId) return;
     const handleBeforeUnload = () => {
-      if (socket && userId) {
-        socket.emit('set_online', { user_id: userId, is_online: false });
-      }
+      socket.emit('set_online', { user_id: userId, is_online: false });
     };
-
     window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [socket, userId]);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [shouldUseSocket, socket, userId]);
 
   // 🔹 Listen to server broadcasts
   useEffect(() => {
-    if (!socket) return;
+    if (!shouldUseSocket || !socket) return;
     socket.on('user_online_status', handleOnlineStatus);
-
     return () => {
       socket.off('user_online_status', handleOnlineStatus);
     };
-  }, [socket, handleOnlineStatus]);
+  }, [shouldUseSocket, socket, handleOnlineStatus]);
 
   // 🔹 Auto-reconnect if connection error
   useEffect(() => {
+    if (!shouldUseSocket) return;
     if (connectionError && !isConnected) {
       console.log('🔄 Connection error detected, attempting reconnect...');
-      const timer = setTimeout(() => reconnect(), 3000);
+      const timer = setTimeout(reconnect, 3000);
       return () => clearTimeout(timer);
     }
-  }, [connectionError, isConnected, reconnect]);
+  }, [shouldUseSocket, connectionError, isConnected, reconnect]);
 
   // 🔹 Health check interval
   useEffect(() => {
-    if (!socket || isConnected) return;
-
-    const checkConnection = () => {
+    if (!shouldUseSocket || !socket) return;
+    const interval = setInterval(() => {
       if (!isConnected && !connectionError) {
         console.log('🔄 Connection lost, attempting to reconnect...');
         reconnect();
       }
-    };
-    const interval = setInterval(checkConnection, 10000);
+    }, 10000);
     return () => clearInterval(interval);
-  }, [socket, isConnected, connectionError, reconnect]);
+  }, [shouldUseSocket, socket, isConnected, connectionError, reconnect]);
 
-  // 🔹 Manual setter (optional)
+  // 🔹 Manual setter
   const setOnlineStatusManually = useCallback((userId: string, isOnline: boolean) => {
-    setOnlineUsers(prev => {
+    setOnlineUsers((prev) => {
       const updated = new Set(prev);
       if (isOnline) updated.add(userId);
       else updated.delete(userId);
@@ -106,26 +122,28 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     });
   }, []);
 
-  const value: SocketContextType = {
-    socket,
-    isConnected,
-    connectionError,
-    onlineUsers,
-    reconnect,
-    disconnect,
-    setOnlineStatusManually,
-  };
-
-  return (
-    <SocketContext.Provider value={value}>
-      {children}
-    </SocketContext.Provider>
+  // ✅ Memoized context value
+  const value: SocketContextType = useMemo(
+    () => ({
+      socket,
+      isConnected,
+      connectionError,
+      onlineUsers,
+      reconnect,
+      disconnect,
+      setOnlineStatusManually,
+    }),
+    [socket, isConnected, connectionError, onlineUsers, reconnect, disconnect, setOnlineStatusManually]
   );
+
+  // ✅ Always render children — no early return (no conditional hooks)
+  return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
 };
 
+// ✅ Hook for easy context use
 export const useSocketContext = (): SocketContextType => {
   const context = useContext(SocketContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useSocketContext must be used within a SocketProvider');
   }
   return context;

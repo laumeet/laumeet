@@ -66,9 +66,7 @@ export const useSocket = (): UseSocketReturn => {
       socketRef.current.disconnect();
       socketRef.current = null;
     }
-    if (tokenRef.current) {
-      tokenRef.current = null;
-    }
+    // Skip socket connection on auth pages
 
   
     if (pathname && pathname === '/login' || pathname ==='/signup' || pathname === '/') return
@@ -165,10 +163,8 @@ export const useSocket = (): UseSocketReturn => {
         return newSet;
       });
     });
-
     // Connect the socket
     socket.connect();
-
     return socket;
   }, [authenticate, backendUrl, pathname]);
 

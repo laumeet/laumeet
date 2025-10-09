@@ -21,10 +21,7 @@ export const useSocket = (): UseSocketReturn => {
   const tokenRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
-
-  // 🔁 New additions
-  const reconnectDelay = 3000; // Delay between persistent reconnects
-  const isReconnectingRef = useRef(false);
+  const maxReconnectAttempts = 3;
 
   const backendUrl =
     process.env.NODE_ENV === "production"
@@ -87,8 +84,7 @@ export const useSocket = (): UseSocketReturn => {
       reconnectionDelay: 2000,
       timeout: 30000, // Increased timeout to 30 seconds
       forceNew: true,
-      autoConnect: true,
-      closeOnBeforeunload: false, // Prevent closing on page refresh
+      autoConnect: true
     });
 
     socketRef.current = socket;
@@ -101,34 +97,21 @@ export const useSocket = (): UseSocketReturn => {
       setIsConnected(true);
       setConnectionError(null);
       reconnectAttemptsRef.current = 0;
-      isReconnectingRef.current = false;
     });
 
     socket.on("disconnect", (reason) => {
       console.warn("❌ Socket disconnected:", reason);
       setIsConnected(false);
       
-      // Persistent reconnect loop (enhanced)
-      if (reason !== "io client disconnect") {
-        if (!isReconnectingRef.current) {
-          isReconnectingRef.current = true;
-          console.log("🔄 Persistent reconnect loop started...");
-
-          const tryReconnect = async () => {
-            while (!socketRef.current?.connected) {
-              console.log("🕓 Trying to reconnect...");
-              await new Promise((res) => setTimeout(res, reconnectDelay));
-              await initializeSocket();
-              if (socketRef.current?.connected) {
-                console.log("✅ Socket reconnected successfully!");
-                isReconnectingRef.current = false;
-                break;
-              }
-            }
-          };
-
-          tryReconnect();
-        }
+      // Auto-reconnect on unexpected disconnects
+      if (reason !== "io client disconnect" && reconnectAttemptsRef.current < maxReconnectAttempts) {
+        reconnectAttemptsRef.current++;
+        console.log(`🔄 Auto-reconnecting... Attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts}`);
+        setTimeout(() => {
+          if (!socketRef.current?.connected) {
+            initializeSocket();
+          }
+        }, 3000);
       }
     });
 
@@ -137,25 +120,15 @@ export const useSocket = (): UseSocketReturn => {
       setIsConnected(false);
       setConnectionError(err.message);
       
-      // Persistent reconnect loop on error
-      if (!isReconnectingRef.current) {
-        isReconnectingRef.current = true;
-        console.log("🔁 Starting persistent reconnect after connection error...");
-
-        const tryReconnect = async () => {
-          while (!socketRef.current?.connected) {
-            console.log("🔁 Retrying socket connection...");
-            await new Promise((res) => setTimeout(res, reconnectDelay));
-            await initializeSocket();
-            if (socketRef.current?.connected) {
-              console.log("✅ Reconnected after error!");
-              isReconnectingRef.current = false;
-              break;
-            }
+      // Auto-retry on connection errors
+      if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+        reconnectAttemptsRef.current++;
+        console.log(`🔄 Connection error - retrying... Attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts}`);
+        setTimeout(() => {
+          if (!socketRef.current?.connected) {
+            initializeSocket();
           }
-        };
-
-        tryReconnect();
+        }, 5000);
       }
     });
 
@@ -198,7 +171,6 @@ export const useSocket = (): UseSocketReturn => {
     console.log("🔄 Manual reconnect requested");
     initializedRef.current = false;
     reconnectAttemptsRef.current = 0;
-    isReconnectingRef.current = false;
     await initializeSocket();
   }, [initializeSocket]);
 
@@ -206,21 +178,10 @@ export const useSocket = (): UseSocketReturn => {
     console.log("🔌 Disconnecting socket...");
     initializedRef.current = false;
     reconnectAttemptsRef.current = 0;
-    isReconnectingRef.current = false;
-
     if (socketRef.current) {
-      // 🔥 Emit disconnect event before closing
-      try {
-        socketRef.current.emit("manual_disconnect");
-      } catch (err) {
-        console.warn("⚠️ Error emitting manual_disconnect:", err);
-      }
-
       socketRef.current.disconnect();
-      socketRef.current.removeAllListeners();
       socketRef.current = null;
     }
-
     setIsConnected(false);
     setOnlineUsers(new Set());
   }, []);
@@ -236,26 +197,8 @@ export const useSocket = (): UseSocketReturn => {
     
     init();
 
-    // Handle network online/offline events
-    const handleOnline = () => {
-      console.log("🌐 Network online — ensuring socket connection...");
-      if (!socketRef.current?.connected) {
-        initializeSocket();
-      }
-    };
-
-    const handleOffline = () => {
-      console.log("📴 Network offline — pausing reconnection attempts.");
-      setIsConnected(false);
-    };
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
     return () => {
       mounted = false;
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
       console.log("🧹 Component unmounted, keeping socket connection alive");
     };
   }, [initializeSocket]);

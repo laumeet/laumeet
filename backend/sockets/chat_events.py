@@ -383,13 +383,6 @@ def handle_read_messages(data):
         print(f"❌ Read messages error: {e}")
         traceback.print_exc()
 
-        
-@socketio.on("set_online")
-def handle_set_online(data):
-    user_id = data.get("user_id")
-    is_online = data.get("is_online", False)
-    emit("user_online_status", {"user_id": user_id, "is_online": is_online}, broadcast=True)
-
 
 @socketio.on("typing")
 def handle_typing(data):

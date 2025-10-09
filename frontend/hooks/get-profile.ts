@@ -37,13 +37,30 @@ export const useProfile = () => {
         setError(response.data.message);
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to fetch profile');
+      // ✅ Handle unauthenticated access gracefully
+      if (err.response?.status === 401) {
+        console.warn('⚠️ Not authenticated — skipping profile fetch.');
+        setProfile(null);
+        setError(null);
+      } else {
+        setError(err.response?.data?.message || 'Failed to fetch profile');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    // ✅ Skip fetching profile on auth pages
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      const isAuthPage = ['/login', '/signup', '/'].includes(path);
+      if (isAuthPage) {
+        setLoading(false);
+        return;
+      }
+    }
+
     fetchProfile();
   }, []);
 

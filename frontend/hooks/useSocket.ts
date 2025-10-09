@@ -22,7 +22,7 @@ export const useSocket = (): UseSocketReturn => {
   const initializedRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 3;
-
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
   const backendUrl =
     process.env.NODE_ENV === "production"
       ? "https://laumeet.onrender.com"
@@ -66,7 +66,12 @@ export const useSocket = (): UseSocketReturn => {
       socketRef.current.disconnect();
       socketRef.current = null;
     }
+    if (tokenRef.current) {
+      tokenRef.current = null;
+    }
 
+  
+    if (pathname && pathname === '/login' || pathname ==='/signup' || pathname === '/') return
     const token = await authenticate();
     if (!token) {
       console.log("❌ Auth failed. Socket not connecting.");
@@ -165,7 +170,7 @@ export const useSocket = (): UseSocketReturn => {
     socket.connect();
 
     return socket;
-  }, [authenticate, backendUrl]);
+  }, [authenticate, backendUrl, pathname]);
 
   const reconnect = useCallback(async () => {
     console.log("🔄 Manual reconnect requested");

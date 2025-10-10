@@ -102,11 +102,6 @@ export const feedApi = {
   // Upload
   uploadImage: (formData: FormData) =>
     api.post('upload', formData),
-  getComments: (postId: string, page: number = 1, per_page: number = 50) =>
-    api.get(`feed/posts/${postId}/comments?page=${page}&per_page=${per_page}`),
-
-  createComment: (postId: string, text: string) =>
-    api.post(`feed/posts/${postId}/comments`, { text }),
 };
 
 export default api;

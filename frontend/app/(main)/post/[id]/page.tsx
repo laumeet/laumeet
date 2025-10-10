@@ -44,8 +44,6 @@ interface Post {
   has_liked: boolean;
 }
 
-"use client";
-
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
@@ -53,11 +51,8 @@ export default function PostPage() {
   const params = useParams();
   const router = useRouter();
 
-
-
-  // ✅ Handle the possibility of `params` being null or undefined
   if (!params || !params.id) {
-    return <div>Loading...</div>; // or a proper fallback UI
+    return <div>Loading...</div>;
   }
 
   const postId = params.id as string;
@@ -69,11 +64,6 @@ export default function PostPage() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [liking, setLiking] = useState(false);
 
-  useEffect(() => {
-    if (postId) {
-      loadPostAndComments();
-    }
-  }, [postId]);
 
   const loadPostAndComments = async () => {
     try {

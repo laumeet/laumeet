@@ -44,9 +44,6 @@ interface Post {
   has_liked: boolean;
 }
 
-import { useParams, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-
 export default function PostPage() {
   const params = useParams();
   const router = useRouter();

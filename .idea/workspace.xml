@@ -4,26 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="FINISH THE WHOLE FEED PAGE">
-      <change afterPath="$PROJECT_DIR$/backend/routes/feed_routes.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/app/(main)/post/[id]/page.tsx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/components/comment-modal.tsx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/pages/api/feed/[...path].ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/pages/api/feed/posts.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/pages/api/feed/posts/[id]/comments.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/pages/api/feed/posts/[id]/like.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/pages/api/upload.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/material_theme_project_new.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/material_theme_project_new.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/models/user.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/user.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/app/(main)/create-post/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/(main)/create-post/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/app/(main)/feed/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/(main)/feed/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/app/layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/layout.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/lib/axio.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/axio.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
-    </list>
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="FINISH THE WHOLE FEED PAGE" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -468,7 +449,23 @@
       <option name="project" value="LOCAL" />
       <updated>1760121107995</updated>
     </task>
-    <option name="localTasksCounter" value="45" />
+    <task id="LOCAL-00045" summary="FINISH THE WHOLE FEED PAGE">
+      <option name="closed" value="true" />
+      <created>1760122092396</created>
+      <option name="number" value="00045" />
+      <option name="presentableId" value="LOCAL-00045" />
+      <option name="project" value="LOCAL" />
+      <updated>1760122092396</updated>
+    </task>
+    <task id="LOCAL-00046" summary="FINISH THE WHOLE FEED PAGE">
+      <option name="closed" value="true" />
+      <created>1760122389214</created>
+      <option name="number" value="00046" />
+      <option name="presentableId" value="LOCAL-00046" />
+      <option name="project" value="LOCAL" />
+      <updated>1760122389214</updated>
+    </task>
+    <option name="localTasksCounter" value="47" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

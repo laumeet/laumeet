@@ -139,25 +139,6 @@ def create_app(config_name=None):
         return jsonify({"success": True, "user": user.to_dict()})
     
 
-    @app.route("/admin/users", methods=["GET"])
-    @jwt_required()
-    def get_all_users():
-        public_id = get_jwt_identity()
-        current_user = User.query.filter_by(public_id=public_id).first()
-
-        if not current_user:
-            return jsonify({"success": False, "message": "User not found"}), 404
-
-        if not current_user.is_admin:
-            return jsonify({"success": False, "message": "Access denied: Admins only"}), 403
-
-        users = User.query.all()
-        return jsonify({
-            "success": True,
-            "total_users": len(users),
-            "users": [user.to_dict() for user in users]
-        }), 200
-
     # ✅ FIXED: Better health check endpoint
     @app.route("/health")
     def health_check():

@@ -14,7 +14,7 @@ POST  http://localhost:3000/api/auth/signup
 Content-Type: application/json
 
 {
-    "username": "Samuel",
+    "username": "cameron",
     "password": "helloE@123",
     "security_question": "Who is your mother",
     "security_answer":"Hello",
@@ -22,16 +22,139 @@ Content-Type: application/json
     "gender":"male"
 }
 ###
+POST  http://localhost:3000/api/auth/login
+Content-Type: application/json
+
+{
+    "username": "cameron",
+    "password": "helloE@123"
+}
+###
 GET https://laumeet.onrender.com/debug/auth
 ###
 GET  http://127.0.0.1:5000/profile
 Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc1OTg0NTQ2OSwianRpIjoiNDgzNzU1MTMtZGRiMS00NzBlLTkwMTktYjlmYWFjYzkzOGI2IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjJiNGI5NWYxLWZlYjQtNGMzZC05OTAzLWI1ZWFhODAzMGFjMiIsIm5iZiI6MTc1OTg0NTQ2OSwiZXhwIjoxNzU5OTMxODY5fQ.mmVw2t0PKxYXY6ZLjCEsl-9ISZ_zKJfS3hz-SrMicyE
 ###
-GET  http://127.0.0.1:5000//health
-Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc1OTg0NTQ2OSwianRpIjoiNDgzNzU1MTMtZGRiMS00NzBlLTkwMTktYjlmYWFjYzkzOGI2IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjJiNGI5NWYxLWZlYjQtNGMzZC05OTAzLWI1ZWFhODAzMGFjMiIsIm5iZiI6MTc1OTg0NTQ2OSwiZXhwIjoxNzU5OTMxODY5fQ.mmVw2t0PKxYXY6ZLjCEsl-9ISZ_zKJfS3hz-SrMicyE
-# Content-Type: application/json
+GET http://127.0.0.1:5000/plans
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDEyNjcyNSwianRpIjoiMTQxYWVjOGUtMzM3Zi00NzA3LWExYzUtMzkyODI3NDZlYjMxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDEyNjcyNSwiZXhwIjoxNzYwMjEzMTI1fQ.pd1Z4BAZdFRaUDHUDJf4ZwFjF1AleMYCiP2axJ8Votk
+Content-Type: application/json
+###
+GET http://127.0.0.1:5000/plans/d3716abf-a51b-4171-8968-e1a2ae8e5b18
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDEyNjcyNSwianRpIjoiMTQxYWVjOGUtMzM3Zi00NzA3LWExYzUtMzkyODI3NDZlYjMxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDEyNjcyNSwiZXhwIjoxNzYwMjEzMTI1fQ.pd1Z4BAZdFRaUDHUDJf4ZwFjF1AleMYCiP2axJ8Votk
+Content-Type: application/json
 
-# {
-#     "username": "hello",
-#     "password": "helloE@123"
-# }
+###
+POST http://127.0.0.1:5000/plans
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDEyNjcyNSwianRpIjoiMTQxYWVjOGUtMzM3Zi00NzA3LWExYzUtMzkyODI3NDZlYjMxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDEyNjcyNSwiZXhwIjoxNzYwMjEzMTI1fQ.pd1Z4BAZdFRaUDHUDJf4ZwFjF1AleMYCiP2axJ8Votk
+Content-Type: application/json
+
+{
+    "name": "Free",
+    "tier": "free",
+    "description": "Advanced features for power users",
+    "monthly_price": 0.99,
+    "yearly_price": 0.99,
+    "currency": "NGN",
+    "max_messages": -1,
+    "max_likes": -1,
+    "max_swipes": -1,
+    "has_advanced_filters": true,
+    "has_priority_matching": true,
+    "has_read_receipts": true,
+    "can_see_who_liked_you": true,
+    "can_rewind_swipes": true,
+    "is_popular": true
+}
+###
+PUT http://127.0.0.1:5000/plans/a0ef5cc2-5b74-4d79-83cf-f31179a02bc4
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDEyNjcyNSwianRpIjoiMTQxYWVjOGUtMzM3Zi00NzA3LWExYzUtMzkyODI3NDZlYjMxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDEyNjcyNSwiZXhwIjoxNzYwMjEzMTI1fQ.pd1Z4BAZdFRaUDHUDJf4ZwFjF1AleMYCiP2axJ8Votk
+Content-Type: application/json
+
+{
+    "name": "Premium Plus",
+    "monthly_price": 12.99,
+    "yearly_price": 129.99,
+    "max_messages": 1500,
+    "is_popular": true
+}
+
+###
+DELETE http://127.0.0.1:5000/plans/974160e3-fc1b-4f5f-9c86-60a1d9f6ddc9
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDEyNjcyNSwianRpIjoiMTQxYWVjOGUtMzM3Zi00NzA3LWExYzUtMzkyODI3NDZlYjMxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDEyNjcyNSwiZXhwIjoxNzYwMjEzMTI1fQ.pd1Z4BAZdFRaUDHUDJf4ZwFjF1AleMYCiP2axJ8Votk
+Content-Type: application/json
+
+###
+GET http://127.0.0.1:5000/current
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDEyNjcyNSwianRpIjoiMTQxYWVjOGUtMzM3Zi00NzA3LWExYzUtMzkyODI3NDZlYjMxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDEyNjcyNSwiZXhwIjoxNzYwMjEzMTI1fQ.pd1Z4BAZdFRaUDHUDJf4ZwFjF1AleMYCiP2axJ8Votk
+Content-Type: application/json
+
+###
+POST http://127.0.0.1:5000/subscribe
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDEyNjcyNSwianRpIjoiMTQxYWVjOGUtMzM3Zi00NzA3LWExYzUtMzkyODI3NDZlYjMxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDEyNjcyNSwiZXhwIjoxNzYwMjEzMTI1fQ.pd1Z4BAZdFRaUDHUDJf4ZwFjF1AleMYCiP2axJ8Votk
+Content-Type: application/json
+
+{
+    "plan_id": "a0ef5cc2-5b74-4d79-83cf-f31179a02bc4",
+    "billing_cycle": "monthly",
+    "payment_provider": "flutterwave",
+    "mock_payment": true
+}
+
+###
+POST http://127.0.0.1:5000/cancel
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDEyNjcyNSwianRpIjoiMTQxYWVjOGUtMzM3Zi00NzA3LWExYzUtMzkyODI3NDZlYjMxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDEyNjcyNSwiZXhwIjoxNzYwMjEzMTI1fQ.pd1Z4BAZdFRaUDHUDJf4ZwFjF1AleMYCiP2axJ8Votk
+Content-Type: application/json
+
+###
+GET http://127.0.0.1:5000/usage
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDEyNjcyNSwianRpIjoiMTQxYWVjOGUtMzM3Zi00NzA3LWExYzUtMzkyODI3NDZlYjMxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDEyNjcyNSwiZXhwIjoxNzYwMjEzMTI1fQ.pd1Z4BAZdFRaUDHUDJf4ZwFjF1AleMYCiP2axJ8Votk
+Content-Type: application/json
+
+
+###
+GET http://127.0.0.1:5000/payments?page=1&limit=10
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDEyNjcyNSwianRpIjoiMTQxYWVjOGUtMzM3Zi00NzA3LWExYzUtMzkyODI3NDZlYjMxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDEyNjcyNSwiZXhwIjoxNzYwMjEzMTI1fQ.pd1Z4BAZdFRaUDHUDJf4ZwFjF1AleMYCiP2axJ8Votk
+Content-Type: application/json
+
+
+###
+POST http://127.0.0.1:5000/payments/aa19c8f2-1a58-4604-81ca-6cd68cd2c7aa/confirm
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDEyNjcyNSwianRpIjoiMTQxYWVjOGUtMzM3Zi00NzA3LWExYzUtMzkyODI3NDZlYjMxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDEyNjcyNSwiZXhwIjoxNzYwMjEzMTI1fQ.pd1Z4BAZdFRaUDHUDJf4ZwFjF1AleMYCiP2axJ8Votk
+Content-Type: application/json
+
+{
+    "provider_payment_id": "flw_123456789",
+    "provider_reference": "ref_123456789"
+}
+
+
+###
+POST http://127.0.0.1:5000/reactivate
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDEyNjcyNSwianRpIjoiMTQxYWVjOGUtMzM3Zi00NzA3LWExYzUtMzkyODI3NDZlYjMxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDEyNjcyNSwiZXhwIjoxNzYwMjEzMTI1fQ.pd1Z4BAZdFRaUDHUDJf4ZwFjF1AleMYCiP2axJ8Votk
+Content-Type: application/json
+
+{
+    "billing_cycle": "monthly"
+}
+
+
+
+###
+GET http://127.0.0.1:5000/features
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDEyNjcyNSwianRpIjoiMTQxYWVjOGUtMzM3Zi00NzA3LWExYzUtMzkyODI3NDZlYjMxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDEyNjcyNSwiZXhwIjoxNzYwMjEzMTI1fQ.pd1Z4BAZdFRaUDHUDJf4ZwFjF1AleMYCiP2axJ8Votk
+Content-Type: application/json
+
+
+
+###
+POST http://127.0.0.1:5000/webhook/flutterwave
+Content-Type: application/json
+
+{
+    "event": "charge.completed",
+    "tx_ref": "payment_123456789",
+    "id": "flw_987654321",
+    "status": "successful",
+    "amount": 9.99,
+    "currency": "NGN"
+}

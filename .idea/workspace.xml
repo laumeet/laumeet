@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="noww">
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="FINISH THE WHOLE FEED PAGE">
       <change afterPath="$PROJECT_DIR$/backend/routes/feed_routes.py" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/frontend/app/(main)/post/[id]/page.tsx" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/frontend/components/comment-modal.tsx" afterDir="false" />
@@ -460,7 +460,15 @@
       <option name="project" value="LOCAL" />
       <updated>1759778733732</updated>
     </task>
-    <option name="localTasksCounter" value="44" />
+    <task id="LOCAL-00044" summary="FINISH THE WHOLE FEED PAGE">
+      <option name="closed" value="true" />
+      <created>1760121107994</created>
+      <option name="number" value="00044" />
+      <option name="presentableId" value="LOCAL-00044" />
+      <option name="project" value="LOCAL" />
+      <updated>1760121107995</updated>
+    </task>
+    <option name="localTasksCounter" value="45" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -507,7 +515,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="i love u tori toru" />
     <MESSAGE value="i love u tori toru &#10;toba na u i dey follow talk" />
     <MESSAGE value="Jesus is Lord" />
     <MESSAGE value="add gunicorn to requirement" />
@@ -532,7 +539,8 @@
     <MESSAGE value="latet" />
     <MESSAGE value="message palava" />
     <MESSAGE value="noww" />
-    <option name="LAST_COMMIT_MESSAGE" value="noww" />
+    <MESSAGE value="FINISH THE WHOLE FEED PAGE" />
+    <option name="LAST_COMMIT_MESSAGE" value="FINISH THE WHOLE FEED PAGE" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

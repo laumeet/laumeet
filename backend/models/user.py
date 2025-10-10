@@ -123,6 +123,124 @@ class User(db.Model):
         return f"<User {self.username}>"
 
 
+# FEED SYSTEM MODELS - Add to existing user.py
+
+class Post(db.Model):
+    """
+    Post model for user-generated content in the feed
+    """
+    __tablename__ = "posts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    public_id: Mapped[str] = mapped_column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+
+    # Post content
+    text: Mapped[str] = mapped_column(db.Text, nullable=True)
+    image: Mapped[str] = mapped_column(String(500), nullable=True)
+    category: Mapped[str] = mapped_column(String(100), nullable=True)
+    location: Mapped[str] = mapped_column(String(200), nullable=True)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="posts")
+    comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan", passive_deletes=True)
+    likes = relationship("Like", back_populates="post", cascade="all, delete-orphan", passive_deletes=True)
+
+    def to_dict(self, current_user_id=None):
+        """
+        Convert Post object to dictionary for JSON response
+        """
+        from utils.helpers import build_image_url
+
+        data = {
+            "id": self.public_id,
+            "text": self.text,
+            "image": build_image_url(self.image) if self.image else None,
+            "category": self.category,
+            "location": self.location,
+            "created_at": self.created_at.isoformat() + "Z",
+            "updated_at": self.updated_at.isoformat() + "Z",
+            "user": self.user.to_dict() if self.user else None,
+            "comments_count": len(self.comments),
+            "likes_count": len(self.likes),
+            "has_liked": False
+        }
+
+        # Check if current user has liked this post
+        if current_user_id:
+            user_likes = [like for like in self.likes if like.user_id == current_user_id]
+            data["has_liked"] = len(user_likes) > 0
+
+        return data
+
+    def __repr__(self):
+        return f"<Post {self.public_id} by User {self.user_id}>"
+
+
+class Comment(db.Model):
+    """
+    Comment model for user comments on posts
+    """
+    __tablename__ = "comments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    public_id: Mapped[str] = mapped_column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    post_id: Mapped[int] = mapped_column(Integer, ForeignKey('posts.id', ondelete='CASCADE'), nullable=False)
+
+    # Comment content
+    text: Mapped[str] = mapped_column(db.Text, nullable=False)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User")
+    post = relationship("Post", back_populates="comments")
+
+    def to_dict(self):
+        """Convert Comment object to dictionary for JSON response"""
+        return {
+            "id": self.public_id,
+            "text": self.text,
+            "created_at": self.created_at.isoformat() + "Z",
+            "updated_at": self.updated_at.isoformat() + "Z",
+            "user": self.user.to_dict() if self.user else None
+        }
+
+    def __repr__(self):
+        return f"<Comment {self.public_id} by User {self.user_id} on Post {self.post_id}>"
+
+
+class Like(db.Model):
+    """
+    Like model for tracking user likes on posts
+    """
+    __tablename__ = "likes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    post_id: Mapped[int] = mapped_column(Integer, ForeignKey('posts.id', ondelete='CASCADE'), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User")
+    post = relationship("Post", back_populates="likes")
+
+    def __repr__(self):
+        return f"<Like by User {self.user_id} on Post {self.post_id}>"
+
+
+# Add posts relationship to User class (add this line after your User class)
+User.posts = relationship("Post", back_populates="user", cascade="all, delete-orphan", passive_deletes=True)
+
+
+
 class Swipe(db.Model):
     """
     Swipe model for tracking user interactions (likes and passes)

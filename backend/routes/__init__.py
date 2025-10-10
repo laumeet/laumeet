@@ -4,6 +4,9 @@ from .matching import matching_bp
 from .chat import chat_bp
 from .subscription import subscription_bp
 from .admin import admin_bp
+from .feed_routes import feed_bp  # Add this import
+
+
 # Blueprint registry
 def register_blueprints(app):
     """Register all blueprints with the Flask app"""
@@ -13,5 +16,7 @@ def register_blueprints(app):
     app.register_blueprint(chat_bp)
     app.register_blueprint(subscription_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(feed_bp, url_prefix='/api')  # Add this line
+__all__ = ['register_blueprints', 'auth_bp','subscription_bp', 'profile_bp', 'feed_bp','matching_bp', 'chat_bp', 'admin_bp']
 
-__all__ = ['register_blueprints', 'auth_bp','subscription_bp', 'profile_bp', 'matching_bp', 'chat_bp', 'admin_bp']
+

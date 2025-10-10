@@ -1,291 +1,259 @@
 // app/(main)/create-post/page.tsx
 'use client';
 
-import { useState, useRef } from 'react';
-import { ArrowLeft, Image, MapPin, Calendar, Users, Smile, Send } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ArrowLeft, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface Post {
-  id: string;
-  userId: string;
-  userName: string;
-  userAvatar: string;
-  userDepartment: string;
-  content: string;
-  image?: string;
-  category: string;
-  location?: string;
-  timestamp: string;
-  likes: number;
-  comments: number;
-  shares: number;
-}
+import { feedApi } from '@/lib/axio';
 
 export default function CreatePostPage() {
-  const [content, setContent] = useState('');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [category, setCategory] = useState('General');
+  const [text, setText] = useState('');
+  const [category, setCategory] = useState('');
   const [location, setLocation] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [image, setImage] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string>('');
+
   const router = useRouter();
 
-  const categories = [
-    'General', 'Academic', 'Social', 'Sports', 'Music', 'Art', 
-    'Technology', 'Business', 'Study Group', 'Event', 'Question'
-  ];
+  const handleImageUpload = async (file: File) => {
+    try {
+      setUploading(true);
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Invalid file type. Please upload JPEG, PNG, GIF, or WebP images.');
+      }
+
+      // Validate file size (16MB max)
+      if (file.size > 16 * 1024 * 1024) {
+        throw new Error('File size too large. Maximum size is 16MB.');
+      }
+
+      const formData = new FormData();
+      formData.append('image', file);
+
+      console.log('🔧 Starting image upload...', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+      });
+
+      // Use the CORRECT upload endpoint
+      const response = await feedApi.uploadImage(formData);
+      const data = response.data;
+
+      console.log('🔧 Upload response:', data);
+
+      if (data.success) {
+        setImageUrl(data.data.url);
+        toast.success('Image uploaded successfully!');
+      } else {
+        throw new Error(data.message || 'Upload failed');
+      }
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      toast.error('Upload failed', {
+        description: error.response?.data?.message || error.message || 'Failed to upload image'
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        toast.error('Image size should be less than 5MB');
-        return;
-      }
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      setImage(file);
+      setImageUrl(''); // Clear previous image URL
+      handleImageUpload(file);
     }
   };
 
-  const removeImage = () => {
-    setSelectedImage(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  const handleSubmit = async () => {
-    if (!content.trim()) {
-      toast.error('Please write something to post');
+    if (!text.trim()) {
+      toast.error('Missing content', {
+        description: 'Please write something for your post'
+      });
       return;
     }
 
-    setIsSubmitting(true);
-
     try {
-      // Get current user info (in a real app, this would come from auth context)
-      const currentUser = {
-        id: 'current-user',
-        name: 'You',
-        avatar: '/api/placeholder/40/40',
-        department: 'Student'
+      setCreating(true);
+
+      const postData = {
+        text: text.trim(),
+        category: category.trim() || 'general',
+        location: location.trim() || undefined,
+        image: imageUrl || undefined,
       };
 
-      const newPost: Post = {
-        id: Date.now().toString(),
-        userId: currentUser.id,
-        userName: currentUser.name,
-        userAvatar: currentUser.avatar,
-        userDepartment: currentUser.department,
-        content: content.trim(),
-        image: selectedImage || undefined,
-        category,
-        location: location || undefined,
-        timestamp: new Date().toISOString(),
-        likes: 0,
-        comments: 0,
-        shares: 0
-      };
+      console.log('🔧 Creating post with data:', postData);
+      console.log('🔧 Sending POST request to /api/feed/posts');
 
-      // Save to localStorage
-      const existingPosts = JSON.parse(localStorage.getItem('campus-vibes-posts') || '[]');
-      const updatedPosts = [newPost, ...existingPosts];
-      localStorage.setItem('campus-vibes-posts', JSON.stringify(updatedPosts));
+      const response = await feedApi.createPost(postData);
+      const data = response.data;
 
-      toast.success('Post created successfully!');
-      
-      // Reset form
-      setContent('');
-      setSelectedImage(null);
-      setCategory('General');
-      setLocation('');
-      
-      // Redirect to feed
-      setTimeout(() => {
+      console.log('🔧 Post creation response:', data);
+
+      if (data.success) {
+        console.log('✅ Post created successfully, redirecting to feed...');
+        toast.success('Post created!', {
+          description: 'Your post has been shared with the campus community'
+        });
+
+        // Clear form
+        setText('');
+        setCategory('');
+        setLocation('');
+        setImage(null);
+        setImageUrl('');
+
+        // Redirect to feed
         router.push('/feed');
-      }, 1000);
+      } else {
+        throw new Error(data.message || 'Post creation failed');
+      }
+    } catch (error: any) {
+      console.error('❌ Error creating post:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
 
-    } catch (error) {
-      console.error('Error creating post:', error);
-      toast.error('Failed to create post. Please try again.');
+      toast.error('Failed to create post', {
+        description: error.response?.data?.message || error.message || 'Please try again later'
+      });
     } finally {
-      setIsSubmitting(false);
+      setCreating(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between p-4">
-          <Button
-            variant="ghost"
-            onClick={() => router.back()}
-            className="flex items-center space-x-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back</span>
-          </Button>
-          
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Create Post</h1>
-          
-          <Button
-            onClick={handleSubmit}
-            disabled={!content.trim() || isSubmitting}
-            className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
-          >
-            {isSubmitting ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-            ) : (
-              <>
-                <Send className="h-4 w-4 mr-2" />
-                Post
-              </>
-            )}
-          </Button>
+    <div className="space-y-6 pb-20">
+      <div className="flex items-center space-x-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.back()}
+          className="flex items-center space-x-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>Back</span>
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create Post</h1>
+          <p className="text-gray-500 dark:text-gray-400">Share something with the campus community</p>
         </div>
       </div>
 
-      {/* Create Post Form */}
-      <div className="p-4 space-y-6">
-        {/* User Info */}
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center text-white font-semibold">
-            Y
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 dark:text-white">You</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Student</p>
-          </div>
-        </div>
-
-        {/* Content Textarea */}
-        <Textarea
-          placeholder="What's on your mind? Share something with the campus community..."
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          className="min-h-[120px] resize-none border-0 text-lg bg-transparent focus:ring-0 p-0 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-        />
-
-        {/* Selected Image Preview */}
-        {selectedImage && (
-          <div className="relative rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
-            <img
-              src={selectedImage}
-              alt="Post preview"
-              className="w-full h-64 object-cover"
-            />
-            <button
-              onClick={removeImage}
-              className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70 transition-colors"
-            >
-              <span className="sr-only">Remove image</span>
-              ×
-            </button>
-          </div>
-        )}
-
-        {/* Post Options */}
-        <Card className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50">
-          <CardContent className="p-4 space-y-4">
-            {/* Add Image */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 rounded-full bg-blue-50 dark:bg-blue-900/20">
-                  <Image className="h-4 w-4 text-blue-500" />
-                </div>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Add Photo</span>
-              </div>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImageSelect}
-                accept="image/*"
-                className="hidden"
+      <Card>
+        <CardHeader>
+          <CardTitle>New Post</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="text">What's on your mind?</Label>
+              <Textarea
+                id="text"
+                placeholder="Share your thoughts, updates, or questions..."
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                className="min-h-[120px] resize-none"
+                required
               />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <Input
+                  id="category"
+                  placeholder="e.g., Academic, Social, Sports..."
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="location">Location (optional)</Label>
+                <Input
+                  id="location"
+                  placeholder="e.g., Library, Cafeteria..."
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="image">Add Image (optional)</Label>
+              <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center">
+                <input
+                  type="file"
+                  id="image"
+                  accept="image/jpeg, image/jpg, image/png, image/gif, image/webp"
+                  onChange={handleImageChange}
+                  className="hidden"
+                  disabled={uploading}
+                />
+                <label htmlFor="image" className={`cursor-pointer ${uploading ? 'opacity-50' : ''}`}>
+                  <ImageIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {uploading ? 'Uploading...' : 'Click to upload an image'}
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    PNG, JPG, GIF, WebP up to 16MB
+                  </p>
+                </label>
+              </div>
+
+              {imageUrl && (
+                <div className="mt-4">
+                  <p className="text-sm text-green-600 dark:text-green-400 mb-2">
+                    ✓ Image uploaded successfully
+                  </p>
+                  <img
+                    src={imageUrl}
+                    alt="Upload preview"
+                    className="max-h-48 rounded-lg border border-gray-200 dark:border-gray-700"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-4 pt-4">
               <Button
+                type="button"
                 variant="outline"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => router.back()}
+                disabled={creating || uploading}
               >
-                Browse
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
+                disabled={creating || uploading || !text.trim()}
+              >
+                {creating ? 'Posting...' : 'Create Post'}
               </Button>
             </div>
-
-            {/* Category */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 rounded-full bg-green-50 dark:bg-green-900/20">
-                  <Users className="h-4 w-4 text-green-500" />
-                </div>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Category</span>
-              </div>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="bg-transparent border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
-              >
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Location */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 rounded-full bg-orange-50 dark:bg-orange-900/20">
-                  <MapPin className="h-4 w-4 text-orange-500" />
-                </div>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Location</span>
-              </div>
-              <input
-                type="text"
-                placeholder="Add location..."
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="bg-transparent border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500 w-32"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Category Tags */}
-        <div className="flex flex-wrap gap-2">
-          {categories.slice(0, 6).map((cat) => (
-            <Badge
-              key={cat}
-              variant={category === cat ? "default" : "outline"}
-              className={`cursor-pointer transition-all ${
-                category === cat 
-                  ? 'bg-pink-500 text-white' 
-                  : 'hover:bg-pink-50 dark:hover:bg-pink-900/20'
-              }`}
-              onClick={() => setCategory(cat)}
-            >
-              {cat}
-            </Badge>
-          ))}
-        </div>
-
-        {/* Character Count */}
-        <div className="text-right">
-          <span className={`text-sm ${
-            content.length > 500 ? 'text-red-500' : 'text-gray-500'
-          }`}>
-            {content.length}/500
-          </span>
-        </div>
-      </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

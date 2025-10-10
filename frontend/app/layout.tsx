@@ -7,6 +7,7 @@ import { Toaster } from 'sonner';
 import ModelPreloader from '@/components/providers/ModelPreloader';
 import { SocketProvider } from '@/lib/socket-context';
 
+
 const inter = Inter({ 
   subsets: ['latin'],
   variable: '--font-inter',

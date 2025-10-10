@@ -47,11 +47,6 @@ interface Post {
 export default function PostPage() {
   const params = useParams();
   const router = useRouter();
-
-  if (!params || !params.id) {
-    return <div>Loading...</div>;
-  }
-
   const postId = params.id as string;
 
   const [post, setPost] = useState<Post | null>(null);
@@ -61,6 +56,11 @@ export default function PostPage() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [liking, setLiking] = useState(false);
 
+  useEffect(() => {
+    if (postId) {
+      loadPostAndComments();
+    }
+  }, [postId]);
 
   const loadPostAndComments = async () => {
     try {

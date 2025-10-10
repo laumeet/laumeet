@@ -3,7 +3,15 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { MessageCircle, Heart, Share, MapPin, Calendar, ArrowLeft, User } from 'lucide-react';
+import {
+  MessageCircle,
+  Heart,
+  Share,
+  MapPin,
+  Calendar,
+  ArrowLeft,
+  User
+} from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -47,7 +55,7 @@ interface Post {
 export default function PostPage() {
   const params = useParams();
   const router = useRouter();
-  const postId = params.id as string;
+  const postId = params?.id as string | undefined;
 
   const [post, setPost] = useState<Post | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -56,27 +64,18 @@ export default function PostPage() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [liking, setLiking] = useState(false);
 
-  useEffect(() => {
-    if (postId) {
-      loadPostAndComments();
-    }
-  }, [postId]);
-
+  // ✅ LOAD POST AND COMMENTS
   const loadPostAndComments = async () => {
     try {
       setLoading(true);
-
-      // Load post details
-      const postResponse = await feedApi.getPost(postId);
+      const postResponse = await feedApi.getPost(postId!);
       const postData = postResponse.data;
 
       if (postData.success) {
         setPost(postData.data);
 
-        // Load comments for this post
-        const commentsResponse = await feedApi.getComments(postId);
+        const commentsResponse = await feedApi.getComments(postId!);
         const commentsData = commentsResponse.data;
-
         if (commentsData.success) {
           setComments(commentsData.data.comments || []);
         }
@@ -86,7 +85,8 @@ export default function PostPage() {
     } catch (error: any) {
       console.error('Error loading post:', error);
       toast.error('Error loading post', {
-        description: error.response?.data?.message || error.message || 'Post not found'
+        description:
+          error.response?.data?.message || error.message || 'Post not found'
       });
       router.push('/feed');
     } finally {
@@ -94,6 +94,14 @@ export default function PostPage() {
     }
   };
 
+  // ✅ CALL IT WHEN postId CHANGES
+  useEffect(() => {
+    if (postId) {
+      loadPostAndComments();
+    }
+  }, [postId]);
+
+  // ✅ HANDLE LIKE
   const handleLike = async () => {
     if (!post) return;
 
@@ -103,13 +111,18 @@ export default function PostPage() {
       const data = response.data;
 
       if (data.success) {
-        setPost(prev => prev ? {
-          ...prev,
-          likes_count: data.data.post.likes_count,
-          has_liked: data.data.action === 'liked'
-        } : null);
-
-        toast.success(data.data.action === 'liked' ? 'Post liked! ❤️' : 'Post unliked');
+        setPost(prev =>
+          prev
+            ? {
+                ...prev,
+                likes_count: data.data.post.likes_count,
+                has_liked: data.data.action === 'liked'
+              }
+            : null
+        );
+        toast.success(
+          data.data.action === 'liked' ? 'Post liked! ❤️' : 'Post unliked'
+        );
       }
     } catch (error: any) {
       console.error('Error liking post:', error);
@@ -119,6 +132,7 @@ export default function PostPage() {
     }
   };
 
+  // ✅ HANDLE COMMENT
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim() || !post) return;
@@ -130,14 +144,12 @@ export default function PostPage() {
 
       if (data.success) {
         setNewComment('');
-        // Add new comment to the list
         setComments(prev => [data.data, ...prev]);
-        // Update post comment count
-        setPost(prev => prev ? {
-          ...prev,
-          comments_count: prev.comments_count + 1
-        } : null);
-
+        setPost(prev =>
+          prev
+            ? { ...prev, comments_count: prev.comments_count + 1 }
+            : null
+        );
         toast.success('Comment added!');
       }
     } catch (error: any) {
@@ -148,18 +160,20 @@ export default function PostPage() {
     }
   };
 
+  // ✅ SHARE HANDLER
   const handleShare = async () => {
     if (!post) return;
-
     try {
       const postUrl = `${window.location.origin}/post/${post.id}`;
-      const shareText = `Check out this post from ${post.user.name || post.user.username}`;
+      const shareText = `Check out this post from ${
+        post.user.name || post.user.username
+      }`;
 
       if (navigator.share) {
         await navigator.share({
           title: 'Campus Feed Post',
           text: shareText,
-          url: postUrl,
+          url: postUrl
         });
       } else if (navigator.clipboard) {
         await navigator.clipboard.writeText(postUrl);
@@ -183,10 +197,14 @@ export default function PostPage() {
   const formatTime = (timestamp: string) => {
     const now = new Date();
     const postTime = new Date(timestamp);
-    const diffInHours = Math.floor((now.getTime() - postTime.getTime()) / (1000 * 60 * 60));
+    const diffInHours = Math.floor(
+      (now.getTime() - postTime.getTime()) / (1000 * 60 * 60)
+    );
 
     if (diffInHours < 1) {
-      const diffInMinutes = Math.floor((now.getTime() - postTime.getTime()) / (1000 * 60));
+      const diffInMinutes = Math.floor(
+        (now.getTime() - postTime.getTime()) / (1000 * 60)
+      );
       return diffInMinutes < 1 ? 'Just now' : `${diffInMinutes}m ago`;
     } else if (diffInHours < 24) {
       return `${diffInHours}h ago`;
@@ -195,16 +213,14 @@ export default function PostPage() {
     }
   };
 
-  const getUserAvatar = (user: any) => {
-    return user.pictures && user.pictures.length > 0
+  const getUserAvatar = (user: any) =>
+    user.pictures && user.pictures.length > 0
       ? user.pictures[0]
       : '/api/placeholder/40/40';
-  };
 
-  const getUserDisplayName = (user: any) => {
-    return user.name || user.username;
-  };
+  const getUserDisplayName = (user: any) => user.name || user.username;
 
+  // ✅ LOADING STATE
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -216,6 +232,7 @@ export default function PostPage() {
     );
   }
 
+  // ✅ NO POST FOUND
   if (!post) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -229,6 +246,7 @@ export default function PostPage() {
     );
   }
 
+  // ✅ RENDER POST
   return (
     <div className="space-y-6 pb-20 max-w-4xl mx-auto">
       {/* Header */}
@@ -243,8 +261,12 @@ export default function PostPage() {
           <span>Back to Feed</span>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Post</h1>
-          <p className="text-gray-500 dark:text-gray-400">Viewing a single post</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Post
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400">
+            Viewing a single post
+          </p>
         </div>
       </div>
 
@@ -254,7 +276,10 @@ export default function PostPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <Avatar>
-                <AvatarImage src={getUserAvatar(post.user)} alt={getUserDisplayName(post.user)} />
+                <AvatarImage
+                  src={getUserAvatar(post.user)}
+                  alt={getUserDisplayName(post.user)}
+                />
                 <AvatarFallback>
                   {getUserDisplayName(post.user).charAt(0).toUpperCase()}
                 </AvatarFallback>
@@ -302,14 +327,14 @@ export default function PostPage() {
                 src={post.image}
                 alt="Post image"
                 className="w-full h-auto object-cover max-h-96"
-                onError={(e) => {
+                onError={e => {
                   e.currentTarget.style.display = 'none';
                 }}
               />
             </div>
           )}
 
-          {/* Engagement Stats */}
+          {/* Stats + Buttons */}
           <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-6 text-sm text-gray-500 dark:text-gray-400">
               <div className="flex items-center space-x-1">
@@ -318,7 +343,9 @@ export default function PostPage() {
               </div>
               <div className="flex items-center space-x-1">
                 <MessageCircle className="h-4 w-4" />
-                <span className="font-medium">{post.comments_count} comments</span>
+                <span className="font-medium">
+                  {post.comments_count} comments
+                </span>
               </div>
             </div>
 
@@ -332,7 +359,7 @@ export default function PostPage() {
             )}
           </div>
 
-          {/* Action Buttons */}
+          {/* Actions */}
           <div className="flex items-center space-x-4 border-t border-gray-200 dark:border-gray-700 pt-4">
             <Button
               variant="ghost"
@@ -343,7 +370,9 @@ export default function PostPage() {
                 post.has_liked ? 'text-pink-500' : 'text-gray-500'
               }`}
             >
-              <Heart className={`h-5 w-5 ${post.has_liked ? 'fill-current' : ''}`} />
+              <Heart
+                className={`h-5 w-5 ${post.has_liked ? 'fill-current' : ''}`}
+              />
               <span>{post.has_liked ? 'Liked' : 'Like'}</span>
             </Button>
 
@@ -369,14 +398,14 @@ export default function PostPage() {
         </CardContent>
       </Card>
 
-      {/* Add Comment Section */}
+      {/* Comment Form */}
       <Card>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmitComment} className="space-y-4">
             <Textarea
               placeholder="Write a comment..."
               value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
+              onChange={e => setNewComment(e.target.value)}
               className="min-h-[100px] resize-none"
               disabled={submittingComment}
             />
@@ -393,7 +422,7 @@ export default function PostPage() {
         </CardContent>
       </Card>
 
-      {/* Comments List */}
+      {/* Comments */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
           Comments ({comments.length})
@@ -411,14 +440,19 @@ export default function PostPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {comments.map((comment) => (
+            {comments.map(comment => (
               <Card key={comment.id}>
                 <CardContent className="pt-6">
                   <div className="flex items-start space-x-3">
                     <Avatar className="h-10 w-10 flex-shrink-0">
-                      <AvatarImage src={getUserAvatar(comment.user)} alt={getUserDisplayName(comment.user)} />
+                      <AvatarImage
+                        src={getUserAvatar(comment.user)}
+                        alt={getUserDisplayName(comment.user)}
+                      />
                       <AvatarFallback>
-                        {getUserDisplayName(comment.user).charAt(0).toUpperCase()}
+                        {getUserDisplayName(comment.user)
+                          .charAt(0)
+                          .toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">

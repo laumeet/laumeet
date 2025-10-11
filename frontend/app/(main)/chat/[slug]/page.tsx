@@ -100,7 +100,7 @@ export default function ChatDetailPage() {
 
   // All hooks must be called at the top level consistently
   const { profile } = useProfile();
-  const { subscription, fetchUserSubscription } = useUserSubscription(profile?.id || '');
+  const { subscription, fetchUserSubscription } = useUserSubscription(profile?.id ?? '');
   const { socket, isConnected: socketConnected, onlineUsers } = useSocketContext();
 
   // Basic states
@@ -587,7 +587,7 @@ export default function ChatDetailPage() {
     if (e.target.value.trim() && !isTyping) {
       typingDebounceRef.current = setTimeout(() => {
         handleTypingStart();
-      }, 500);
+      }, 100);
     }
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -663,7 +663,7 @@ export default function ChatDetailPage() {
       console.log('📖 Auto-marking messages as read:', unreadMessages);
       markMessagesAsRead(unreadMessages);
     }
-  }, [messages, markMessagesAsRead, profile?.id]);
+  }, [messages, markMessagesAsRead]);
 
   const sendMessage = async () => {
     if (!message.trim() || !conversation || sending) return;

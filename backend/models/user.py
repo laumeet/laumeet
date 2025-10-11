@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 from datetime import datetime
 import uuid
@@ -15,7 +15,7 @@ class Picture(db.Model):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-    image: Mapped[str] = mapped_column(String(500), nullable=False)
+    image: Mapped[str] = mapped_column(Text, nullable=False)
     user = relationship("User", back_populates="pictures")
 
     def __repr__(self):

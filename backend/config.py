@@ -5,14 +5,15 @@ class Config:
     """Base configuration"""
     
     # ✅ FIXED: Proper database URL handling
-    DB_URL = os.environ.get("DB_URL", "sqlite:///lausers.db")
-    
-    # Ensure SQLite URLs are properly formatted
-    if DB_URL.startswith('sqlite'):
-        SQLALCHEMY_DATABASE_URI = DB_URL
-    else:
-        SQLALCHEMY_DATABASE_URI = DB_URL
-        
+    # Support both local (SQLite) and Render (PostgreSQL)
+    DB_URL = os.environ.get("DATABASE_URL") or os.environ.get("DB_URL") or "sqlite:///lausers.db"
+
+    # Fix Render’s deprecated URL format (postgres:// → postgresql://)
+    if DB_URL.startswith("postgres://"):
+        DB_URL = DB_URL.replace("postgres://", "postgresql://", 1)
+
+    SQLALCHEMY_DATABASE_URI = DB_URL
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // pages/api/users/[userId]/profile.ts
 import { getCookieValue } from "@/lib/utils";
 import type { NextApiRequest, NextApiResponse } from "next";

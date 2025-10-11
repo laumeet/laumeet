@@ -14,7 +14,7 @@ POST  http://localhost:3000/api/auth/signup
 Content-Type: application/json
 
 {
-    "username": "cameron",
+    "username": "tope",
     "password": "helloE@123",
     "security_question": "Who is your mother",
     "security_answer":"Hello",
@@ -22,13 +22,10 @@ Content-Type: application/json
     "gender":"male"
 }
 ###
-POST  http://localhost:3000/api/auth/login
-Content-Type: application/json
+GET   http://localhost:3000/api/chat/messages/conversationId?conversationId=2
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDIwMjY3NywianRpIjoiMWZlMDVmYzAtNzQ4OS00MzlmLTlkYWYtNTVjMjNlNTY0MTBiIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6ImQzOTAxOGM3LWI4ZDItNDk1Mi05ZTZjLThlNjE5MGRkNmJmZCIsIm5iZiI6MTc2MDIwMjY3NywiZXhwIjoxNzYwMjg5MDc3fQ.uSVyvC2nuDah8Dpj5dODuYrVghpTAgOMFe3Yu6rfGVo
 
-{
-    "username": "cameron",
-    "password": "helloE@123"
-}
+
 ###
 POST  http://localhost:3000/api/auth/logout
 Content-Type: application/json
@@ -38,7 +35,7 @@ Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmF
 GET https://laumeet.onrender.com/debug/auth
 ###
 POST  http://127.0.0.1:5000/logout
-Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDE0NDI4NiwianRpIjoiM2QwZDY5YzItZDE1Yy00MjljLThiNDctMDRkZjExNWUyMTk4IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDE0NDI4NiwiZXhwIjoxNzYwMjMwNjg2fQ.bXbHLHiGNh2vD9sSON2E6BBlJxf0Qgs54vgUFtK51Zk
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDIwMjY3NywianRpIjoiMWZlMDVmYzAtNzQ4OS00MzlmLTlkYWYtNTVjMjNlNTY0MTBiIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6ImQzOTAxOGM3LWI4ZDItNDk1Mi05ZTZjLThlNjE5MGRkNmJmZCIsIm5iZiI6MTc2MDIwMjY3NywiZXhwIjoxNzYwMjg5MDc3fQ.uSVyvC2nuDah8Dpj5dODuYrVghpTAgOMFe3Yu6rfGVo
 ###
 GET http://127.0.0.1:5000/plans
 Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDEyNjcyNSwianRpIjoiMTQxYWVjOGUtMzM3Zi00NzA3LWExYzUtMzkyODI3NDZlYjMxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjBmNTRmNjM5LTQ5NWUtNDQ1My1hNTIyLTgzY2IwYjRhMGVmNiIsIm5iZiI6MTc2MDEyNjcyNSwiZXhwIjoxNzYwMjEzMTI1fQ.pd1Z4BAZdFRaUDHUDJf4ZwFjF1AleMYCiP2axJ8Votk

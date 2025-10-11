@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import api from '@/lib/axio';
 import { useSocketContext } from '@/lib/socket-context';
@@ -76,6 +75,72 @@ export interface UserProfile {
   isOnline: boolean;
   lastSeen: string | null;
 }
+
+// -----------------------------
+// Custom Modal Component
+// -----------------------------
+interface ModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: React.ReactNode;
+  className?: string;
+}
+
+const Modal = ({ open, onOpenChange, children, className = '' }: ModalProps) => {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div 
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+        onClick={() => onOpenChange(false)}
+      />
+      <div className={`
+        relative z-50 
+        bg-white dark:bg-gray-900 
+        rounded-lg 
+        shadow-lg 
+        max-w-md w-full 
+        mx-4
+        max-h-[90vh] overflow-y-auto
+        animate-in fade-in-0 zoom-in-95 duration-200
+        ${className}
+      `}>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const ModalHeader = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
+  <div className={`flex flex-col gap-2 p-6 pb-4 text-center sm:text-left ${className}`}>
+    {children}
+  </div>
+);
+
+const ModalTitle = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
+  <h2 className={`text-lg font-semibold leading-none ${className}`}>
+    {children}
+  </h2>
+);
+
+const ModalDescription = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
+  <p className={`text-sm text-gray-600 dark:text-gray-400 ${className}`}>
+    {children}
+  </p>
+);
+
+const ModalContent = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
+  <div className={`p-6 pt-0 ${className}`}>
+    {children}
+  </div>
+);
+
+const ModalFooter = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
+  <div className={`flex flex-col-reverse gap-2 p-6 pt-4 sm:flex-row sm:justify-end ${className}`}>
+    {children}
+  </div>
+);
 
 // -----------------------------
 // Utility helpers
@@ -282,7 +347,7 @@ export default function ChatDetailPage() {
   // -----------------------------
   const fetchUserProfile = async (userId: string) => {
     try {
-      const response = await api.get(`/users/${userId}/profile`);
+      const response = await api.get(`/users/userId/profile?userId=${userId}`);
       if (response.data.success) {
         setUserProfile(response.data.user);
       }
@@ -325,7 +390,7 @@ export default function ChatDetailPage() {
     if (!id) return;
 
     try {
-      const response = await api.get(`/chat/messages/${id}`);
+      const response = await api.get(`/chat/messages/conversationId?conversationId=${id}`);
       if (response.data.success) {
         const serverMessages: Message[] = response.data.messages || [];
         const filteredMessages = getFilteredMessages(serverMessages);
@@ -782,21 +847,21 @@ export default function ChatDetailPage() {
   // Subscription-related Components
   // -----------------------------
   const UpgradeModal = () => (
-    <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Crown className="h-6 w-6 text-yellow-500" />
-            Upgrade Your Plan
-          </DialogTitle>
-          <DialogDescription>
-            {!canSendMessage() 
-              ? `You've used all ${messageLimit} free messages. Upgrade to continue chatting.`
-              : "Get unlimited messages and premium features with our subscription plans."
-            }
-          </DialogDescription>
-        </DialogHeader>
-        
+    <Modal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} className="sm:max-w-md">
+      <ModalHeader>
+        <ModalTitle className="flex items-center gap-2">
+          <Crown className="h-6 w-6 text-yellow-500" />
+          Upgrade Your Plan
+        </ModalTitle>
+        <ModalDescription>
+          {!canSendMessage() 
+            ? `You've used all ${messageLimit} free messages. Upgrade to continue chatting.`
+            : "Get unlimited messages and premium features with our subscription plans."
+          }
+        </ModalDescription>
+      </ModalHeader>
+      
+      <ModalContent>
         <div className="space-y-4">
           <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-4 rounded-lg">
             <h4 className="font-semibold text-sm mb-2">Premium Features:</h4>
@@ -820,21 +885,21 @@ export default function ChatDetailPage() {
             </div>
           )}
         </div>
-        
-        <DialogFooter className="flex gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => setShowUpgradeModal(false)}>
-            Maybe Later
-          </Button>
-          <Button onClick={() => {
-            setShowUpgradeModal(false);
-            router.push('/subscription');
-          }}>
-            <Crown className="h-4 w-4 mr-2" />
-            Upgrade Now
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </ModalContent>
+      
+      <ModalFooter className="flex gap-2 sm:gap-0">
+        <Button variant="outline" onClick={() => setShowUpgradeModal(false)}>
+          Maybe Later
+        </Button>
+        <Button onClick={() => {
+          setShowUpgradeModal(false);
+          router.push('/subscription');
+        }}>
+          <Crown className="h-4 w-4 mr-2" />
+          Upgrade Now
+        </Button>
+      </ModalFooter>
+    </Modal>
   );
 
   const LockedContentTooltip = ({ children, message }: { children: React.ReactNode; message: string }) => (

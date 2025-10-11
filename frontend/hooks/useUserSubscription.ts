@@ -25,7 +25,7 @@ export const useUserSubscription = (userId?: string) => {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await api.get<UserSubscriptionResponse>(`/subscription/user/${id}`);
+      const { data } = await api.get<UserSubscriptionResponse>(`/subscription/user/id?user_id=${id}`);
       if (data.success) {
         setSubscription(data);
       } else {

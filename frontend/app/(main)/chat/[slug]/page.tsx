@@ -95,13 +95,13 @@ const SENSITIVE_PATTERNS = {
 // Component
 // -----------------------------
 export default function ChatDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-
   // All hooks must be called at the top level consistently
   const { profile } = useProfile();
-  const { subscription, fetchUserSubscription } = useUserSubscription(profile?.id ?? '');
+  const { subscription } = useUserSubscription(profile?.id);
   const { socket, isConnected: socketConnected, onlineUsers } = useSocketContext();
+  const params = useParams();
+  const router = useRouter();
+  const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
 
   // Basic states
   const [message, setMessage] = useState('');
@@ -143,7 +143,7 @@ export default function ChatDetailPage() {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [swipingMessageId, setSwipingMessageId] = useState<string | number | null>(null);
 
-  const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
+
 
   // -----------------------------
   // Subscription Management
@@ -663,7 +663,7 @@ export default function ChatDetailPage() {
       console.log('📖 Auto-marking messages as read:', unreadMessages);
       markMessagesAsRead(unreadMessages);
     }
-  }, [messages, markMessagesAsRead]);
+  }, [messages, markMessagesAsRead, profile?.id]);
 
   const sendMessage = async () => {
     if (!message.trim() || !conversation || sending) return;
@@ -748,9 +748,9 @@ export default function ChatDetailPage() {
       setError('');
 
       // Fetch user subscription first
-      if (profile?.id) {
-        await fetchUserSubscription(profile.id);
-      }
+      // if (profile?.id) {
+      //   await fetchUserSubscription(profile.id);
+      // }
 
       const conv = await fetchConversation();
       if (conv) {

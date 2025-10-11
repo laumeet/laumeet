@@ -6,12 +6,16 @@ backend/
 │   ├── user.py
 │   ├── chat.py
 │   └── core.py
+|   └── suscription.py
 ├── routes/               # API routes
 │   ├── __init__.py
 │   ├── auth.py
 │   ├── profile.py
 │   ├── matching.py
 │   └── chat.py
+|   └──feed_routes.py
+|   └──suscription.py
+|   └──admin.py
 ├── sockets/              # WebSocket handlers
 │   ├── __init__.py
 │   └── chat_events.py

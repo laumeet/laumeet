@@ -113,10 +113,10 @@ def handle_connect():
         }
 
         join_room(f"user_{user.id}")
-        
+
         # Send online status of all users in conversations to this newly connected user
         send_initial_online_statuses(user.id)
-        
+
         # Broadcast that this user is now online
         broadcast_online_status(user.id, True)
 
@@ -141,7 +141,7 @@ def send_initial_online_statuses(user_id):
                 convo.user2_id if convo.user1_id == user_id else convo.user1_id
             )
             other_user = User.query.get(other_user_id)
-            
+
             if other_user:
                 payload = {
                     "user_id": other_user.public_id,
@@ -255,6 +255,8 @@ def handle_leave_conversation(data):
         traceback.print_exc()
 
 
+# sockets/chat_events.py - UPDATED send_message handler
+
 @socketio.on("send_message")
 def handle_send_message(data):
     try:
@@ -273,6 +275,19 @@ def handle_send_message(data):
         is_auth, convo, error = validate_socket_conversation_access(conversation_id, user_id)
         if not is_auth:
             emit("error", {"message": error})
+            return
+
+        # ✅ ADDED: Check for restricted content
+        from utils.message_validator import MessageValidator
+        user = User.query.get(user_id)
+
+        is_allowed, restriction_reason = MessageValidator.validate_message_send(user, content)
+        if not is_allowed:
+            emit("message_restricted", {
+                "error": "UPGRADE_REQUIRED",
+                "message": "Upgrade to premium to send contact information, links, or hashtags",
+                "restricted_content": True
+            })
             return
 
         # Create message with initial status
@@ -311,7 +326,7 @@ def handle_message_delivered(data):
     try:
         message_id = data.get("message_id")
         conversation_id = data.get("conversation_id")
-        
+
         if not message_id or not conversation_id:
             return
 
@@ -325,14 +340,14 @@ def handle_message_delivered(data):
             if not message.delivered_at:
                 message.delivered_at = datetime.utcnow()
                 db.session.commit()
-                
+
                 emit("message_status_update", {
                     "message_id": message_id,
                     "conversation_id": conversation_id,
                     "status": "delivered",
                     "delivered_at": message.delivered_at.isoformat() + "Z"
                 }, room=f"conversation_{conversation_id}")
-                
+
                 print(f"📬 Message {message_id} marked as delivered by {user_data['username']}")
 
     except Exception as e:
@@ -345,7 +360,7 @@ def handle_read_messages(data):
     try:
         conversation_id = data.get("conversation_id")
         message_ids = data.get("message_ids", [])
-        
+
         if not conversation_id:
             return
 
@@ -368,14 +383,14 @@ def handle_read_messages(data):
             if message and message.sender_id != user_id and not message.is_read:
                 message.mark_read()
                 db.session.add(message)
-                
+
                 emit("message_status_update", {
                     "message_id": msg_id,
                     "conversation_id": conversation_id,
                     "status": "read",
                     "read_at": message.read_at.isoformat() + "Z" if message.read_at else None
                 }, room=f"conversation_{conversation_id}")
-        
+
         db.session.commit()
         print(f"📖 {len(message_ids)} messages marked as read by {user_data['username']}")
 

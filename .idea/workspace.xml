@@ -5,10 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="FINISH THE WHOLE FEED PAGE">
+      <change afterPath="$PROJECT_DIR$/backend/utils/message_validator.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/models/user.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/user.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/auth.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/auth.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/matching.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/matching.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/routes/chat.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/chat.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/sockets/chat_events.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/sockets/chat_events.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/structure.txt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/structure.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/(main)/chat/[slug]/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/(main)/chat/[slug]/page.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -101,14 +103,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1758428877896</updated>
-    </task>
-    <task id="LOCAL-00004" summary="nownow">
-      <option name="closed" value="true" />
-      <created>1758579777809</created>
-      <option name="number" value="00004" />
-      <option name="presentableId" value="LOCAL-00004" />
-      <option name="project" value="LOCAL" />
-      <updated>1758579777809</updated>
     </task>
     <task id="LOCAL-00005" summary="nownow23">
       <option name="closed" value="true" />
@@ -494,7 +488,15 @@
       <option name="project" value="LOCAL" />
       <updated>1760126791279</updated>
     </task>
-    <option name="localTasksCounter" value="53" />
+    <task id="LOCAL-00053" summary="FINISH THE WHOLE FEED PAGE">
+      <option name="closed" value="true" />
+      <created>1760151076142</created>
+      <option name="number" value="00053" />
+      <option name="presentableId" value="LOCAL-00053" />
+      <option name="project" value="LOCAL" />
+      <updated>1760151076143</updated>
+    </task>
+    <option name="localTasksCounter" value="54" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -567,21 +569,5 @@
     <MESSAGE value="noww" />
     <MESSAGE value="FINISH THE WHOLE FEED PAGE" />
     <option name="LAST_COMMIT_MESSAGE" value="FINISH THE WHOLE FEED PAGE" />
-  </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/backend/sockets/chat_events.py</url>
-          <line>64</line>
-          <option name="timeStamp" value="1" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/backend/sockets/chat_events.py</url>
-          <line>306</line>
-          <option name="timeStamp" value="2" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
   </component>
 </project>

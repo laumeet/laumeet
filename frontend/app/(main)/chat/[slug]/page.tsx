@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// app/(main)/chat/[slug]/page.tsx
+// app/(main)/chat/[slug]/page.tsx - COMPLETE UPDATED VERSION
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -16,16 +15,16 @@ import {
   Info,
   Video,
   Phone,
+  Crown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import api from '@/lib/axio';
 import { useSocketContext } from '@/lib/socket-context';
 import { useProfile } from '@/hooks/get-profile';
+import { UpgradeDialog } from '@/components/UpgradeDialog';
 
-// -----------------------------
 // Types
-// -----------------------------
 export interface Message {
   id: string | number;
   conversation_id: string;
@@ -74,14 +73,10 @@ export interface UserProfile {
   lastSeen: string | null;
 }
 
-// -----------------------------
 // Utility helpers
-// -----------------------------
 const isTempId = (id: any) => String(id).startsWith('temp-');
 
-// -----------------------------
 // Component
-// -----------------------------
 export default function ChatDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -106,6 +101,10 @@ export default function ChatDetailPage() {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [showUserDetails, setShowUserDetails] = useState(false);
 
+  // Monetization states
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [showRestrictedWarning, setShowRestrictedWarning] = useState(false);
+
   // refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -123,9 +122,21 @@ export default function ChatDetailPage() {
   const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
   const { profile } = useProfile();
 
-  // -----------------------------
+  // Monetization utilities
+  const canSendRestrictedContent = profile?.subscription?.tier !== 'free';
+  const restrictedPatterns = [
+    /\b\d{10,}\b/, // Phone numbers (10+ digits)
+    /@\w+\.\w+/,   // Email addresses
+    /#\w+/,        // Hashtags
+    /https?:\/\/[^\s]+/, // Links
+    /@\w+/,        // Mentions
+  ];
+
+  const containsRestrictedContent = (text: string) => {
+    return restrictedPatterns.some(pattern => pattern.test(text));
+  };
+
   // Formatting helpers
-  // -----------------------------
   const formatMessageTime = (timestamp: string) => {
     try {
       return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -179,9 +190,7 @@ export default function ChatDetailPage() {
     return `${Math.floor(diffMinutes / 1440)}d ago`;
   };
 
-  // -----------------------------
   // Fetch functions
-  // -----------------------------
   const fetchUserProfile = async (userId: string) => {
     try {
       const response = await api.get(`/users/${userId}/profile`);
@@ -249,9 +258,7 @@ export default function ChatDetailPage() {
     return fetchConversationById(chatId);
   };
 
-  // -----------------------------
   // Socket Connection & Event Handlers
-  // -----------------------------
   useEffect(() => {
     if (!socket || !conversation) {
       console.log('🚫 Socket or conversation not available');
@@ -286,20 +293,20 @@ export default function ChatDetailPage() {
     // Event handlers
     const handleNewMessage = (newMessage: any) => {
       console.log('📨 New message received:', newMessage);
-      
+
       // Only add message if it belongs to current conversation
       if (String(newMessage.conversation_id) !== String(conversation.id)) {
         console.log('📨 Message for different conversation, ignoring');
         return;
       }
-      
+
       setMessages(prev => {
         const exists = prev.some(msg => String(msg.id) === String(newMessage.id));
         if (exists) {
           console.log('📨 Message already exists, skipping');
           return prev;
         }
-        
+
         console.log('📨 Adding new message to state');
         return [...prev, {
           ...newMessage,
@@ -320,14 +327,14 @@ export default function ChatDetailPage() {
 
     const handleTyping = (data: any) => {
       console.log('⌨️ Typing event received:', data);
-      
+
       if (data.user_id !== conversation.other_user.id) {
         console.log('⌨️ Typing from different user, ignoring');
         return;
       }
-      
+
       setIsTyping(data.is_typing);
-      
+
       if (data.is_typing) {
         console.log('⌨️ User started typing');
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -343,7 +350,7 @@ export default function ChatDetailPage() {
 
     const handleOnlineStatus = (data: any) => {
       console.log('👤 Online status update:', data);
-      
+
       if (data.user_id === conversation.other_user.id) {
         setOnlineStatus(Boolean(data.is_online));
         setConversation(prev =>
@@ -363,30 +370,30 @@ export default function ChatDetailPage() {
 
     const handleMessageStatusUpdate = (data: any) => {
       console.log('📬 Message status update:', data);
-      
+
       if (!data) return;
-      
+
       setMessages(prev =>
         prev.map(msg => {
           if (String(msg.id) !== String(data.message_id)) return msg;
-          
+
           let updatedMsg = { ...msg };
-          
+
           if (data.status === 'delivered') {
-            updatedMsg = { 
-              ...msg, 
-              status: 'delivered', 
-              delivered_at: data.delivered_at ?? msg.delivered_at 
+            updatedMsg = {
+              ...msg,
+              status: 'delivered',
+              delivered_at: data.delivered_at ?? msg.delivered_at
             };
           } else if (data.status === 'read') {
-            updatedMsg = { 
-              ...msg, 
-              status: 'read', 
-              read_at: data.read_at ?? msg.read_at, 
-              is_read: true 
+            updatedMsg = {
+              ...msg,
+              status: 'read',
+              read_at: data.read_at ?? msg.read_at,
+              is_read: true
             };
           }
-          
+
           console.log('📬 Updated message status:', updatedMsg);
           return updatedMsg;
         })
@@ -407,14 +414,14 @@ export default function ChatDetailPage() {
     // Cleanup function
     return () => {
       console.log('🧹 Cleaning up socket event listeners');
-      
+
       socket.off('connect', handleReconnect);
       socket.off('new_message', handleNewMessage);
       socket.off('user_typing', handleTyping);
       socket.off('user_online_status', handleOnlineStatus);
       socket.off('message_status_update', handleMessageStatusUpdate);
       socket.off('joined_conversation', handleJoinedConversation);
-      
+
       clearTimeout(reconnectTimer);
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
@@ -436,14 +443,12 @@ export default function ChatDetailPage() {
     }
   }, [conversation, onlineUsers]);
 
-  // -----------------------------
   // Typing Indicator Functions
-  // -----------------------------
   const handleTypingStart = useCallback(() => {
     if (!socket || !conversation || isTyping) {
       return;
     }
-    
+
     console.log('⌨️ Sending typing start');
     socket.emit('typing', {
       conversation_id: conversation.id,
@@ -455,7 +460,7 @@ export default function ChatDetailPage() {
     if (!socket || !conversation || !isTyping) {
       return;
     }
-    
+
     console.log('⌨️ Sending typing stop');
     socket.emit('typing', {
       conversation_id: conversation.id,
@@ -464,12 +469,17 @@ export default function ChatDetailPage() {
   }, [socket, conversation, isTyping]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value);
+    const newMessage = e.target.value;
+    setMessage(newMessage);
+
+    // Real-time restricted content check
+    const hasRestrictedContent = containsRestrictedContent(newMessage);
+    setShowRestrictedWarning(hasRestrictedContent && !canSendRestrictedContent);
 
     // Debounced typing start
     if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
-    
-    if (e.target.value.trim() && !isTyping) {
+
+    if (newMessage.trim() && !isTyping) {
       typingDebounceRef.current = setTimeout(() => {
         handleTypingStart();
       }, 500);
@@ -481,9 +491,7 @@ export default function ChatDetailPage() {
     }, 1000);
   };
 
-  // -----------------------------
   // Swipe to Reply
-  // -----------------------------
   const handleSwipeStart = (e: React.TouchEvent | React.MouseEvent, messageId: string | number) => {
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     setSwipeStartX(clientX);
@@ -493,10 +501,10 @@ export default function ChatDetailPage() {
 
   const handleSwipeMove = (e: React.TouchEvent | React.MouseEvent) => {
     if (!swipingMessageId) return;
-    
+
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const diff = clientX - swipeStartX;
-    
+
     // Only allow left swipe (negative values)
     if (diff < 0) {
       setSwipeOffset(Math.max(diff, -80)); // Max swipe distance
@@ -505,7 +513,7 @@ export default function ChatDetailPage() {
 
   const handleSwipeEnd = () => {
     if (!swipingMessageId) return;
-    
+
     // If swiped enough, set reply
     if (swipeOffset < -50) {
       const msg = messages.find(m => String(m.id) === String(swipingMessageId));
@@ -514,15 +522,13 @@ export default function ChatDetailPage() {
         setShowReplyPreview(true);
       }
     }
-    
+
     // Reset swipe
     setSwipingMessageId(null);
     setSwipeOffset(0);
   };
 
-  // -----------------------------
   // Message Functions
-  // -----------------------------
   const scrollToBottom = () => {
     try {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -531,7 +537,7 @@ export default function ChatDetailPage() {
 
   const markMessagesAsRead = useCallback((messageIds: (string | number)[]) => {
     if (!socket || !conversation) return;
-    
+
     console.log('📖 Marking messages as read:', messageIds);
     socket.emit('read_messages', {
       conversation_id: conversation.id,
@@ -553,17 +559,42 @@ export default function ChatDetailPage() {
   const sendMessage = async () => {
     if (!message.trim() || !conversation || sending) return;
     const content = message.trim();
+
+    // Check for restricted content
+    const hasRestrictedContent = containsRestrictedContent(content);
+
+    if (hasRestrictedContent && !canSendRestrictedContent) {
+      setShowUpgradeDialog(true);
+      return; // Stop sending the message
+    }
+
     setSending(true);
-    
-    
+
+    // Create temp message for immediate UI update
+    const tempMessage: Message = {
+      id: `temp-${Date.now()}`,
+      conversation_id: conversation.id,
+      sender_id: profile?.id || '',
+      sender_username: profile?.username || 'You',
+      content: content,
+      is_read: false,
+      timestamp: new Date().toISOString(),
+      delivered_at: null,
+      read_at: null,
+      status: 'sent',
+      reply_to: replyTo
+    };
+
+    setMessages(prev => [...prev, tempMessage]);
     setMessage('');
     setReplyTo(null);
     setShowReplyPreview(false);
+    setShowRestrictedWarning(false);
     scrollToBottom();
 
     try {
       handleTypingStop();
-      
+
       if (socket && socketConnected) {
         console.log('📤 Sending via socket');
         socket.emit('send_message', {
@@ -578,7 +609,7 @@ export default function ChatDetailPage() {
           content,
           reply_to: replyTo ? String(replyTo.id) : null
         });
-        
+
         if (response.data.success) {
           // Remove temp message and fetch fresh messages
           setMessages(prev => prev.filter(m => !isTempId(m.id)));
@@ -590,9 +621,17 @@ export default function ChatDetailPage() {
       }
     } catch (err: any) {
       console.error('❌ Error sending message:', err);
-      setError(err.response?.data?.message || 'Failed to send message');
-      // Remove temp message on error
-      setMessages(prev => prev.filter(m => !isTempId(m.id)));
+
+      // Handle upgrade required error from backend
+      if (err.response?.data?.error === 'UPGRADE_REQUIRED') {
+        setShowUpgradeDialog(true);
+        // Remove temp message
+        setMessages(prev => prev.filter(m => !isTempId(m.id)));
+      } else {
+        setError(err.response?.data?.message || 'Failed to send message');
+        // Remove temp message on error
+        setMessages(prev => prev.filter(m => !isTempId(m.id)));
+      }
     } finally {
       setSending(false);
     }
@@ -603,9 +642,7 @@ export default function ChatDetailPage() {
     setShowReplyPreview(false);
   };
 
-  // -----------------------------
   // Load Chat Data
-  // -----------------------------
   const loadChatData = async () => {
     if (!chatId) {
       router.push('/chat');
@@ -642,9 +679,7 @@ export default function ChatDetailPage() {
     }
   }, [message]);
 
-  // -----------------------------
   // Typing Bubble Component
-  // -----------------------------
   const TypingBubble = () => (
     <div className="flex justify-start">
       <div className="max-w-[70%] mr-12">
@@ -661,9 +696,7 @@ export default function ChatDetailPage() {
     </div>
   );
 
-  // -----------------------------
   // UI Render
-  // -----------------------------
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-white dark:bg-gray-900">
@@ -729,10 +762,9 @@ export default function ChatDetailPage() {
           </div>
 
           <div className="flex items-center space-x-2">
-     
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               className="text-white"
               onClick={() => setShowUserDetails(true)}
             >
@@ -803,8 +835,8 @@ export default function ChatDetailPage() {
                   >
                     <div className={`max-w-[70%] ${isOwn ? 'ml-12' : 'mr-12'}`}>
                       <div className={`relative px-3 py-2 rounded-lg ${
-                        isOwn 
-                          ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-br-none' 
+                        isOwn
+                          ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-br-none'
                           : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none'
                       } shadow-sm`}>
                         {replyPreview}
@@ -876,9 +908,19 @@ export default function ChatDetailPage() {
           </div>
         )}
 
+        {/* Restricted Content Warning */}
+        {showRestrictedWarning && (
+          <div className="mb-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            <div className="flex items-center">
+              <Crown className="h-4 w-4 text-yellow-600 mr-2" />
+              <p className="text-yellow-700 text-sm">
+                This message contains restricted content. Upgrade to Premium to send contact information, links, or hashtags.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-end space-x-2 max-w-3xl mx-auto">
-
-
           <div className="flex-1 relative">
             <textarea
               ref={textareaRef}
@@ -890,12 +932,11 @@ export default function ChatDetailPage() {
               disabled={sending}
               style={{ overflow: 'hidden' }}
             />
-           
           </div>
 
           <Button
             onClick={sendMessage}
-            disabled={!message.trim() || sending}
+            disabled={!message.trim() || sending || (showRestrictedWarning && !canSendRestrictedContent)}
             size="icon"
             className="flex-none bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed h-11 w-11 rounded-full shadow-lg"
           >
@@ -943,7 +984,7 @@ export default function ChatDetailPage() {
                     <p className="text-gray-600 dark:text-gray-400">{userProfile.bio}</p>
                   </div>
                 )}
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   {userProfile.age && (
                     <div>
@@ -994,6 +1035,16 @@ export default function ChatDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Upgrade Dialog */}
+      <UpgradeDialog
+        isOpen={showUpgradeDialog}
+        onClose={() => setShowUpgradeDialog(false)}
+        onUpgrade={() => {
+          setShowUpgradeDialog(false);
+          router.push('/subscription');
+        }}
+      />
     </div>
   );
 }

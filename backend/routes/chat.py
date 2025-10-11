@@ -9,6 +9,48 @@ from models.core import db
 
 chat_bp = Blueprint('chat', __name__)
 
+# Add this to your routes/Chat.py or create a new middleware
+
+import re
+from flask import jsonify
+
+
+class MessageValidator:
+    """Validate messages for restricted content based on subscription"""
+
+    @staticmethod
+    def contains_restricted_content(message):
+        """Check if message contains restricted patterns"""
+        restricted_patterns = [
+            r'\b\d{10,}\b',  # Phone numbers (10+ digits)
+            r'@\w+\.\w+',  # Email addresses
+            r'#\w+',  # Hashtags
+            r'https?://[^\s]+',  # Links
+            r'@\w+',  # Mentions
+        ]
+
+        for pattern in restricted_patterns:
+            if re.search(pattern, message):
+                return True
+        return False
+
+    @staticmethod
+    def validate_message_send(user, message_content):
+        """Validate if user can send this message based on subscription"""
+        from models.subscription import SubscriptionTier
+
+        # Check if message contains restricted content
+        if MessageValidator.contains_restricted_content(message_content):
+            # Check user's subscription
+            if not user.current_subscription:
+                return False, "UPGRADE_REQUIRED"
+
+            # Only premium users can send restricted content
+            if user.current_subscription.plan.tier == SubscriptionTier.FREE:
+                return False, "UPGRADE_REQUIRED"
+
+        return True, "ALLOWED"
+
 @chat_bp.route("/conversations", methods=["GET"])
 @jwt_required()
 def get_conversations():
@@ -182,13 +224,12 @@ def get_messages(conversation_id):
     }), 200
 
 
+# routes/chat.py - UPDATED send_message route
+
 @chat_bp.route("/messages/<int:conversation_id>", methods=["POST"])
 @jwt_required()
 def send_message(conversation_id):
-    """
-    Send a message to a conversation with optional reply functionality
-    Only accessible to conversation participants
-    """
+    """Send a message to a conversation with subscription validation"""
     current_user, error_response, status_code = get_current_user_from_jwt()
     if error_response:
         return error_response, status_code
@@ -205,6 +246,18 @@ def send_message(conversation_id):
     if not content:
         return jsonify({"success": False, "message": "Message content cannot be empty"}), 400
 
+    # ✅ ADDED: Validate message content based on subscription
+    from utils.message_validator import MessageValidator
+    is_allowed, restriction_reason = MessageValidator.validate_message_send(current_user, content)
+    if not is_allowed:
+        return jsonify({
+            "success": False,
+            "error": "UPGRADE_REQUIRED",
+            "message": "Upgrade to premium to send contact information, links, or hashtags",
+            "restricted_content": True
+        }), 403
+
+    # Rest of your existing send message logic...
     if len(content) > 1000:
         return jsonify({"success": False, "message": "Message too long (max 1000 characters)"}), 400
 
@@ -215,7 +268,6 @@ def send_message(conversation_id):
             id=reply_to_id,
             conversation_id=conversation_id
         ).first()
-        
         if not reply_to_message:
             return jsonify({"success": False, "message": "Reply message not found"}), 404
 
@@ -444,3 +496,6 @@ def get_message_replies(message_id):
 
     except Exception as e:
         return jsonify({"success": False, "message": "Failed to fetch message replies"}), 500
+
+
+

@@ -28,7 +28,7 @@ export default function AuthLayout({
         
         <div className="text-center">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent font-poppins">
-            Campus Vibes
+            Laumeet
           </h1>
           <div className="mt-4">
             <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">{title}</h2>

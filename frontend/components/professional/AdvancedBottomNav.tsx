@@ -57,7 +57,7 @@ export default function AdvancedBottomNav({ activeTab, onTabChange }: AdvancedBo
       {/* Create Menu Modal */}
       {showCreateMenu && (
         <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50 animate-in slide-in-up duration-300">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-4 min-w-[200px]">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 pb-12 min-w-[200px]">
             <button 
               onClick={() => handleCreateOption('post')}
               className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -65,13 +65,7 @@ export default function AdvancedBottomNav({ activeTab, onTabChange }: AdvancedBo
               <Image className="h-5 w-5 text-blue-500" />
               <span className="text-sm font-medium">New Post</span>
             </button>
-            <button 
-              onClick={() => handleCreateOption('event')}
-              className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              <Calendar className="h-5 w-5 text-pink-500" />
-              <span className="text-sm font-medium">Create Event</span>
-            </button>
+     
           </div>
         </div>
       )}

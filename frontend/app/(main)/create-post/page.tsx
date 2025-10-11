@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/(main)/create-post/page.tsx
 'use client';
 
@@ -141,8 +142,8 @@ export default function CreatePostPage() {
   };
 
   return (
-    <div className="space-y-6 pb-20">
-      <div className="flex items-center space-x-4">
+    <div className="space-y-6 pb-32">
+      <div className="space-y-4 pt-2">
         <Button
           variant="ghost"
           size="sm"
@@ -165,7 +166,7 @@ export default function CreatePostPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="text">What's on your mind?</Label>
+              <Label htmlFor="text">What&apos;s on your mind?</Label>
               <Textarea
                 id="text"
                 placeholder="Share your thoughts, updates, or questions..."

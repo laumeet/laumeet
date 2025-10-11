@@ -22,7 +22,7 @@ export default function LandingPage() {
       {/* Header */}
       <header className="px-6 pt-10 pb-6 text-center">
         <h1 className="text-4xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent font-poppins">
-          Campus Vibes
+          Laumeet
         </h1>
         <p className="text-gray-600 dark:text-gray-300 mt-2 text-lg">
           Find your match, vibe, or friend — safely and privately.

@@ -2,7 +2,7 @@
 // components/professional/ProfessionalHeader.tsx
 'use client';
 
-import { Bell, Search, MessageCircle, User, Settings, LogOut, Home, Heart, Loader2 } from 'lucide-react';
+import { Bell, Search, MessageCircle, User, Settings, LogOut, Home, Heart, Loader2, Wallet, Timer } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -48,10 +48,11 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
  const pathname = usePathname();
-   if (pathname && pathname.startsWith('/chat/') && pathname !== '/chat') return
+   if (pathname && (pathname === '/subscription' || pathname.startsWith('/chat/') )&& pathname !== '/chat') return
   const handleLogout = async () => {
     setLogoutLoading(true);
     try {
+      console.log('trying with api instance');
       const response = await api.post("/auth/logout");
       if (socket && socket.connected) {
       disconnect(); // close the socket gracefully
@@ -151,14 +152,34 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
                     <User className="h-4 w-4 mr-3 text-blue-500" />
                     My Profile
                   </button>
+                  {
+                    profile?.is_admin && (
+                      <button 
+                      onClick={() => router.push('/admin')}
+                      className="w-full px-4 py-3 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex items-center"
+                    >
+                      <Settings className="h-4 w-4 mr-3 text-gray-500" />
+                      Admin
+                      </button>
+                    )
+                  }
+                  {/* Settings Button */}
 
                   <button 
-                    onClick={handleSettingsClick}
+                     onClick={() => router.push('/subscription')}
                     className="w-full px-4 py-3 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex items-center"
                   >
-                    <Settings className="h-4 w-4 mr-3 text-gray-500" />
-                    Settings
+                   <Wallet className="h-4 w-4 mr-3 text-green-500" />
+                    Subscription
                   </button>
+                  {/* <button 
+                     onClick={() => router.push('/history')}
+                    className="w-full px-4 py-3 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex items-center"
+                  >
+                   <Timer className="h-4 w-4 mr-3 text-orange-500" />
+                    Payment History
+                  </button> */}
+                 
 
                   {/* Logout Button */}
                   <div className="border-t border-gray-100 dark:border-gray-700 mt-1 pt-1">

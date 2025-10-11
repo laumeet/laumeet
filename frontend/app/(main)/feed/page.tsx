@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/(main)/feed/page.tsx
 'use client';
 
@@ -225,13 +226,13 @@ export default function FeedPage() {
   }
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pt-6 pb-32">
       <div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Campus Feed</h1>
           <p className="text-gray-500 dark:text-gray-400">See what&apos;s happening around campus</p>
         </div>
-        <div className="flex align-left space-x-4">
+        <div className="flex items-center mt-4 align-left space-x-4">
           <Button
             variant="outline"
             size="sm"
@@ -316,13 +317,7 @@ export default function FeedPage() {
                       </div>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
+                 
                 </div>
               </CardHeader>
 

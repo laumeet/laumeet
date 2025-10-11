@@ -167,8 +167,8 @@ export default function ChatDetailPage() {
     return messagesUsed < messageLimit;
   }, [hasSubscription, messagesUsed, messageLimit]);
 
-  // Show upgrade prompt every 20 minutes
-  useEffect(() => {
+// Show upgrade prompt every 20 minutes
+useEffect(() => {
   if (!hasSubscription && conversation) {
     const showPrompt = () => {
       // Check if at least 20 minutes have passed since last prompt
@@ -178,22 +178,23 @@ export default function ChatDetailPage() {
         setLastUpgradePrompt(now);
       }
     };
-      // Show first prompt after 1 minute (for testing, change to 20 * 60 * 1000 for production)
-      const firstPromptDelay = 1 * 60 * 1000; // 1 minute for testing
-      upgradePromptTimerRef.current = setTimeout(showPrompt, firstPromptDelay);
 
-      // Then show every 20 minutes
-      const interval = 20 * 60 * 1000; // 20 minutes
-      upgradePromptTimerRef.current = setInterval(showPrompt, interval);
+    // Show first prompt after 1 minute (for testing, change to 20 * 60 * 1000 for production)
+    const firstPromptDelay = 1 * 60 * 1000; // 1 minute for testing
+    upgradePromptTimerRef.current = setTimeout(showPrompt, firstPromptDelay);
 
-      return () => {
-        if (upgradePromptTimerRef.current) {
-          clearTimeout(upgradePromptTimerRef.current);
-          clearInterval(upgradePromptTimerRef.current);
-        }
-      };
-    }
-  }, [hasSubscription, conversation, lastUpgradePrompt]);
+    // Then show every 20 minutes
+    const interval = 20 * 60 * 1000; // 20 minutes
+    upgradePromptTimerRef.current = setInterval(showPrompt, interval);
+
+    return () => {
+      if (upgradePromptTimerRef.current) {
+        clearTimeout(upgradePromptTimerRef.current);
+        clearInterval(upgradePromptTimerRef.current);
+      }
+    };
+  }
+}, [hasSubscription, conversation, lastUpgradePrompt]);
 
   // Sensitive content filtering
   const filterSensitiveContent = useCallback((content: string, userHasSubscription: boolean): string => {

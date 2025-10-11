@@ -52,6 +52,7 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
   const handleLogout = async () => {
     setLogoutLoading(true);
     try {
+      console.log('trying with api instance');
       const response = await api.post("/auth/logout");
       if (socket && socket.connected) {
       disconnect(); // close the socket gracefully

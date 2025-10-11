@@ -18,7 +18,7 @@ export default function Header({ activeTab }: HeaderProps) {
       case 'chat': return 'Messages';
       case 'feed': return 'Campus Feed';
       case 'settings': return 'Settings';
-      default: return 'Campus Vibes';
+      default: return 'Laumeet';
     }
   };
 

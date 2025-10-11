@@ -1,26 +1,32 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+'use client';
 'use client';
 
-import { useState } from 'react';
+import { toast } from 'sonner';
+import api from '@/lib/axio';
+
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useSocketContext } from '@/lib/socket-context';
 import { 
   Users, 
   Crown, 
   BarChart3, 
-  Settings, 
   Menu, 
   X,
   DollarSign,
   Calendar,
-  Bell,
   Search,
   User,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  Home
 } from 'lucide-react';
+import { useProfile } from '@/hooks/get-profile';
 
 const navigation = [
   {
@@ -57,17 +63,55 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+    const [logoutLoading, setLogoutLoading] = useState(false);
+  const { profile } = useProfile();
 
-  // Mock user data - replace with actual user data from your auth system
-  const currentUser = {
-    name: 'Admin User',
-    email: 'admin@laumeet.com',
-    role: 'Super Admin'
+  const { socket, disconnect } = useSocketContext();
+
+  const handleLogout = async () => {
+    setLogoutLoading(true);
+    try {
+      console.log('trying with api instance');
+      const response = await api.post("/auth/logout");
+      if (socket && socket.connected) {
+      disconnect(); // close the socket gracefully
+    }
+      if (response.data.success) {
+        toast.success("Logged out successfully");
+        
+        // Clear all stored data
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('campus-vibes-posts');
+        localStorage.removeItem('campus-vibes-swipe-history');
+        
+        // Clear cookies
+        document.cookie = "access_token_cookie=; Path=/; Max-Age=0; SameSite=None; Secure";
+        document.cookie = "refresh_token_cookie=; Path=/; Max-Age=0; SameSite=None; Secure";
+        document.cookie = "is_logged_in=; Path=/; Max-Age=0; SameSite=None; Secure";
+        
+        // Redirect to login
+        router.push("/login");
+      } else {
+        throw new Error(response.data.message || 'Logout failed');
+      }
+    } catch (error: any) {
+      console.error("Logout failed:", error);
+      toast.error(error.response?.data?.message || "Logout failed");
+      
+      // Fallback: clear everything and redirect anyway
+      localStorage.clear();
+      document.cookie.split(";").forEach(cookie => {
+        document.cookie = cookie.replace(/^ +/, "").replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`);
+      });
+      router.push("/login");
+    } finally {
+      setLogoutLoading(false);
+    }
   };
-
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
       {/* Sidebar for mobile */}
@@ -281,14 +325,7 @@ export default function AdminLayout({
                   <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                     <User className="h-4 w-4 text-white" />
                   </div>
-                  <div className="hidden md:block text-left">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">
-                      {currentUser.name}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {currentUser.role}
-                    </div>
-                  </div>
+                 
                   <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
                 </Button>
 
@@ -297,20 +334,31 @@ export default function AdminLayout({
                   <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
                     <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {currentUser.name}
+                        {profile?.name || 'User'}
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {currentUser.email}
+                        @{profile?.username || 'username'}
                       </div>
                     </div>
              
-                    
-                    <div className="border-t border-gray-200 dark:border-gray-700 mt-1 pt-1">
-                      <button className="w-full px-4 py-2 text-sm text-left text-red-600 dark:text-red-400 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center space-x-2">
-                        <LogOut className="h-4 w-4" />
-                        <span>Sign Out</span>
-                      </button>
-                    </div>
+                       <button 
+                     onClick={() => router.push('/')}
+                    className="w-full px-4 py-3 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex items-center"
+                  >
+                   <Home className="h-4 w-4 mr-3 text-green-500" />
+                    Home
+                  </button>
+                   {/* Logout Button */}
+                  <div className="border-t border-gray-100 dark:border-gray-700 mt-1 pt-1">
+                    <button 
+                      onClick={handleLogout}
+                      disabled={logoutLoading}
+                      className="w-full px-4 py-3 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center disabled:opacity-50"
+                    >
+                      <LogOut className="h-4 w-4 mr-3" />
+                      {logoutLoading ? 'Signing Out...' : 'Sign Out'}
+                    </button>
+                  </div>
                   </div>
                 )}
               </div>

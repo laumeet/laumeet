@@ -702,7 +702,7 @@ export default function FemaleSignupForm({
         <Alert className="bg-pink-50 dark:bg-pink-900/20 border-pink-200 dark:border-pink-800">
           <Shield className="h-4 w-4 text-pink-600 dark:text-pink-400" />
           <AlertDescription className="text-pink-800 dark:text-pink-200">
-            <span className="font-semibold">Your Safety Matters:</span> Campus Vibes is designed for genuine connections only. 
+            <span className="font-semibold">Your Safety Matters:</span> Laumeet is designed for genuine connections only. 
             We have zero tolerance for harassment or harmful activities.
           </AlertDescription>
         </Alert>
@@ -727,7 +727,7 @@ export default function FemaleSignupForm({
                 Creating Profile...
               </>
             ) : (
-              'Join Campus Vibes'
+              'Join Laumeet'
             )}
           </Button>
         </div>

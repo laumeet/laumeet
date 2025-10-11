@@ -20,7 +20,7 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: 'Campus Vibes - School Dating & Social App',
+  title: 'Laumeet - School Dating & Social App',
   description: 'Find your match, vibe, or friend — safely and privately.',
 };
 

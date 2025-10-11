@@ -1,287 +1,965 @@
-'use client';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// app/admin/plans/page.tsx
+"use client"
+import React, { useState } from 'react';
+import { AdminPlan, useAdminPlans } from '@/hooks/useAdminPlans';
+import { 
+  Download, 
+  Search, 
+  Filter, 
+  ArrowUpDown,
+  DollarSign,
+  CheckCircle,
+  BarChart3,
+  Crown,
+  Users,
+  Zap,
+  Eye,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Edit3,
+  Trash2,
+  Play,
+  Pause,
+  Star,
+  StarOff,
+  AlertCircle,
+  X,
+  Save
+} from 'lucide-react';
 
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, AlertCircle, Crown, DollarSign, Calendar, RefreshCw } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { toast } from 'sonner';
-
-interface Subscription {
-  id: string;
-  user: { id: string; username: string; name: string };
-  plan: { name: string; tier: string; monthly_price: number; yearly_price: number };
-  status: string;
-  billing_cycle: string;
-  dates: { start_date: string; end_date: string; canceled_at: string | null };
-  auto_renew: boolean;
-  usage: {
-    messages: { used: number; limit: number; remaining: number };
-    likes: { used: number; limit: number; remaining: number };
-    swipes: { used: number; limit: number; remaining: number };
-  };
-  days_remaining: number;
-  created_at: string;
+interface PlanFormData {
+  name: string;
+  tier: string;
+  description: string;
+  monthly_price: number;
+  yearly_price: number;
+  currency: string;
+  max_messages: number;
+  max_likes: number;
+  max_swipes: number;
+  has_advanced_filters: boolean;
+  has_priority_matching: boolean;
+  has_read_receipts: boolean;
+  has_verified_badge: boolean;
+  can_see_who_liked_you: boolean;
+  can_rewind_swipes: boolean;
+  has_incognito_mode: boolean;
+  is_popular: boolean;
 }
 
-interface SubscriptionStats {
-  total_subscriptions: number;
-  active_subscriptions: number;
-  canceled_subscriptions: number;
-  expired_subscriptions: number;
-  revenue_by_tier: { [key: string]: number };
-}
+const AdminPlansPage = () => {
+  const { 
+    plans, 
+    loading, 
+    error, 
+    statistics, 
+    pagination, 
+    fetchPlans, 
+    createPlan, 
+    updatePlan, 
+    deletePlan, 
+    activatePlan,
+    deactivatePlan,
+    togglePlanPopular,
+    exportPlans 
+  } = useAdminPlans();
 
-export default function AdminSubscriptionsPage() {
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [stats, setStats] = useState<SubscriptionStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({
-    page: 1,
-    per_page: 20,
-    status: 'all',
-    tier: 'all'
+    search: '',
+    tier: '',
+    status: '',
+    sort_by: 'created_at',
+    sort_order: 'desc'
+  });
+  const [showFilters, setShowFilters] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<AdminPlan | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string>('');
+
+  const [formData, setFormData] = useState<PlanFormData>({
+    name: '',
+    tier: 'free',
+    description: '',
+    monthly_price: 0,
+    yearly_price: 0,
+    currency: 'NGN',
+    max_messages: 50,
+    max_likes: 100,
+    max_swipes: 200,
+    has_advanced_filters: false,
+    has_priority_matching: false,
+    has_read_receipts: false,
+    has_verified_badge: false,
+    can_see_who_liked_you: false,
+    can_rewind_swipes: false,
+    has_incognito_mode: false,
+    is_popular: false
   });
 
-  const fetchSubscriptions = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const showSuccess = (message: string) => {
+    setSuccessMessage(message);
+    setTimeout(() => setSuccessMessage(''), 3000);
+  };
 
-      const queryParams = new URLSearchParams();
-      queryParams.append('page', filters.page.toString());
-      queryParams.append('per_page', filters.per_page.toString());
-      if (filters.status !== 'all') queryParams.append('status', filters.status);
-      if (filters.tier !== 'all') queryParams.append('tier', filters.tier);
+  const handleFilterChange = (key: string, value: string) => {
+    const newFilters = { ...filters, [key]: value };
+    setFilters(newFilters);
+    fetchPlans({ ...newFilters, page: 1 });
+  };
 
-      const response = await fetch(`/api/admin/subscriptions?${queryParams.toString()}`);
-      const data = await response.json();
+  const handlePageChange = (newPage: number) => {
+    fetchPlans({ ...filters, page: newPage });
+  };
 
-      if (data.success) {
-        setSubscriptions(data.subscriptions || []);
-        setStats(data.statistics || null);
-      } else {
-        throw new Error(data.message || 'Failed to fetch subscriptions');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      toast.error('Failed to load subscriptions');
-    } finally {
-      setLoading(false);
+  const handleFormChange = (field: keyof PlanFormData, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      tier: 'free',
+      description: '',
+      monthly_price: 0,
+      yearly_price: 0,
+      currency: 'NGN',
+      max_messages: 50,
+      max_likes: 100,
+      max_swipes: 200,
+      has_advanced_filters: false,
+      has_priority_matching: false,
+      has_read_receipts: false,
+      has_verified_badge: false,
+      can_see_who_liked_you: false,
+      can_rewind_swipes: false,
+      has_incognito_mode: false,
+      is_popular: false
+    });
+  };
+
+  const handleCreatePlan = async () => {
+    setActionLoading('create');
+    const result = await createPlan(formData);
+    setActionLoading(null);
+    
+    if (result.success) {
+      setShowCreateModal(false);
+      resetForm();
+      showSuccess('Plan created successfully!');
+    } else {
+      alert(result.message || 'Failed to create plan');
     }
   };
 
-  useEffect(() => {
-    fetchSubscriptions();
-  }, [filters]);
+  const handleUpdatePlan = async () => {
+    if (!editingPlan) return;
 
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'active': return 'default';
-      case 'canceled': return 'secondary';
-      case 'expired': return 'destructive';
-      default: return 'outline';
+    setActionLoading(editingPlan.id);
+    const result = await updatePlan(editingPlan.id, formData);
+    setActionLoading(null);
+    
+    if (result.success) {
+      setEditingPlan(null);
+      resetForm();
+      showSuccess('Plan updated successfully!');
+    } else {
+      alert(result.message || 'Failed to update plan');
     }
   };
 
-  const getTierBadgeVariant = (tier: string) => {
-    switch (tier) {
-      case 'premium': return 'default';
-      case 'vip': return 'secondary';
-      default: return 'outline';
+  const handleDeletePlan = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this plan? This action cannot be undone.')) {
+      return;
+    }
+
+    setActionLoading(id);
+    const result = await deletePlan(id);
+    setActionLoading(null);
+    
+    if (result.success) {
+      showSuccess('Plan deleted successfully!');
+    } else {
+      alert(result.message || 'Failed to delete plan');
     }
   };
 
-  const getTierIcon = (tier: string) => {
-    switch (tier) {
-      case 'premium': return <Crown className="h-3 w-3" />;
-      case 'vip': return <DollarSign className="h-3 w-3" />;
-      default: return null;
+  const handleActivatePlan = async (id: string) => {
+    setActionLoading(id);
+    const result = await activatePlan(id);
+    setActionLoading(null);
+    
+    if (result.success) {
+      showSuccess('Plan activated successfully!');
+    } else {
+      alert(result.message || 'Failed to activate plan');
     }
   };
 
-  if (loading) {
+  const handleDeactivatePlan = async (id: string) => {
+    setActionLoading(id);
+    const result = await deactivatePlan(id);
+    setActionLoading(null);
+    
+    if (result.success) {
+      showSuccess('Plan deactivated successfully!');
+    } else {
+      alert(result.message || 'Failed to deactivate plan');
+    }
+  };
+
+  const handleTogglePopular = async (id: string, isPopular: boolean) => {
+    setActionLoading(id);
+    const result = await togglePlanPopular(id, isPopular);
+    setActionLoading(null);
+    
+    if (result.success) {
+      showSuccess(`Plan ${isPopular ? 'marked as popular' : 'removed from popular'}!`);
+    } else {
+      alert(result.message || 'Failed to update plan');
+    }
+  };
+
+  const openEditModal = (plan: AdminPlan) => {
+    setEditingPlan(plan);
+    setFormData({
+      name: plan.name,
+      tier: plan.tier,
+      description: plan.description || '',
+      monthly_price: plan.monthly_price,
+      yearly_price: plan.yearly_price,
+      currency: plan.currency,
+      max_messages: plan.max_messages,
+      max_likes: plan.max_likes,
+      max_swipes: plan.max_swipes,
+      has_advanced_filters: plan.has_advanced_filters,
+      has_priority_matching: plan.has_priority_matching,
+      has_read_receipts: plan.has_read_receipts,
+      has_verified_badge: plan.has_verified_badge,
+      can_see_who_liked_you: plan.can_see_who_liked_you,
+      can_rewind_swipes: plan.can_rewind_swipes,
+      has_incognito_mode: plan.has_incognito_mode,
+      is_popular: plan.is_popular
+    });
+  };
+
+  const formatCurrency = (amount: number, currency: string) => {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: currency || 'NGN',
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const getTierBadge = (tier: string) => {
+    const tierConfig: { [key: string]: { color: string; icon: React.ReactNode } } = {
+      free: { 
+        color: 'bg-gray-100 text-gray-800 border-gray-200', 
+        icon: <Users className="w-3 h-3 mr-1" />
+      },
+      premium: { 
+        color: 'bg-yellow-100 text-yellow-800 border-yellow-200', 
+        icon: <Crown className="w-3 h-3 mr-1" />
+      },
+      vip: { 
+        color: 'bg-purple-100 text-purple-800 border-purple-200', 
+        icon: <Zap className="w-3 h-3 mr-1" />
+      },
+    };
+
+    const config = tierConfig[tier?.toLowerCase()] || tierConfig.free;
+    
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-blue-500" />
-          <p className="text-gray-600 dark:text-gray-400">Loading subscriptions...</p>
-        </div>
-      </div>
+      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${config.color}`}>
+        {config.icon}
+        {tier}
+      </span>
     );
-  }
+  };
 
-  if (error) {
+  const getStatusBadge = (isActive: boolean) => {
+    return isActive ? (
+      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+        <CheckCircle className="w-3 h-3 mr-1" />
+        Active
+      </span>
+    ) : (
+      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+        <AlertCircle className="w-3 h-3 mr-1" />
+        Inactive
+      </span>
+    );
+  };
+
+  if (loading && !plans.length) {
     return (
-      <div className="container mx-auto p-6">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            {error}
-            <div className="mt-3">
-              <Button onClick={fetchSubscriptions} variant="outline" size="sm">
-                Try Again
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
+      <div className="min-h-screen  p-4">
+        <div className="flex flex-col items-center justify-center h-64 space-y-4">
+          <RefreshCw className="w-12 h-12 text-blue-600 animate-spin" />
+          <p className="text-gray-600">Loading plans...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-4 sm:p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Subscription Management</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm sm:text-base">
-            Manage user subscriptions and monitor revenue
-          </p>
-        </div>
-        <Button onClick={fetchSubscriptions} variant="outline" className="w-full sm:w-auto">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
-      </div>
-
-      {/* Statistics Cards */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm text-gray-600">Total Subscriptions</p>
-              <p className="text-2xl font-bold">{stats.total_subscriptions}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm text-gray-600">Active</p>
-              <p className="text-2xl font-bold text-green-600">{stats.active_subscriptions}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm text-gray-600">Canceled</p>
-              <p className="text-2xl font-bold text-red-500">{stats.canceled_subscriptions}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm text-gray-600">Revenue</p>
-              <p className="text-2xl font-bold text-purple-600">
-                ₦{Object.values(stats.revenue_by_tier).reduce((a, b) => a + b, 0).toLocaleString()}
-              </p>
-            </CardContent>
-          </Card>
+    <div className="min-h-screen ">
+      {/* Success Message */}
+      {successMessage && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-2">
+            <CheckCircle className="w-5 h-5" />
+            <span>{successMessage}</span>
+          </div>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <Select value={filters.status} onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}>
-          <SelectTrigger className="sm:w-[180px] w-full">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="canceled">Canceled</SelectItem>
-            <SelectItem value="expired">Expired</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={filters.tier} onValueChange={(value) => setFilters(prev => ({ ...prev, tier: value }))}>
-          <SelectTrigger className="sm:w-[180px] w-full">
-            <SelectValue placeholder="Tier" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Tiers</SelectItem>
-            <SelectItem value="free">Free</SelectItem>
-            <SelectItem value="premium">Premium</SelectItem>
-            <SelectItem value="vip">VIP</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Header */}
+      <div className=" border-b border-gray-200 p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Subscription Plans</h1>
+            <p className="text-gray-600 text-sm">Manage and configure subscription plans</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={exportPlans}
+              className="flex items-center justify-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              <span>Export</span>
+            </button>
+            <button 
+              onClick={() => {
+                resetForm();
+                setShowCreateModal(true);
+              }}
+              className="flex items-center justify-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Plan</span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>User</TableHead>
-              <TableHead>Plan</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Billing</TableHead>
-              <TableHead className="hidden md:table-cell">Usage</TableHead>
-              <TableHead>Days Left</TableHead>
-              <TableHead className="hidden sm:table-cell">Auto-renew</TableHead>
-              <TableHead className="hidden md:table-cell">Created</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {subscriptions.map((subscription) => (
-              <TableRow key={subscription.id}>
-                <TableCell>
+      {/* Statistics Cards */}
+      {statistics && (
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className=" rounded-lg p-4 shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Plans</p>
+                <p className="text-xl font-bold text-white">
+                  {statistics.total_plans}
+                </p>
+              </div>
+              <div className="bg-blue-100 p-2 rounded-lg">
+                <BarChart3 className="w-5 h-5 text-blue-600" />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">{statistics.active_plans} active</p>
+          </div>
+
+          <div className=" rounded-lg p-4 shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Revenue Potential</p>
+                <p className="text-xl font-bold text-white">
+                  {formatCurrency(statistics.total_revenue_potential, 'NGN')}
+                </p>
+              </div>
+              <div className="bg-green-100 p-2 rounded-lg">
+                <DollarSign className="w-5 h-5 text-green-600" />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Total potential</p>
+          </div>
+
+          <div className=" rounded-lg p-4 shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Premium Plans</p>
+                <p className="text-xl font-bold text-white">
+                  {statistics.premium_plans}
+                </p>
+              </div>
+              <div className="bg-yellow-100 p-2 rounded-lg">
+                <Crown className="w-5 h-5 text-yellow-600" />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">{statistics.popular_plans} popular</p>
+          </div>
+
+          <div className=" rounded-lg p-4 shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Free Plans</p>
+                <p className="text-xl font-bold text-white">
+                  {statistics.free_plans}
+                </p>
+              </div>
+              <div className="bg-gray-100 p-2 rounded-lg">
+                <Users className="w-5 h-5 text-gray-600" />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Basic offerings</p>
+          </div>
+        </div>
+      )}
+
+      {/* Search and Filters */}
+      <div className=" border-b border-gray-200 p-4">
+        <div className="space-y-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Search plans..."
+              value={filters.search}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          {/* Filter Toggle */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center justify-between w-full px-3 py-2 border border-gray-300 rounded-lg hover:"
+          >
+            <div className="flex items-center space-x-2">
+              <Filter className="w-4 h-4 text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">Filters</span>
+            </div>
+            <ArrowUpDown className="w-4 h-4 text-gray-400" />
+          </button>
+
+          {/* Expandable Filters */}
+          {showFilters && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-gray-200">
+              {/* Tier Filter */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Tier</label>
+                <select
+                  value={filters.tier}
+                  onChange={(e) => handleFilterChange('tier', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                >
+                  <option value="">All Tiers</option>
+                  <option value="free">Free</option>
+                  <option value="premium">Premium</option>
+                  <option value="vip">VIP</option>
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  value={filters.status}
+                  onChange={(e) => handleFilterChange('status', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                >
+                  <option value="">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              {/* Sort */}
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Sort By</label>
+                <select
+                  value={`${filters.sort_by}-${filters.sort_order}`}
+                  onChange={(e) => {
+                    const [sort_by, sort_order] = e.target.value.split('-');
+                    handleFilterChange('sort_by', sort_by);
+                    handleFilterChange('sort_order', sort_order);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                >
+                  <option value="created_at-desc">Newest First</option>
+                  <option value="created_at-asc">Oldest First</option>
+                  <option value="monthly_price-desc">Price: High to Low</option>
+                  <option value="monthly_price-asc">Price: Low to High</option>
+                  <option value="name-asc">Name: A to Z</option>
+                  <option value="name-desc">Name: Z to A</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Error State */}
+      {error && (
+        <div className="p-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
+              <div>
+                <p className="text-red-800 font-medium">Error</p>
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => fetchPlans(filters)}
+              className="mt-2 flex items-center space-x-1 text-red-800 text-sm font-medium hover:text-red-900"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Try Again</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Plans List */}
+      <div className="p-4">
+        {plans.length === 0 ? (
+          <div className="text-center py-12  rounded-lg border border-gray-200">
+            <Crown className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-white mb-2">No plans found</h3>
+            <p className="text-gray-500 mb-4">No plans match your current filters.</p>
+            <button
+              onClick={() => {
+                setFilters({
+                  search: '',
+                  tier: '',
+                  status: '',
+                  sort_by: 'created_at',
+                  sort_order: 'desc'
+                });
+                fetchPlans();
+              }}
+              className="text-blue-600 text-sm font-medium hover:text-blue-700"
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {plans.map((plan) => (
+              <div
+                key={plan.id}
+                className=" rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow"
+              >
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex flex-wrap gap-2">
+                      {getTierBadge(plan.tier)}
+                      {plan.is_popular && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
+                          <Zap className="w-3 h-3 mr-1" />
+                          Popular
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-semibold text-white break-words">{plan.name}</h3>
+                  </div>
+                  <div className="flex items-center justify-between sm:justify-end gap-2">
+                    {getStatusBadge(plan.is_active)}
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={() => handleTogglePopular(plan.id, !plan.is_popular)}
+                        disabled={actionLoading === plan.id}
+                        className="p-1 text-gray-400 hover:text-yellow-600 transition-colors disabled:opacity-50"
+                        title={plan.is_popular ? 'Remove from popular' : 'Mark as popular'}
+                      >
+                        {plan.is_popular ? <Star className="w-4 h-4 text-yellow-500" /> : <StarOff className="w-4 h-4" />}
+                      </button>
+                      <button 
+                        onClick={() => openEditModal(plan)}
+                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                        title="Edit plan"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      {plan.is_active ? (
+                        <button 
+                          onClick={() => handleDeactivatePlan(plan.id)}
+                          disabled={actionLoading === plan.id}
+                          className="p-1 text-gray-400 hover:text-orange-600 transition-colors disabled:opacity-50"
+                          title="Deactivate plan"
+                        >
+                          <Pause className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => handleActivatePlan(plan.id)}
+                          disabled={actionLoading === plan.id}
+                          className="p-1 text-gray-400 hover:text-green-600 transition-colors disabled:opacity-50"
+                          title="Activate plan"
+                        >
+                          <Play className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => handleDeletePlan(plan.id)}
+                        disabled={actionLoading === plan.id}
+                        className="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                        title="Delete plan"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      {actionLoading === plan.id && (
+                        <RefreshCw className="w-4 h-4 text-blue-600 animate-spin" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <p className="text-gray-600 text-sm mb-4 line-clamp-2">{plan.description}</p>
+
+                {/* Pricing */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <p className="font-medium truncate max-w-[120px]">{subscription.user.name || subscription.user.username}</p>
-                    <p className="text-xs text-gray-500">@{subscription.user.username}</p>
+                    <p className="text-sm font-medium text-gray-600">Monthly</p>
+                    <p className="text-xl font-bold text-white">
+                      {formatCurrency(plan.monthly_price, plan.currency)}
+                    </p>
                   </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={getTierBadgeVariant(subscription.plan.tier)} className="flex items-center gap-1">
-                    {getTierIcon(subscription.plan.tier)}
-                    {subscription.plan.name}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={getStatusBadgeVariant(subscription.status)}>
-                    {subscription.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <p className="capitalize text-sm">{subscription.billing_cycle}</p>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Yearly</p>
+                    <p className="text-xl font-bold text-white">
+                      {formatCurrency(plan.yearly_price, plan.currency)}
+                    </p>
+                    {plan.yearly_price > 0 && plan.monthly_price > 0 && (
+                      <p className="text-xs text-green-600">
+                        Save {Math.round((1 - plan.yearly_price / (plan.monthly_price * 12)) * 100)}%
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Features */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                  <div className="flex items-center space-x-1">
+                    <Eye className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                    <span className="text-gray-600">Messages:</span>
+                    <span className="font-medium ml-1">{plan.max_messages === -1 ? 'Unlimited' : plan.max_messages}</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Users className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                    <span className="text-gray-600">Likes:</span>
+                    <span className="font-medium ml-1">{plan.max_likes === -1 ? 'Unlimited' : plan.max_likes}</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Zap className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                    <span className="text-gray-600">Swipes:</span>
+                    <span className="font-medium ml-1">{plan.max_swipes === -1 ? 'Unlimited' : plan.max_swipes}</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <CheckCircle className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                    <span className="text-gray-600">Advanced Features:</span>
+                    <span className="font-medium ml-1">{plan.has_advanced_filters ? 'Yes' : 'No'}</span>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                   <p className="text-xs text-gray-500">
-                    ₦{subscription.billing_cycle === 'yearly'
-                      ? subscription.plan.yearly_price.toLocaleString()
-                      : subscription.plan.monthly_price.toLocaleString()}
+                    Created {formatDate(plan.created_at)}
                   </p>
-                </TableCell>
-                <TableCell className="hidden md:table-cell text-xs">
-                  <div className="space-y-1">
-                    <p>Msg: {subscription.usage.messages.used}/{subscription.usage.messages.limit}</p>
-                    <p>Likes: {subscription.usage.likes.used}/{subscription.usage.likes.limit}</p>
-                    <p>Swipes: {subscription.usage.swipes.used}/{subscription.usage.swipes.limit}</p>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <span className={subscription.days_remaining < 7 ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>
-                    {subscription.days_remaining}
-                  </span>
-                </TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  <Badge variant={subscription.auto_renew ? 'default' : 'outline'}>
-                    {subscription.auto_renew ? 'Yes' : 'No'}
-                  </Badge>
-                </TableCell>
-                <TableCell className="hidden md:table-cell">
-                  {new Date(subscription.created_at).toLocaleDateString()}
-                </TableCell>
-              </TableRow>
+                  <p className="text-xs text-gray-500 font-mono truncate">ID: {plan.id}</p>
+                </div>
+              </div>
             ))}
-          </TableBody>
-        </Table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {pagination && pagination.total_pages > 1 && (
+          <div className="mt-6 flex items-center justify-between">
+            <button
+              onClick={() => handlePageChange(pagination.page - 1)}
+              disabled={!pagination.has_prev}
+              className={`flex items-center space-x-1 px-4 py-2 rounded-lg border ${
+                pagination.has_prev
+                  ? 'border-gray-300 text-gray-700 hover:'
+                  : 'border-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Previous</span>
+            </button>
+
+            <span className="text-sm text-gray-600">
+              Page {pagination.page} of {pagination.total_pages}
+            </span>
+
+            <button
+              onClick={() => handlePageChange(pagination.page + 1)}
+              disabled={!pagination.has_next}
+              className={`flex items-center space-x-1 px-4 py-2 rounded-lg border ${
+                pagination.has_next
+                  ? 'border-gray-300 text-gray-700 hover:'
+                  : 'border-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              <span className="hidden sm:inline">Next</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Loading for pagination */}
+        {loading && plans.length > 0 && (
+          <div className="mt-4 flex justify-center">
+            <RefreshCw className="w-6 h-6 text-blue-600 animate-spin" />
+          </div>
+        )}
       </div>
 
-      {subscriptions.length === 0 && (
-        <div className="text-center py-10 text-gray-500">
-          No subscriptions found.
+      {/* Create/Edit Plan Modal */}
+      {(showCreateModal || editingPlan) && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className=" rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold">
+                {editingPlan ? 'Edit Plan' : 'Create New Plan'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setEditingPlan(null);
+                  resetForm();
+                }}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <div className="p-6 space-y-4">
+              {/* Basic Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Plan Name</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => handleFormChange('name', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter plan name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tier</label>
+                  <select
+                    value={formData.tier}
+                    onChange={(e) => handleFormChange('tier', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="free">Free</option>
+                    <option value="premium">Premium</option>
+                    <option value="vip">VIP</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => handleFormChange('description', e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter plan description"
+                />
+              </div>
+
+              {/* Pricing */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Price</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.monthly_price}
+                    onChange={(e) => handleFormChange('monthly_price', parseFloat(e.target.value) || 0)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Yearly Price</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.yearly_price}
+                    onChange={(e) => handleFormChange('yearly_price', parseFloat(e.target.value) || 0)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                  <select
+                    value={formData.currency}
+                    onChange={(e) => handleFormChange('currency', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="NGN">NGN</option>
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Limits */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Max Messages</label>
+                  <input
+                    type="number"
+                    value={formData.max_messages}
+                    onChange={(e) => handleFormChange('max_messages', parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Max Likes</label>
+                  <input
+                    type="number"
+                    value={formData.max_likes}
+                    onChange={(e) => handleFormChange('max_likes', parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Max Swipes</label>
+                  <input
+                    type="number"
+                    value={formData.max_swipes}
+                    onChange={(e) => handleFormChange('max_swipes', parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Features */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.has_advanced_filters}
+                    onChange={(e) => handleFormChange('has_advanced_filters', e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Advanced Filters</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.has_priority_matching}
+                    onChange={(e) => handleFormChange('has_priority_matching', e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Priority Matching</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.has_read_receipts}
+                    onChange={(e) => handleFormChange('has_read_receipts', e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Read Receipts</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.can_see_who_liked_you}
+                    onChange={(e) => handleFormChange('can_see_who_liked_you', e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">See Who Liked You</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.can_rewind_swipes}
+                    onChange={(e) => handleFormChange('can_rewind_swipes', e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Rewind Swipes</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.has_incognito_mode}
+                    onChange={(e) => handleFormChange('has_incognito_mode', e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Incognito Mode</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.has_verified_badge}
+                    onChange={(e) => handleFormChange('has_verified_badge', e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Verified Badge</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_popular}
+                    onChange={(e) => handleFormChange('is_popular', e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Mark as Popular</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end space-x-2 p-6 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setEditingPlan(null);
+                  resetForm();
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={editingPlan ? handleUpdatePlan : handleCreatePlan}
+                disabled={actionLoading === (editingPlan ? editingPlan.id : 'create') || !formData.name}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                <span>
+                  {actionLoading === (editingPlan ? editingPlan.id : 'create') 
+                    ? (editingPlan ? 'Updating...' : 'Creating...') 
+                    : (editingPlan ? 'Update Plan' : 'Create Plan')}
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
-}
+};
+
+export default AdminPlansPage;

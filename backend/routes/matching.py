@@ -36,15 +36,19 @@ def explore():
         query = query.filter(~User.id.in_(swiped_ids))
 
     # Match logic based on 'interested_in'
-    if current_user.interested_in == "Male":
-        query = query.filter(User.gender == "Male")
-    elif current_user.interested_in == "Female":
-        query = query.filter(User.gender == "Female")
-    elif current_user.interested_in == "Both":
-        query = query.filter(User.gender.in_(["Male", "Female"]))
+    if current_user.interested_in.lower() == "male":
+        query = query.filter(User.gender.ilike("male"))
+    elif current_user.interested_in.lower() == "female":
+        query = query.filter(User.gender.ilike("female"))
+    elif current_user.interested_in.lower() == "both":
+        query = query.filter(User.gender.ilike("male") | User.gender.ilike("female"))
     else:
         # Default fallback: show all users (excluding self + swiped)
         query = query.filter(User.gender.in_(["Male", "Female"]))
+
+    print("Current user:", current_user.username)
+    print("Interested in:", current_user.interested_in)
+    print("Already swiped:", swiped_ids)
 
     # Get paginated random users
     candidates = (
@@ -53,6 +57,8 @@ def explore():
         .limit(limit)
         .all()
     )
+
+    print("Candidates found:", [u.username for u in candidates])
 
     # Fallback: if no candidates found, still exclude swiped users
     if not candidates:
@@ -67,14 +73,16 @@ def explore():
             .all()
         )
 
-        result = [user.to_dict() for user in candidates]
+    # ✅ Always return a response — no matter what
+    result = [user.to_dict() for user in candidates]
 
-        return jsonify({
+    return jsonify({
         "success": True,
         "page": page,
         "limit": limit,
         "profiles": result
     }), 200
+
 
 
 @matching_bp.route("/swipe", methods=["POST"])

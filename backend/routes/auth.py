@@ -22,7 +22,7 @@ def signup():
     data = request.json or {}
 
     # Extract all fields from request data
-    username = data.get("username")
+    username = data.get("username").strip().lower()
     password = data.get("password")
     security_question = data.get("security_question")
     security_answer = data.get("security_answer")
@@ -164,7 +164,7 @@ def login():
     Includes rate limiting to prevent brute force attacks
     """
     data = request.json or {}
-    username = data.get("username")
+    username = data.get("username").strip().lower()
     password = data.get("password")
 
     # Basic validation

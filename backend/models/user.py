@@ -46,7 +46,8 @@ class User(db.Model):
     gender: Mapped[str] = mapped_column(String(20), nullable=False)
     genotype: Mapped[str] = mapped_column(String(5), nullable=True)
     level: Mapped[str] = mapped_column(String(20), nullable=True)
-    interested_in: Mapped[str] = mapped_column(String(50), nullable=True)
+    gender = mapped_column(String(10), nullable=True)
+    interested_in = mapped_column(String(10), default="Both")  # "Male", "Female", or "Both"
     religious: Mapped[str] = mapped_column(String(50), nullable=True)
     is_anonymous: Mapped[bool] = mapped_column(Boolean, default=False)
     category: Mapped[str] = mapped_column(String(50), nullable=False)

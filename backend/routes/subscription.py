@@ -12,7 +12,8 @@ from models.subscription import (
     PaymentStatus,
     PaymentProvider
 )
-from models.user import User
+from models.user import User, Swipe, Like
+from models.chat import Message
 from models.core import db
 
 subscription_bp = Blueprint('subscription', __name__)
@@ -528,47 +529,186 @@ def cancel_subscription():
         }), 500
 
 
+@subscription_bp.route("/subscription/user/<string:user_id>", methods=["GET"])
+@jwt_required()
+def get_user_subscription_by_id(user_id):
+    """
+    Get user's subscription by user ID (Admin only)
+    """
+    current_user, error_response, status_code = get_current_user_from_jwt()
+    if error_response:
+        return error_response, status_code
+
+    # Check if current user is admin
+    if not current_user.is_admin:
+        return jsonify({
+            "success": False,
+            "message": "Admin access required"
+        }), 403
+
+    try:
+        # Find the user by public_id
+        user = User.query.filter_by(public_id=user_id).first()
+        if not user:
+            return jsonify({
+                "success": False,
+                "message": "User not found"
+            }), 404
+
+        # Get user's current subscription
+        subscription = user.current_subscription
+        
+        if not subscription:
+            # Return free plan details if no subscription
+            free_plan = SubscriptionPlan.query.filter_by(tier=SubscriptionTier.FREE).first()
+            return jsonify({
+                "success": True,
+                "user_id": user.public_id,
+                "username": user.username,
+                "name": user.name,
+                "has_subscription": False,
+                "current_plan": free_plan.to_dict() if free_plan else None,
+                "message": "User is on the free plan"
+            }), 200
+
+        subscription_data = subscription.to_dict()
+
+        return jsonify({
+            "success": True,
+            "user_id": user.public_id,
+            "username": user.username,
+            "name": user.name,
+            "has_subscription": True,
+            "subscription": subscription_data
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching user subscription: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": "Failed to fetch user subscription"
+        }), 500
+
+
 @subscription_bp.route("/usage", methods=["GET"])
 @jwt_required()
 def get_usage_stats():
     """
-    Get current usage statistics for user's subscription
+    Get current usage statistics for user's subscription with real backend data
     """
     current_user, error_response, status_code = get_current_user_from_jwt()
     if error_response:
         return error_response, status_code
 
     try:
-        if not current_user.current_subscription:
-            # Return free plan usage
+        # Get user's current subscription period dates
+        subscription = current_user.current_subscription
+        period_start = subscription.start_date if subscription else datetime.utcnow() - timedelta(days=30)
+        period_end = subscription.end_date if subscription else datetime.utcnow()
+
+        # Calculate real usage from database
+        # Calculate real messages sent in current period
+        real_messages_sent = Message.query.filter(
+            Message.sender_id == current_user.id,
+            Message.timestamp >= period_start,
+            Message.timestamp <= period_end
+        ).count()
+
+        # Calculate real swipes in current period
+        real_swipes_used = Swipe.query.filter(
+            Swipe.user_id == current_user.id,
+            Swipe.timestamp >= period_start,
+            Swipe.timestamp <= period_end
+        ).count()
+
+        # Calculate real post likes in current period
+        real_post_likes = Like.query.filter(
+            Like.user_id == current_user.id,
+            Like.created_at >= period_start,
+            Like.created_at <= period_end
+        ).count()
+
+        # Calculate real profile likes (swipes with action='like') in current period
+        real_profile_likes = Swipe.query.filter(
+            Swipe.user_id == current_user.id,
+            Swipe.action == 'like',
+            Swipe.timestamp >= period_start,
+            Swipe.timestamp <= period_end
+        ).count()
+
+        # Total likes (post likes + profile likes)
+        real_total_likes = real_post_likes + real_profile_likes
+
+        if not subscription:
+            # Return free plan usage with real data
             free_plan = SubscriptionPlan.query.filter_by(tier=SubscriptionTier.FREE).first()
             return jsonify({
                 "success": True,
                 "usage": {
                     "messages": {
-                        "used": 0,
+                        "used": real_messages_sent,
                         "limit": free_plan.max_messages if free_plan else 50,
-                        "remaining": free_plan.max_messages if free_plan else 50
+                        "remaining": max(0, (free_plan.max_messages if free_plan else 50) - real_messages_sent)
                     },
                     "likes": {
-                        "used": 0,
+                        "used": real_total_likes,
                         "limit": free_plan.max_likes if free_plan else 100,
-                        "remaining": free_plan.max_likes if free_plan else 100
+                        "remaining": max(0, (free_plan.max_likes if free_plan else 100) - real_total_likes)
                     },
                     "swipes": {
-                        "used": 0,
+                        "used": real_swipes_used,
                         "limit": free_plan.max_swipes if free_plan else 200,
-                        "remaining": free_plan.max_swipes if free_plan else 200
+                        "remaining": max(0, (free_plan.max_swipes if free_plan else 200) - real_swipes_used)
                     }
+                },
+                "real_usage_breakdown": {
+                    "messages_sent": real_messages_sent,
+                    "post_likes": real_post_likes,
+                    "profile_likes": real_profile_likes,
+                    "total_likes": real_total_likes,
+                    "swipes": real_swipes_used,
+                    "period_start": period_start.isoformat() + "Z",
+                    "period_end": period_end.isoformat() + "Z"
                 },
                 "plan": free_plan.to_dict() if free_plan else None
             }), 200
 
-        subscription_data = current_user.current_subscription.to_dict()
+        # For users with subscription
+        subscription_data = subscription.to_dict()
 
         return jsonify({
             "success": True,
-            "usage": subscription_data.get("usage", {}),
+            "usage": {
+                "messages": {
+                    "used": real_messages_sent,
+                    "limit": subscription.plan.max_messages,
+                    "remaining": subscription.get_remaining_messages()
+                },
+                "likes": {
+                    "used": real_total_likes,
+                    "limit": subscription.plan.max_likes,
+                    "remaining": subscription.get_remaining_likes()
+                },
+                "swipes": {
+                    "used": real_swipes_used,
+                    "limit": subscription.plan.max_swipes,
+                    "remaining": subscription.get_remaining_swipes()
+                }
+            },
+            "real_usage_breakdown": {
+                "messages_sent": real_messages_sent,
+                "post_likes": real_post_likes,
+                "profile_likes": real_profile_likes,
+                "total_likes": real_total_likes,
+                "swipes": real_swipes_used,
+                "period_start": period_start.isoformat() + "Z",
+                "period_end": period_end.isoformat() + "Z"
+            },
+            "subscription_usage": {
+                "messages_used_in_subscription": subscription.messages_used,
+                "likes_used_in_subscription": subscription.likes_used,
+                "swipes_used_in_subscription": subscription.swipes_used
+            },
             "plan": subscription_data.get("plan", {}),
             "days_remaining": subscription_data.get("days_remaining", 0)
         }), 200
@@ -581,7 +721,142 @@ def get_usage_stats():
         }), 500
 
 
+@subscription_bp.route("/usage/sync", methods=["POST"])
+@jwt_required()
+def sync_usage():
+    """
+    Manually sync subscription usage with real backend data
+    """
+    current_user, error_response, status_code = get_current_user_from_jwt()
+    if error_response:
+        return error_response, status_code
 
+    try:
+        if not current_user.current_subscription:
+            return jsonify({
+                "success": False,
+                "message": "No active subscription found"
+            }), 404
+
+        subscription = current_user.current_subscription
+        real_usage = subscription.sync_usage_from_backend()
+        
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Usage synced successfully",
+            "real_usage": real_usage,
+            "subscription_usage": {
+                "messages_used": subscription.messages_used,
+                "likes_used": subscription.likes_used,
+                "swipes_used": subscription.swipes_used
+            }
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error syncing usage: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": "Failed to sync usage"
+        }), 500
+
+
+@subscription_bp.route("/usage/summary", methods=["GET"])
+@jwt_required()
+def get_usage_summary():
+    """
+    Get comprehensive usage summary with real data
+    """
+    current_user, error_response, status_code = get_current_user_from_jwt()
+    if error_response:
+        return error_response, status_code
+
+    try:
+        if not current_user.current_subscription:
+            # Return free plan summary
+            free_plan = SubscriptionPlan.query.filter_by(tier=SubscriptionTier.FREE).first()
+            
+            # Calculate real usage for free plan
+            period_start = datetime.utcnow() - timedelta(days=30)
+            period_end = datetime.utcnow()
+            
+            real_messages_sent = Message.query.filter(
+                Message.sender_id == current_user.id,
+                Message.timestamp >= period_start,
+                Message.timestamp <= period_end
+            ).count()
+
+            real_swipes_used = Swipe.query.filter(
+                Swipe.user_id == current_user.id,
+                Swipe.timestamp >= period_start,
+                Swipe.timestamp <= period_end
+            ).count()
+
+            real_post_likes = Like.query.filter(
+                Like.user_id == current_user.id,
+                Like.created_at >= period_start,
+                Like.created_at <= period_end
+            ).count()
+
+            real_profile_likes = Swipe.query.filter(
+                Swipe.user_id == current_user.id,
+                Swipe.action == 'like',
+                Swipe.timestamp >= period_start,
+                Swipe.timestamp <= period_end
+            ).count()
+
+            real_total_likes = real_post_likes + real_profile_likes
+
+            return jsonify({
+                "success": True,
+                "has_subscription": False,
+                "summary": {
+                    "plan_info": {
+                        "name": free_plan.name if free_plan else "Free Plan",
+                        "tier": "free",
+                        "status": "active"
+                    },
+                    "real_usage": {
+                        "messages": real_messages_sent,
+                        "likes": real_total_likes,
+                        "swipes": real_swipes_used
+                    },
+                    "limits": {
+                        "messages": free_plan.max_messages if free_plan else 50,
+                        "likes": free_plan.max_likes if free_plan else 100,
+                        "swipes": free_plan.max_swipes if free_plan else 200
+                    },
+                    "remaining": {
+                        "messages": max(0, (free_plan.max_messages if free_plan else 50) - real_messages_sent),
+                        "likes": max(0, (free_plan.max_likes if free_plan else 100) - real_total_likes),
+                        "swipes": max(0, (free_plan.max_swipes if free_plan else 200) - real_swipes_used)
+                    },
+                    "breakdown": {
+                        "post_likes": real_post_likes,
+                        "profile_likes": real_profile_likes,
+                        "total_likes": real_total_likes
+                    }
+                }
+            }), 200
+
+        # For users with subscription
+        subscription = current_user.current_subscription
+        usage_summary = subscription.get_usage_summary()
+
+        return jsonify({
+            "success": True,
+            "has_subscription": True,
+            "summary": usage_summary
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching usage summary: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": "Failed to fetch usage summary"
+        }), 500
 
 
 @subscription_bp.route("/payments/<string:payment_id>/confirm", methods=["POST"])

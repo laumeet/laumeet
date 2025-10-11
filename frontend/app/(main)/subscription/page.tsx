@@ -3,24 +3,26 @@
 'use client';
 
 import { useState } from 'react';
-import { Crown, Star, Zap, CheckCircle, Loader2 } from 'lucide-react';
+import { Crown, Star, Zap, CheckCircle, Loader2, Calendar, Infinity, MessageCircle, Heart, Hand } from 'lucide-react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useUsageStats } from '@/hooks/useUsageStats';
+import { useCurrentPlan } from '@/hooks/useCurrentPlan';
 import { useFlutterwaveHook } from '@/hooks/useFlutterwave';
 import { FlutterwavePayment } from '@/components/FlutterwavePayment';
 import { PlanCard } from '@/components/subscription/PlanCard';
-import { UsageMeter } from '@/components/subscription/UsageMeter';
 import { BillingCycleToggle } from '@/components/subscription/BillingCycleToggle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 
 export default function SubscriptionPage() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<{id: string, cycle: 'monthly' | 'yearly'} | null>(null);
-  const { plans, currentSubscription, loading, fetchCurrentSubscription } = useSubscription();
+  const { plans, loading: plansLoading } = useSubscription();
   const { usage, fetchUsageStats } = useUsageStats();
+  const { currentPlan, hasSubscription, loading: planLoading } = useCurrentPlan();
   const { processing, processSubscriptionPayment } = useFlutterwaveHook();
 
   const userData = {
@@ -45,7 +47,6 @@ export default function SubscriptionPage() {
       );
       
       // If we get here, payment was successful
-      await fetchCurrentSubscription();
       await fetchUsageStats();
       
       toast.success('Subscription activated successfully!', {
@@ -67,18 +68,17 @@ export default function SubscriptionPage() {
     }
   };
 
-  const currentPlan = plans.find(p => p.tier === currentSubscription?.plan?.tier);
+  const loading = plansLoading || planLoading;
 
   return (
-    <div className="container mx-auto p-6 space-y-8">
+    <div className="container mx-auto p-6 pb-32 space-y-8">
       {/* Header */}
       <div className="text-center space-y-4">
         <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-          Choose Your Plan
+          Upgrade Your Experience
         </h1>
         <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-          Unlock premium features and connect with more people. 
-          {billingCycle === 'yearly' && ' Get 2 months free when you choose yearly billing!'}
+          Get more matches, unlimited likes, and premium features to enhance your dating experience.
         </p>
         
         <BillingCycleToggle 
@@ -142,36 +142,61 @@ export default function SubscriptionPage() {
         </div>
       )}
 
-      {/* Rest of the content remains exactly the same as before */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Current Usage Stats */}
+        {/* Current Plan & Usage Section */}
         <div className="lg:col-span-1 space-y-6">
           {/* Current Plan Card */}
-          {currentSubscription && (
-            <Card className="bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  Current Plan
-                </CardTitle>
-                <CardDescription>
-                  Your active subscription details
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{currentSubscription.plan.name}</span>
-                  <Badge variant={currentSubscription.status === 'active' ? 'default' : 'secondary'}>
-                    {currentSubscription.status}
-                  </Badge>
+          <Card className="border-2 pt-0 border-blue-200 dark:border-blue-800">
+            <CardHeader className="bg-gradient-to-r p-2 from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
+              <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                <CheckCircle className="h-5 w-5" />
+                {hasSubscription ? 'Your Current Plan' : 'Current Plan'}
+              </CardTitle>
+              <CardDescription>
+                {hasSubscription 
+                  ? 'Your active subscription details' 
+                  : 'You are currently on the free plan'
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-4">
+              {hasSubscription && currentPlan ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-lg">{currentPlan.name}</span>
+                    <Badge variant="default" className="bg-green-500">
+                      Active
+                    </Badge>
+                  </div>
+                  
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-gray-500" />
+                      <span>Renews: {new Date(currentPlan.dates.end_date).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-yellow-500" />
+                      <span>{currentPlan.days_remaining} days remaining</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500">Billing:</span>
+                      <span className="capitalize">{currentPlan.billing_cycle}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-4">
+                  <div className="bg-gray-100 dark:bg-gray-800 rounded-full p-3 w-12 h-12 mx-auto mb-3">
+                    <Crown className="h-6 w-6 text-gray-500 mx-auto" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-2">Free Plan</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Basic features to get you started
+                  </p>
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  <div>Renews: {new Date(currentSubscription.dates.end_date).toLocaleDateString()}</div>
-                  <div>Days remaining: {currentSubscription.days_remaining}</div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </CardContent>
+          </Card>
 
           {/* Usage Statistics */}
           {usage && (
@@ -179,85 +204,91 @@ export default function SubscriptionPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Zap className="h-5 w-5 text-yellow-500" />
-                  Usage Statistics
+                  Your Usage
                 </CardTitle>
                 <CardDescription>
-                  Your current usage for this period
+                  Usage reset in {currentPlan?.days_remaining || 30} days
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <UsageMeter
-                  used={usage.messages.used}
-                  limit={usage.messages.limit}
-                  label="Messages"
-                  color="bg-blue-500"
-                />
-                <UsageMeter
-                  used={usage.likes.used}
-                  limit={usage.likes.limit}
-                  label="Likes"
-                  color="bg-green-500"
-                />
-                <UsageMeter
-                  used={usage.swipes.used}
-                  limit={usage.swipes.limit}
-                  label="Swipes"
-                  color="bg-purple-500"
-                />
+              <CardContent className="space-y-6">
+                {/* Messages */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MessageCircle className="h-4 w-4 text-blue-500" />
+                      <span className="font-medium">Messages</span>
+                    </div>
+                    <span className="text-sm text-gray-600">
+                      {usage.messages.used} / {usage.messages.limit === -1 ? '∞' : usage.messages.limit}
+                    </span>
+                  </div>
+                  <Progress 
+                    value={(usage.messages.used / (usage.messages.limit === -1 ? 100 : usage.messages.limit)) * 100} 
+                    className="h-2"
+                  />
+                </div>
+
+                {/* Likes */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Heart className="h-4 w-4 text-red-500" />
+                      <span className="font-medium">Likes</span>
+                    </div>
+                    <span className="text-sm text-gray-600">
+                      {usage.likes.used} / {usage.likes.limit === -1 ? '∞' : usage.likes.limit}
+                    </span>
+                  </div>
+                  <Progress 
+                    value={(usage.likes.used / (usage.likes.limit === -1 ? 100 : usage.likes.limit)) * 100} 
+                    className="h-2"
+                  />
+                </div>
+
+                {/* Swipes */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Hand className="h-4 w-4 text-purple-500" />
+                      <span className="font-medium">Swipes</span>
+                    </div>
+                    <span className="text-sm text-gray-600">
+                      {usage.swipes.used} / {usage.swipes.limit === -1 ? '∞' : usage.swipes.limit}
+                    </span>
+                  </div>
+                  <Progress 
+                    value={(usage.swipes.used / (usage.swipes.limit === -1 ? 100 : usage.swipes.limit)) * 100} 
+                    className="h-2"
+                  />
+                </div>
               </CardContent>
             </Card>
           )}
 
-          {/* Features Comparison */}
-          <Card>
+          {/* Benefits Card */}
+          <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20">
             <CardHeader>
-              <CardTitle>Plan Comparison</CardTitle>
-              <CardDescription>
-                See what each plan offers
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                <Star className="h-5 w-5" />
+                Premium Benefits
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span>Monthly Price</span>
-                  <div className="flex gap-4">
-                    <span className="w-16 text-center">Free</span>
-                    <span className="w-16 text-center">₦2,000</span>
-                    <span className="w-16 text-center">₦5,000</span>
-                  </div>
-                </div>
-                <div className="flex justify-between">
-                  <span>Yearly Price</span>
-                  <div className="flex gap-4">
-                    <span className="w-16 text-center">Free</span>
-                    <span className="w-16 text-center">₦21,600</span>
-                    <span className="w-16 text-center">₦54,000</span>
-                  </div>
-                </div>
-                <div className="flex justify-between">
-                  <span>Messages</span>
-                  <div className="flex gap-4">
-                    <span className="w-16 text-center">50</span>
-                    <span className="w-16 text-center">500</span>
-                    <span className="w-16 text-center">Unlimited</span>
-                  </div>
-                </div>
-                <div className="flex justify-between">
-                  <span>Advanced Filters</span>
-                  <div className="flex gap-4">
-                    <span className="w-16 text-center">❌</span>
-                    <span className="w-16 text-center">✅</span>
-                    <span className="w-16 text-center">✅</span>
-                  </div>
-                </div>
-                <div className="flex justify-between">
-                  <span>Priority Matching</span>
-                  <div className="flex gap-4">
-                    <span className="w-16 text-center">❌</span>
-                    <span className="w-16 text-center">✅</span>
-                    <span className="w-16 text-center">✅</span>
-                  </div>
-                </div>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-3">
+                <Infinity className="h-4 w-4 text-green-500" />
+                <span className="text-sm">Unlimited Likes & Swipes</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <MessageCircle className="h-4 w-4 text-green-500" />
+                <span className="text-sm">Priority Message Delivery</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <Zap className="h-4 w-4 text-green-500" />
+                <span className="text-sm">Advanced Matching Filters</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <Eye className="h-4 w-4 text-green-500" />
+                <span className="text-sm">See Who Liked You</span>
               </div>
             </CardContent>
           </Card>
@@ -272,61 +303,51 @@ export default function SubscriptionPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {plans.map((plan) => (
-                <PlanCard
-                  key={plan.id}
-                  plan={plan}
-                  currentPlan={currentSubscription?.plan?.tier === plan.tier}
-                  billingCycle={billingCycle}
-                  onSubscribe={(planId, cycle) => setSelectedPlan({ id: planId, cycle })}
-                  loading={processing && selectedPlan?.id === plan.id}
-                />
-              ))}
+              {plans.map((plan) => {
+                const isCurrentPlan = currentPlan?.tier === plan.tier;
+                const isFreePlan = plan.tier === 'free';
+                
+                return (
+                  <PlanCard
+                    key={plan.id}
+                    plan={plan}
+                    currentPlan={isCurrentPlan}
+                    billingCycle={billingCycle}
+                    onSubscribe={(planId, cycle) => {
+                      if (!isCurrentPlan && !isFreePlan) {
+                        setSelectedPlan({ id: planId, cycle });
+                      }
+                    }}
+                    loading={processing && selectedPlan?.id === plan.id}
+                    disabled={isCurrentPlan || isFreePlan}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
       </div>
-
-      {/* FAQ Section */}
-      <div className="max-w-4xl mx-auto">
-        <Card>
-          <CardHeader>
-            <CardTitle>Frequently Asked Questions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <h4 className="font-semibold mb-2">Can I change my plan later?</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Yes! You can upgrade or downgrade your plan at any time. Changes take effect immediately.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-2">Is there a free trial?</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                All paid plans come with a 7-day free trial. No credit card required to start.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-2">How does billing work?</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                You can choose monthly or yearly billing. Yearly plans offer significant savings.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-2">What payment methods do you accept?</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                We accept all major credit cards, bank transfers, and USSD payments through Flutterwave.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-2">Can I cancel my subscription?</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Yes, you can cancel anytime. Your subscription will remain active until the end of your billing period.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
+  );
+}
+
+// Add the missing Eye icon component
+function Eye(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
   );
 }

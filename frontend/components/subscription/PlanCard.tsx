@@ -1,8 +1,9 @@
 // components/subscription/PlanCard.tsx
-import { Crown, Star, Check, X } from 'lucide-react';
+import { Crown, Star, Check, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { SubscriptionPlan } from '@/hooks/useSubscription';
 
 interface PlanCardProps {
@@ -11,48 +12,118 @@ interface PlanCardProps {
   billingCycle: 'monthly' | 'yearly';
   onSubscribe: (planId: string, billingCycle: 'monthly' | 'yearly') => void;
   loading?: boolean;
+  disabled?: boolean;
 }
 
-export function PlanCard({ plan, currentPlan, billingCycle, onSubscribe, loading }: PlanCardProps) {
+export function PlanCard({ 
+  plan, 
+  currentPlan, 
+  billingCycle, 
+  onSubscribe, 
+  loading = false,
+  disabled = false 
+}: PlanCardProps) {
   const price = billingCycle === 'yearly' ? plan.pricing.yearly : plan.pricing.monthly;
   const originalYearlyPrice = plan.pricing.monthly * 12;
   const yearlySavings = originalYearlyPrice - plan.pricing.yearly;
 
   const getTierColor = (tier: string) => {
     switch (tier) {
-      case 'vip': return 'from-purple-500 to-pink-500';
-      case 'premium': return 'from-blue-500 to-cyan-500';
-      default: return 'from-gray-500 to-gray-700';
+      case 'vip': 
+        return 'from-purple-500 to-pink-500';
+      case 'premium': 
+        return 'from-blue-500 to-cyan-500';
+      case 'free':
+        return 'from-gray-400 to-gray-600';
+      default: 
+        return 'from-gray-500 to-gray-700';
     }
   };
 
   const getTierIcon = (tier: string) => {
     switch (tier) {
-      case 'vip': return <Crown className="h-5 w-5" />;
-      case 'premium': return <Star className="h-5 w-5" />;
-      default: return null;
+      case 'vip': 
+        return <Crown className="h-5 w-5" />;
+      case 'premium': 
+        return <Star className="h-5 w-5" />;
+      default: 
+        return null;
+    }
+  };
+
+  const getTierBadgeColor = (tier: string) => {
+    switch (tier) {
+      case 'vip': 
+        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
+      case 'premium': 
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
+      case 'free':
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
+      default: 
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
     }
   };
 
   const features = [
-    { name: 'Messages', value: plan.features.max_messages === -1 ? 'Unlimited' : `${plan.features.max_messages} messages` },
-    { name: 'Likes', value: plan.features.max_likes === -1 ? 'Unlimited' : `${plan.features.max_likes} likes` },
-    { name: 'Swipes', value: plan.features.max_swipes === -1 ? 'Unlimited' : `${plan.features.max_swipes} swipes` },
-    { name: 'Advanced Filters', enabled: plan.features.has_advanced_filters },
-    { name: 'Priority Matching', enabled: plan.features.has_priority_matching },
-    { name: 'Read Receipts', enabled: plan.features.has_read_receipts },
-    { name: 'See Who Liked You', enabled: plan.features.can_see_who_liked_you },
-    { name: 'Rewind Swipes', enabled: plan.features.can_rewind_swipes },
-    { name: 'Incognito Mode', enabled: plan.features.has_incognito_mode },
-    { name: 'Verified Badge', enabled: plan.features.has_verified_badge },
+    { 
+      name: 'Messages', 
+      value: plan.features.max_messages === -1 ? 'Unlimited' : `${plan.features.max_messages} messages`,
+      enabled: true 
+    },
+    { 
+      name: 'Likes', 
+      value: plan.features.max_likes === -1 ? 'Unlimited' : `${plan.features.max_likes} likes`,
+      enabled: true 
+    },
+    { 
+      name: 'Swipes', 
+      value: plan.features.max_swipes === -1 ? 'Unlimited' : `${plan.features.max_swipes} swipes`,
+      enabled: true 
+    },
+    { 
+      name: 'Advanced Filters', 
+      enabled: plan.features.has_advanced_filters 
+    },
+    { 
+      name: 'Priority Matching', 
+      enabled: plan.features.has_priority_matching 
+    },
+    { 
+      name: 'Read Receipts', 
+      enabled: plan.features.has_read_receipts 
+    },
+    { 
+      name: 'See Who Liked You', 
+      enabled: plan.features.can_see_who_liked_you 
+    },
+    { 
+      name: 'Rewind Swipes', 
+      enabled: plan.features.can_rewind_swipes 
+    },
+    { 
+      name: 'Incognito Mode', 
+      enabled: plan.features.has_incognito_mode 
+    },
+    { 
+      name: 'Verified Badge', 
+      enabled: plan.features.has_verified_badge 
+    },
   ];
 
+  const isFreePlan = plan.tier === 'free';
+  const isDisabled = disabled || currentPlan || (isFreePlan && !currentPlan);
+
   return (
-    <Card className={`relative overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-xl ${
-      plan.is_popular ? 'border-2 border-blue-500 shadow-lg' : 'border-2 border-transparent'
-    }`}>
+    <Card className={cn(
+      "relative overflow-hidden pt-0 transition-all duration-300",
+      plan.is_popular && "border-2 border-blue-500 shadow-lg",
+      !plan.is_popular && "border-2 border-transparent",
+      isDisabled && "opacity-70 cursor-not-allowed",
+      !isDisabled && "hover:scale-105 hover:shadow-xl"
+    )}>
+      {/* Popular Badge */}
       {plan.is_popular && (
-        <div className="absolute top-4 right-4">
+        <div className="absolute top-18 right-2 z-10">
           <Badge className="bg-blue-500 text-white px-3 py-1">
             <Star className="h-3 w-3 mr-1" />
             Most Popular
@@ -60,36 +131,58 @@ export function PlanCard({ plan, currentPlan, billingCycle, onSubscribe, loading
         </div>
       )}
       
-      <CardHeader className={`bg-gradient-to-r ${getTierColor(plan.tier)} text-white pb-4`}>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-xl font-bold flex items-center gap-2">
-            {getTierIcon(plan.tier)}
+      {/* Current Plan Badge */}
+      {currentPlan && (
+        <div className="absolute top-18 left-2 z-10">
+          <Badge className="bg-green-500 text-white px-3 py-1">
+            <Check className="h-3 w-3 mr-1" />
+            Current Plan
+          </Badge>
+        </div>
+      )}
+      
+      {/* Free Plan Badge */}
+      {isFreePlan && !currentPlan && (
+        <div className="absolute top-4 left-4 z-10">
+          <Badge variant="secondary" className={getTierBadgeColor(plan.tier)}>
+            Free
+          </Badge>
+        </div>
+      )}
+
+      {/* Card Header */}
+      <CardHeader className={cn(
+        "bg-gradient-to-r text-white pb-4",
+        getTierColor(plan.tier)
+      )}>
+        <div className="flex items-center justify-center gap-2">
+          {getTierIcon(plan.tier)}
+          <CardTitle className="text-xl font-bold text-center">
             {plan.name}
           </CardTitle>
-          {currentPlan && (
-            <Badge variant="secondary" className="bg-white text-gray-800">
-              Current Plan
-            </Badge>
-          )}
         </div>
-        <CardDescription className="text-white/80">
+        <CardDescription className="text-white/80 text-center">
           {plan.description}
         </CardDescription>
       </CardHeader>
 
+      {/* Card Content */}
       <CardContent className="p-6">
-        {/* Pricing */}
+        {/* Pricing Section */}
         <div className="text-center mb-6">
           <div className="flex items-baseline justify-center gap-2">
             <span className="text-4xl font-bold text-gray-900 dark:text-white">
-              ₦{price.toLocaleString()}
+              {isFreePlan ? 'Free' : `₦${price.toLocaleString()}`}
             </span>
-            <span className="text-gray-600 dark:text-gray-400">
-              /{billingCycle === 'yearly' ? 'year' : 'month'}
-            </span>
+            {!isFreePlan && (
+              <span className="text-gray-600 dark:text-gray-400">
+                /{billingCycle === 'yearly' ? 'year' : 'month'}
+              </span>
+            )}
           </div>
           
-          {billingCycle === 'yearly' && plan.tier !== 'free' && (
+          {/* Yearly Savings */}
+          {billingCycle === 'yearly' && !isFreePlan && yearlySavings > 0 && (
             <div className="mt-2 space-y-1">
               <div className="text-sm text-green-600 font-semibold">
                 Save ₦{yearlySavings.toLocaleString()} per year
@@ -99,47 +192,97 @@ export function PlanCard({ plan, currentPlan, billingCycle, onSubscribe, loading
               </div>
             </div>
           )}
+
+          {/* Free Plan Description */}
+          {isFreePlan && (
+            <div className="mt-2">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Perfect for getting started
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Features */}
+        {/* Features List */}
         <div className="space-y-3">
           {features.map((feature, index) => (
             <div key={index} className="flex items-center justify-between">
-              <span className="text-sm text-gray-700 dark:text-gray-300">
+              <span className={cn(
+                "text-sm",
+                feature.enabled 
+                  ? "text-gray-700 dark:text-gray-300" 
+                  : "text-gray-400 dark:text-gray-600"
+              )}>
                 {feature.name}
               </span>
-              {'enabled' in feature ? (
+              
+              {'value' in feature ? (
+                <span className={cn(
+                  "text-sm font-medium",
+                  feature.enabled
+                    ? "text-gray-900 dark:text-white"
+                    : "text-gray-400 dark:text-gray-600"
+                )}>
+                  {feature.value}
+                </span>
+              ) : (
                 feature.enabled ? (
                   <Check className="h-4 w-4 text-green-500" />
                 ) : (
-                  <X className="h-4 w-4 text-gray-300" />
+                  <X className="h-4 w-4 text-gray-300 dark:text-gray-600" />
                 )
-              ) : (
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  {feature.value}
-                </span>
               )}
             </div>
           ))}
         </div>
       </CardContent>
 
+      {/* Card Footer */}
       <CardFooter>
         <Button
-          className={`w-full ${
-            plan.tier === 'vip' 
-              ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700' 
-              : plan.tier === 'premium'
-              ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700'
-              : ''
-          }`}
+          className={cn(
+            "w-full font-semibold transition-all duration-300",
+            plan.tier === 'vip' && 
+              "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white",
+            plan.tier === 'premium' && 
+              "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white",
+            plan.tier === 'free' && 
+              "bg-gray-100 text-gray-800 border border-gray-300 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700",
+            isDisabled && "opacity-50 cursor-not-allowed"
+          )}
           variant={plan.tier === 'free' ? 'outline' : 'default'}
-          disabled={currentPlan || loading}
-          onClick={() => onSubscribe(plan.id, billingCycle)}
+          size="lg"
+          disabled={isDisabled || loading}
+          onClick={() => {
+            if (!isDisabled && !loading) {
+              onSubscribe(plan.id, billingCycle);
+            }
+          }}
         >
-          {currentPlan ? 'Current Plan' : plan.tier === 'free' ? 'Get Started' : 'Subscribe Now'}
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              Processing...
+            </>
+          ) : currentPlan ? (
+            <>
+              <Check className="h-4 w-4 mr-2" />
+              Current Plan
+            </>
+          ) : isFreePlan ? (
+            'Free Plan'
+          ) : (
+            `Subscribe ${billingCycle === 'yearly' ? 'Yearly' : 'Monthly'}`
+          )}
         </Button>
       </CardFooter>
+
+      {/* Loading Overlay */}
+      {loading && (
+        <div className="absolute inset-0 bg-white/50 dark:bg-black/50 flex items-center justify-center rounded-lg">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+        </div>
+      )}
     </Card>
   );
 }

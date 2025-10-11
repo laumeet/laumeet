@@ -222,7 +222,7 @@ export default function ExplorePage() {
   // Show empty state
   if (!profiles || profiles.length === 0) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 px-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Discover</h1>
@@ -251,7 +251,7 @@ export default function ExplorePage() {
   }
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 px-4 pb-28">
       {/* Header with Filters */}
       <div className="flex items-center justify-between">
         <div>

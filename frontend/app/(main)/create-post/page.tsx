@@ -142,7 +142,7 @@ export default function CreatePostPage() {
   };
 
   return (
-    <div className="space-y-6 pb-32">
+    <div className="space-y-6 px-4 pb-32">
       <div className="space-y-4 pt-2">
         <Button
           variant="ghost"

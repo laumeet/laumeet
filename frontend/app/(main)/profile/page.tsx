@@ -431,7 +431,7 @@ export default function ProfilePage() {
   const interests = ["male", "female", "both"];
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 px-4 pb-28">
       {/* Lightbox Modal */}
       {lightboxOpen && profile.pictures && (
         <LightboxModal

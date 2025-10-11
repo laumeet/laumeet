@@ -226,7 +226,7 @@ export default function FeedPage() {
   }
 
   return (
-    <div className="space-y-6 pt-6 pb-32">
+    <div className="space-y-6 px-4 pt-6 pb-32">
       <div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Campus Feed</h1>

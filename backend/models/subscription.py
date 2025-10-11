@@ -133,6 +133,7 @@ class SubscriptionPlan(db.Model):
         return f"<SubscriptionPlan {self.name} ({self.tier})>"
 
 
+
 class UserSubscription(db.Model):
     """
     User subscription model for tracking user subscriptions and their status
@@ -298,11 +299,266 @@ class UserSubscription(db.Model):
         self.status = SubscriptionStatus.CANCELED
         self.auto_renew = False
         self.canceled_at = datetime.utcnow()
+
+    def sync_usage_from_backend(self):
+        """Sync usage counters with real backend data"""
+        from models.user import Swipe, Message, Like
+        
+        period_start = self.start_date
+        period_end = self.end_date
+        
+        try:
+            # Calculate real messages sent in current period
+            real_messages_sent = Message.query.filter(
+                Message.sender_id == self.user_id,
+                Message.timestamp >= period_start,
+                Message.timestamp <= period_end
+            ).count()
+
+            # Calculate real swipes in current period
+            real_swipes_used = Swipe.query.filter(
+                Swipe.user_id == self.user_id,
+                Swipe.timestamp >= period_start,
+                Swipe.timestamp <= period_end
+            ).count()
+
+            # Calculate real post likes in current period
+            real_post_likes = Like.query.filter(
+                Like.user_id == self.user_id,
+                Like.created_at >= period_start,
+                Like.created_at <= period_end
+            ).count()
+
+            # Calculate real profile likes (swipes with action='like') in current period
+            real_profile_likes = Swipe.query.filter(
+                Swipe.user_id == self.user_id,
+                Swipe.action == 'like',
+                Swipe.timestamp >= period_start,
+                Swipe.timestamp <= period_end
+            ).count()
+
+            # Total likes (post likes + profile likes)
+            real_total_likes = real_post_likes + real_profile_likes
+
+            # Update subscription counters
+            self.messages_used = real_messages_sent
+            self.likes_used = real_total_likes
+            self.swipes_used = real_swipes_used
+            
+            return {
+                "messages": real_messages_sent,
+                "likes": real_total_likes,
+                "swipes": real_swipes_used,
+                "breakdown": {
+                    "post_likes": real_post_likes,
+                    "profile_likes": real_profile_likes,
+                    "total_likes": real_total_likes
+                }
+            }
+            
+        except Exception as e:
+            print(f"Error syncing usage for subscription {self.public_id}: {str(e)}")
+            return {
+                "messages": self.messages_used,
+                "likes": self.likes_used,
+                "swipes": self.swipes_used,
+                "error": str(e)
+            }
+
+    def get_real_usage_stats(self):
+        """Get real usage statistics from backend without updating counters"""
+        from models.user import Swipe, Message, Like
+        
+        period_start = self.start_date
+        period_end = self.end_date
+        
+        try:
+            # Calculate real messages sent in current period
+            real_messages_sent = Message.query.filter(
+                Message.sender_id == self.user_id,
+                Message.timestamp >= period_start,
+                Message.timestamp <= period_end
+            ).count()
+
+            # Calculate real swipes in current period
+            real_swipes_used = Swipe.query.filter(
+                Swipe.user_id == self.user_id,
+                Swipe.timestamp >= period_start,
+                Swipe.timestamp <= period_end
+            ).count()
+
+            # Calculate real post likes in current period
+            real_post_likes = Like.query.filter(
+                Like.user_id == self.user_id,
+                Like.created_at >= period_start,
+                Like.created_at <= period_end
+            ).count()
+
+            # Calculate real profile likes (swipes with action='like') in current period
+            real_profile_likes = Swipe.query.filter(
+                Swipe.user_id == self.user_id,
+                Swipe.action == 'like',
+                Swipe.timestamp >= period_start,
+                Swipe.timestamp <= period_end
+            ).count()
+
+            # Total likes (post likes + profile likes)
+            real_total_likes = real_post_likes + real_profile_likes
+
+            return {
+                "real_usage": {
+                    "messages": real_messages_sent,
+                    "likes": real_total_likes,
+                    "swipes": real_swipes_used
+                },
+                "subscription_usage": {
+                    "messages": self.messages_used,
+                    "likes": self.likes_used,
+                    "swipes": self.swipes_used
+                },
+                "breakdown": {
+                    "post_likes": real_post_likes,
+                    "profile_likes": real_profile_likes,
+                    "total_likes": real_total_likes
+                },
+                "period": {
+                    "start": period_start.isoformat() + "Z",
+                    "end": period_end.isoformat() + "Z"
+                },
+                "discrepancy": {
+                    "messages": real_messages_sent - self.messages_used,
+                    "likes": real_total_likes - self.likes_used,
+                    "swipes": real_swipes_used - self.swipes_used
+                }
+            }
+            
+        except Exception as e:
+            print(f"Error getting real usage for subscription {self.public_id}: {str(e)}")
+            return {
+                "real_usage": {
+                    "messages": self.messages_used,
+                    "likes": self.likes_used,
+                    "swipes": self.swipes_used
+                },
+                "subscription_usage": {
+                    "messages": self.messages_used,
+                    "likes": self.likes_used,
+                    "swipes": self.swipes_used
+                },
+                "error": str(e)
+            }
+
+    def reset_usage_counters(self):
+        """Reset usage counters to zero"""
+        self.messages_used = 0
+        self.likes_used = 0
+        self.swipes_used = 0
+        return {
+            "messages": 0,
+            "likes": 0,
+            "swipes": 0
+        }
+
+    def has_exceeded_limits(self):
+        """Check if user has exceeded any usage limits"""
+        if not self.plan:
+            return False
+            
+        exceeded_limits = []
+        
+        if not self.plan.is_unlimited_messages() and self.messages_used >= self.plan.max_messages:
+            exceeded_limits.append("messages")
+            
+        if not self.plan.is_unlimited_likes() and self.likes_used >= self.plan.max_likes:
+            exceeded_limits.append("likes")
+            
+        if not self.plan.is_unlimited_swipes() and self.swipes_used >= self.plan.max_swipes:
+            exceeded_limits.append("swipes")
+            
+        return exceeded_limits if exceeded_limits else False
+
+    def get_usage_percentage(self):
+        """Get usage as percentage of limits"""
+        if not self.plan:
+            return {}
+            
+        def calculate_percentage(used, limit, unlimited):
+            if unlimited:
+                return 0
+            if limit == 0:
+                return 100
+            return min(100, int((used / limit) * 100))
+        
+        return {
+            "messages": calculate_percentage(
+                self.messages_used, 
+                self.plan.max_messages, 
+                self.plan.is_unlimited_messages()
+            ),
+            "likes": calculate_percentage(
+                self.likes_used, 
+                self.plan.max_likes, 
+                self.plan.is_unlimited_likes()
+            ),
+            "swipes": calculate_percentage(
+                self.swipes_used, 
+                self.plan.max_swipes, 
+                self.plan.is_unlimited_swipes()
+            )
+        }
+
+    def get_usage_summary(self):
+        """Get comprehensive usage summary"""
+        real_stats = self.get_real_usage_stats()
+        usage_percentage = self.get_usage_percentage()
+        exceeded_limits = self.has_exceeded_limits()
+        
+        summary = {
+            "subscription_info": {
+                "plan_name": self.plan.name if self.plan else "Free",
+                "tier": self.plan.tier if self.plan else "free",
+                "status": self.status,
+                "billing_cycle": self.billing_cycle,
+                "is_active": self.is_active(),
+                "days_remaining": self.get_days_remaining()
+            },
+            "limits": {
+                "messages": self.plan.max_messages if self.plan else 50,
+                "likes": self.plan.max_likes if self.plan else 100,
+                "swipes": self.plan.max_swipes if self.plan else 200,
+                "unlimited_messages": self.plan.is_unlimited_messages() if self.plan else False,
+                "unlimited_likes": self.plan.is_unlimited_likes() if self.plan else False,
+                "unlimited_swipes": self.plan.is_unlimited_swipes() if self.plan else False
+            },
+            "current_usage": {
+                "messages": self.messages_used,
+                "likes": self.likes_used,
+                "swipes": self.swipes_used
+            },
+            "remaining": {
+                "messages": self.get_remaining_messages(),
+                "likes": self.get_remaining_likes(),
+                "swipes": self.get_remaining_swipes()
+            },
+            "usage_percentage": usage_percentage,
+            "exceeded_limits": exceeded_limits,
+            "period": {
+                "start": self.start_date.isoformat() + "Z",
+                "end": self.end_date.isoformat() + "Z"
+            }
+        }
+        
+        # Add real usage stats if available
+        if "real_usage" in real_stats:
+            summary["real_usage"] = real_stats["real_usage"]
+            summary["discrepancy"] = real_stats.get("discrepancy", {})
+            summary["breakdown"] = real_stats.get("breakdown", {})
+        
+        return summary
     
     def __repr__(self):
         return f"<UserSubscription {self.public_id} for User {self.user_id}>"
-
-
+    
 class Payment(db.Model):
     """
     Payment model for tracking all payment transactions

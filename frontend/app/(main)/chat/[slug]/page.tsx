@@ -22,7 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import api from '@/lib/axio';
 import { useSocketContext } from '@/lib/socket-context';
 import { useProfile } from '@/hooks/get-profile';
-import { UpgradeDialog } from '@/components/UpgradeDialog';
+import { UpgradeDialog } from '@/components/ui/UpgradeDialog';
 
 // Types
 export interface Message {

@@ -4,14 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="FINISH THE WHOLE FEED PAGE">
-      <change afterPath="$PROJECT_DIR$/backend/utils/message_validator.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/chat.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/chat.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/sockets/chat_events.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/sockets/chat_events.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/structure.txt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/structure.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/app/(main)/chat/[slug]/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/(main)/chat/[slug]/page.tsx" afterDir="false" />
-    </list>
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="hashing" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -103,22 +96,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1758428877896</updated>
-    </task>
-    <task id="LOCAL-00005" summary="nownow23">
-      <option name="closed" value="true" />
-      <created>1758585888789</created>
-      <option name="number" value="00005" />
-      <option name="presentableId" value="LOCAL-00005" />
-      <option name="project" value="LOCAL" />
-      <updated>1758585888789</updated>
-    </task>
-    <task id="LOCAL-00006" summary="nownow23">
-      <option name="closed" value="true" />
-      <created>1758909637888</created>
-      <option name="number" value="00006" />
-      <option name="presentableId" value="LOCAL-00006" />
-      <option name="project" value="LOCAL" />
-      <updated>1758909637888</updated>
     </task>
     <task id="LOCAL-00007" summary="i love u tori toru">
       <option name="closed" value="true" />
@@ -496,7 +473,23 @@
       <option name="project" value="LOCAL" />
       <updated>1760151076143</updated>
     </task>
-    <option name="localTasksCounter" value="54" />
+    <task id="LOCAL-00054" summary="hashing">
+      <option name="closed" value="true" />
+      <created>1760160826141</created>
+      <option name="number" value="00054" />
+      <option name="presentableId" value="LOCAL-00054" />
+      <option name="project" value="LOCAL" />
+      <updated>1760160826141</updated>
+    </task>
+    <task id="LOCAL-00055" summary="hashing">
+      <option name="closed" value="true" />
+      <created>1760160869191</created>
+      <option name="number" value="00055" />
+      <option name="presentableId" value="LOCAL-00055" />
+      <option name="project" value="LOCAL" />
+      <updated>1760160869192</updated>
+    </task>
+    <option name="localTasksCounter" value="56" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -543,7 +536,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="i love u tori toru &#10;toba na u i dey follow talk" />
     <MESSAGE value="Jesus is Lord" />
     <MESSAGE value="add gunicorn to requirement" />
     <MESSAGE value="update the update_my_profile" />
@@ -568,6 +560,7 @@
     <MESSAGE value="message palava" />
     <MESSAGE value="noww" />
     <MESSAGE value="FINISH THE WHOLE FEED PAGE" />
-    <option name="LAST_COMMIT_MESSAGE" value="FINISH THE WHOLE FEED PAGE" />
+    <MESSAGE value="hashing" />
+    <option name="LAST_COMMIT_MESSAGE" value="hashing" />
   </component>
 </project>

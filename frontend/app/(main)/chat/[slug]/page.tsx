@@ -98,6 +98,11 @@ export default function ChatDetailPage() {
   const params = useParams();
   const router = useRouter();
 
+  // All hooks must be called at the top level consistently
+  const { profile } = useProfile();
+  const { subscription, fetchUserSubscription } = useUserSubscription(profile?.id || '');
+  const { socket, isConnected: socketConnected, onlineUsers } = useSocketContext();
+
   // Basic states
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -138,11 +143,7 @@ export default function ChatDetailPage() {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [swipingMessageId, setSwipingMessageId] = useState<string | number | null>(null);
 
-  // socket
-  const { socket, isConnected: socketConnected, onlineUsers } = useSocketContext();
   const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
-  const { profile } = useProfile();
-  const { subscription, fetchUserSubscription } = useUserSubscription(profile?.id);
 
   // -----------------------------
   // Subscription Management
@@ -167,34 +168,34 @@ export default function ChatDetailPage() {
     return messagesUsed < messageLimit;
   }, [hasSubscription, messagesUsed, messageLimit]);
 
-// Show upgrade prompt every 20 minutes
-useEffect(() => {
-  if (!hasSubscription && conversation) {
-    const showPrompt = () => {
-      // Check if at least 20 minutes have passed since last prompt
-      const now = Date.now();
-      if (now - lastUpgradePrompt >= 20 * 60 * 1000) {
-        setShowUpgradeModal(true);
-        setLastUpgradePrompt(now);
-      }
-    };
+  // Show upgrade prompt every 20 minutes
+  useEffect(() => {
+    if (!hasSubscription && conversation) {
+      const showPrompt = () => {
+        // Check if at least 20 minutes have passed since last prompt
+        const now = Date.now();
+        if (now - lastUpgradePrompt >= 20 * 60 * 1000) {
+          setShowUpgradeModal(true);
+          setLastUpgradePrompt(now);
+        }
+      };
 
-    // Show first prompt after 1 minute (for testing, change to 20 * 60 * 1000 for production)
-    const firstPromptDelay = 1 * 60 * 1000; // 1 minute for testing
-    upgradePromptTimerRef.current = setTimeout(showPrompt, firstPromptDelay);
+      // Show first prompt after 1 minute (for testing, change to 20 * 60 * 1000 for production)
+      const firstPromptDelay = 1 * 60 * 1000; // 1 minute for testing
+      upgradePromptTimerRef.current = setTimeout(showPrompt, firstPromptDelay);
 
-    // Then show every 20 minutes
-    const interval = 20 * 60 * 1000; // 20 minutes
-    upgradePromptTimerRef.current = setInterval(showPrompt, interval);
+      // Then show every 20 minutes
+      const interval = 20 * 60 * 1000; // 20 minutes
+      upgradePromptTimerRef.current = setInterval(showPrompt, interval);
 
-    return () => {
-      if (upgradePromptTimerRef.current) {
-        clearTimeout(upgradePromptTimerRef.current);
-        clearInterval(upgradePromptTimerRef.current);
-      }
-    };
-  }
-}, [hasSubscription, conversation, lastUpgradePrompt]);
+      return () => {
+        if (upgradePromptTimerRef.current) {
+          clearTimeout(upgradePromptTimerRef.current);
+          clearInterval(upgradePromptTimerRef.current);
+        }
+      };
+    }
+  }, [hasSubscription, conversation, lastUpgradePrompt]);
 
   // Sensitive content filtering
   const filterSensitiveContent = useCallback((content: string, userHasSubscription: boolean): string => {
@@ -1200,41 +1201,41 @@ useEffect(() => {
       {/* Upgrade Modal */}
       <UpgradeModal />
 
-
-{lightboxOpen && userProfile?.pictures && (
-  <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
-    <div className="relative max-w-4xl max-h-full">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute top-4 right-4 z-10 text-white hover:bg-white/20"
-        onClick={() => setLightboxOpen(false)}
-      >
-        <X className="h-6 w-6" />
-      </Button>
-      
-      <img
-        src={userProfile.pictures[lightboxIndex]}
-        alt={`Photo ${lightboxIndex + 1}`}
-        className="max-w-full max-h-full object-contain"
-      />
-      
-      {userProfile.pictures.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
-          {userProfile.pictures.map((_, index) => (
-            <button
-              key={index}
-              className={`w-3 h-3 rounded-full ${
-                index === lightboxIndex ? 'bg-white' : 'bg-white/50'
-              }`}
-              onClick={() => setLightboxIndex(index)}
+      {/* Lightbox Modal */}
+      {lightboxOpen && userProfile?.pictures && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
+          <div className="relative max-w-4xl max-h-full">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-4 right-4 z-10 text-white hover:bg-white/20"
+              onClick={() => setLightboxOpen(false)}
+            >
+              <X className="h-6 w-6" />
+            </Button>
+            
+            <img
+              src={userProfile.pictures[lightboxIndex]}
+              alt={`Photo ${lightboxIndex + 1}`}
+              className="max-w-full max-h-full object-contain"
             />
-          ))}
+            
+            {userProfile.pictures.length > 1 && (
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+                {userProfile.pictures.map((_, index) => (
+                  <button
+                    key={index}
+                    className={`w-3 h-3 rounded-full ${
+                      index === lightboxIndex ? 'bg-white' : 'bg-white/50'
+                    }`}
+                    onClick={() => setLightboxIndex(index)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
-    </div>
-  </div>
-)}
 
       {/* User Details Modal */}
       {showUserDetails && conversation && (

@@ -27,7 +27,7 @@ import { UpgradeDialog } from '@/components/ui/UpgradeDialog';
 // Types
 export interface Message {
   id: string | number;
-  conversation_id: string;
+  conversation_id: any;
   sender_id: string;
   sender_username: string;
   content: string;

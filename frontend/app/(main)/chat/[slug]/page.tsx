@@ -120,18 +120,34 @@ export default function ChatDetailPage() {
   // socket
   const { socket, isConnected: socketConnected, onlineUsers } = useSocketContext();
   const chatId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
-  const { profile } = useProfile();
+  const { profile,canSendRestrictedContent } = useProfile();
 
   // Monetization utilities
-  const canSendRestrictedContent = profile?.subscription?.tier !== 'free';
+  
   const restrictedPatterns = [
-    /\b\d{10,}\b/, // Phone numbers (10+ digits)
-    /@\w+\.\w+/,   // Email addresses
-    /#\w+/,        // Hashtags
-    /https?:\/\/[^\s]+/, // Links
-    /@\w+/,        // Mentions
-  ];
+  // Contact & personal identifiers
+  /\b\d{10,}\b/, // Phone numbers (10+ digits)
+  /@\w+\.\w+/,   // Email addresses
+  /https?:\/\/[^\s]+/, // Links
+  /#\w+/,        // Hashtags
+  /@\w+/,        // Mentions / Handles
 
+  // Government or ID numbers
+  /\b\d{3}[- ]?\d{2}[- ]?\d{4}\b/, // SSN or similar ID
+  /\b[A-Z]{2,3}\d{6,8}\b/, // Passport/ID-like pattern
+
+  // Financial info (safe to talk about money, but block real numbers)
+  /\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b/, // Credit/debit card numbers
+  /\b\d{3,5}[- ]?\d{3,5}[- ]?\d{3,5}\b/, // Bank account or BVN-like sequences
+  /\bBVN\b/i, // Nigerian Bank Verification Number
+  /\b(card number|cvv|expiry date|pin|atm|sort code|routing)\b/i, // Sensitive banking terms
+
+  // Expanded social media / messaging platforms
+  /\b(instagram|facebook|snapchat|tiktok|twitter|x\.com|telegram|whatsapp|imo|threads|linkedin|wechat|line|kik|skype|discord|pinterest|tumblr|reddit|badoo|bumb|grindr|okcupid|tinder)\b/i,
+
+  // Contact invitation hints
+  /\b(contact|reach me|call me|dm me|message me|chat me|my number|add me|follow me|text me)\b/i,
+];
   const containsRestrictedContent = (text: string) => {
     return restrictedPatterns.some(pattern => pattern.test(text));
   };

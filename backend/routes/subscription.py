@@ -539,13 +539,7 @@ def get_user_subscription_by_id(user_id):
     if error_response:
         return error_response, status_code
 
-    # Check if current user is admin
-    if not current_user.is_admin:
-        return jsonify({
-            "success": False,
-            "message": "Admin access required"
-        }), 403
-
+    
     try:
         # Find the user by public_id
         user = User.query.filter_by(public_id=user_id).first()

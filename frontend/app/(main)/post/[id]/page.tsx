@@ -249,9 +249,9 @@ export default function PostPage() {
 
   // ✅ RENDER POST
   return (
-    <div className="space-y-6 px-4 pb-20 max-w-4xl mx-auto">
+    <div className="space-y-6 px-4 pb-32 max-w-4xl mx-auto">
       {/* Header */}
-      <div className="flex items-center space-x-4">
+      <div className="space-y-4">
         <Button
           variant="ghost"
           size="sm"

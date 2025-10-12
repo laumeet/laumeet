@@ -36,7 +36,13 @@ export default function ExplorePage() {
   const [currentImageIndexes, setCurrentImageIndexes] = useState<{ [key: string]: number }>({});
   const [showDetails, setShowDetails] = useState<{ [key: string]: boolean }>({});
   const currentIndexRef = useRef(currentIndex);
+ const [copied, setCopied] = useState(false);
 
+  const handleCopy = () => {
+    navigator.clipboard.writeText("https://laumeet.vercel.app");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
   // Update current index ref
   const updateCurrentIndex = (val: number) => {
     setCurrentIndex(val);
@@ -240,6 +246,12 @@ export default function ExplorePage() {
             </h3>
             <p className="text-gray-500 dark:text-gray-400 max-w-sm">
               There are no other users to show right now. Check back later or invite friends to join!
+            <button
+            onClick={handleCopy}
+            className="text-blue-500 hover:underline"
+            >
+            {copied ? "Copied!" : "Copy laumeet.vercel.app"}
+            </button>
             </p>
             <Button onClick={refetch} className="mt-4">
               Refresh

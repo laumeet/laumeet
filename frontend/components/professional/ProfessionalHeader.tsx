@@ -172,6 +172,13 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
                    <Wallet className="h-4 w-4 mr-3 text-green-500" />
                     Subscription
                   </button>
+                  <button 
+                     onClick={() => router.push('/likes')}
+                    className="w-full px-4 py-3 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex items-center"
+                  >
+                   <Heart className="h-4 w-4 mr-3 text-green-500" />
+                    Liked Users
+                  </button>
                   {/* <button 
                      onClick={() => router.push('/history')}
                     className="w-full px-4 py-3 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex items-center"

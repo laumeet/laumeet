@@ -198,3 +198,134 @@ def get_online_users():
         "online_users": online_users_data,
         "count": len(online_users_data)
     }), 200
+
+
+@matching_bp.route("/users/all-liked-me", methods=["GET"])
+@jwt_required()
+def get_all_users_who_liked_me():
+    """
+    Get all users who have liked the current user, regardless of current user's swipe status
+    """
+    current_user, error_response, status_code = get_current_user_from_jwt()
+    if error_response:
+        return error_response, status_code
+
+    # Get pagination parameters
+    page = int(request.args.get("page", 1))
+    limit = int(request.args.get("limit", 20))
+
+    # Get users who liked current user with timestamps
+    liked_me_users = (
+        db.session.query(User, Swipe.timestamp)
+        .join(Swipe, Swipe.user_id == User.id)
+        .filter(
+            Swipe.target_user_id == current_user.id,
+            Swipe.action == "like",
+            User.id != current_user.id
+        )
+        .order_by(Swipe.timestamp.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
+        .all()
+    )
+
+    # Format response
+    result = []
+    for user, liked_timestamp in liked_me_users:
+        user_data = user.to_dict()
+        user_data["liked_at"] = liked_timestamp.isoformat() + "Z" if liked_timestamp else None
+        
+        # Check if it's a mutual match
+        mutual_match = Swipe.query.filter_by(
+            user_id=current_user.id,
+            target_user_id=user.id,
+            action="like"
+        ).first()
+        
+        user_data["is_mutual_match"] = mutual_match is not None
+        result.append(user_data)
+
+    # Get total count
+    total_count = (
+        db.session.query(User)
+        .join(Swipe, Swipe.user_id == User.id)
+        .filter(
+            Swipe.target_user_id == current_user.id,
+            Swipe.action == "like",
+            User.id != current_user.id
+        )
+        .count()
+    )
+
+    return jsonify({
+        "success": True,
+        "users": result,
+        "count": len(result),
+        "total_count": total_count,
+        "page": page,
+        "limit": limit,
+        "has_more": (page * limit) < total_count
+    }), 200
+    """
+    Get all users who have liked the current user, regardless of current user's swipe status
+    """
+    current_user, error_response, status_code = get_current_user_from_jwt()
+    if error_response:
+        return error_response, status_code
+
+    # Get pagination parameters
+    page = int(request.args.get("page", 1))
+    limit = int(request.args.get("limit", 20))
+
+    # Get users who liked current user with timestamps
+    liked_me_users = (
+        db.session.query(User, Swipe.timestamp)
+        .join(Swipe, Swipe.user_id == User.id)
+        .filter(
+            Swipe.target_user_id == current_user.id,
+            Swipe.action == "like",
+            User.id != current_user.id
+        )
+        .order_by(Swipe.timestamp.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
+        .all()
+    )
+
+    # Format response
+    result = []
+    for user, liked_timestamp in liked_me_users:
+        user_data = user.to_dict()
+        user_data["liked_at"] = liked_timestamp.isoformat() + "Z" if liked_timestamp else None
+        
+        # Check if it's a mutual match
+        mutual_match = Swipe.query.filter_by(
+            user_id=current_user.id,
+            target_user_id=user.id,
+            action="like"
+        ).first()
+        
+        user_data["is_mutual_match"] = mutual_match is not None
+        result.append(user_data)
+
+    # Get total count
+    total_count = (
+        db.session.query(User)
+        .join(Swipe, Swipe.user_id == User.id)
+        .filter(
+            Swipe.target_user_id == current_user.id,
+            Swipe.action == "like",
+            User.id != current_user.id
+        )
+        .count()
+    )
+
+    return jsonify({
+        "success": True,
+        "users": result,
+        "count": len(result),
+        "total_count": total_count,
+        "page": page,
+        "limit": limit,
+        "has_more": (page * limit) < total_count
+    }), 200

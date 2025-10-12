@@ -104,13 +104,34 @@ const useUpgradePrompts = (hasSubscription: boolean, showUpgradeModal: boolean, 
   useEffect(() => {
     if (hasSubscription || showUpgradeModal) return;
 
-    const promptInterval = setInterval(() => {
-      if (!hasSubscription && !showUpgradeModal) {
-        setShowUpgradeModal(true);
-      }
-    }, 20 * 60 * 1000); // 20 minutes
+    const LAST_PROMPT_KEY = 'last_upgrade_prompt_time';
+    const FIRST_VISIT_KEY = 'first_chat_visit_done';
+    const PROMPT_INTERVAL = 10 * 60 * 1000; // 10 minutes
 
-    return () => clearInterval(promptInterval);
+    // Check if this is first visit to chat
+    const firstVisit = !localStorage.getItem(FIRST_VISIT_KEY);
+    
+    const checkAndShowPrompt = () => {
+      const lastPromptTime = localStorage.getItem(LAST_PROMPT_KEY);
+      const currentTime = Date.now();
+
+      // Show immediately on first visit or if interval has passed
+      if (firstVisit || !lastPromptTime || (currentTime - parseInt(lastPromptTime)) > PROMPT_INTERVAL) {
+        setShowUpgradeModal(true);
+        localStorage.setItem(LAST_PROMPT_KEY, currentTime.toString());
+        if (firstVisit) {
+          localStorage.setItem(FIRST_VISIT_KEY, 'true');
+        }
+      }
+    };
+
+    // Check immediately
+    checkAndShowPrompt();
+
+    // Set up interval to check every minute
+    const interval = setInterval(checkAndShowPrompt, 60 * 1000);
+
+    return () => clearInterval(interval);
   }, [hasSubscription, showUpgradeModal, setShowUpgradeModal]);
 };
 
@@ -140,8 +161,6 @@ export default function ChatDetailPage() {
 
   // Subscription states
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [messagesUsed, setMessagesUsed] = useState(0);
-  const [messageLimit, setMessageLimit] = useState(50);
   const [hasSubscription, setHasSubscription] = useState(true);
 
   // Reply states
@@ -178,31 +197,54 @@ export default function ChatDetailPage() {
   // -----------------------------
   useEffect(() => {
     console.log('🔔 Subscription data updated:', subscription);
+    console.log('📊 Usage data:', usage);
+    
     if (subscription) {
       setHasSubscription(subscription.has_subscription);
       
-      if (usage) {
-        setMessagesUsed(usage.messages.used);
-        setMessageLimit(usage.messages.limit);
-      } else if (subscription.has_subscription && subscription.subscription) {
-        setMessagesUsed(subscription.subscription.usage.messages.used);
-        setMessageLimit(subscription.subscription.usage.messages.limit);
-      } else if (subscription.current_plan) {
-        setMessageLimit(subscription.current_plan.features.max_messages);
-        setMessagesUsed(subscription.current_plan.features.max_messages_used || 0);
+      // Check if user has reached message limit using usage stats
+      if (usage && usage.messages) {
+        const hasReachedLimit = usage.messages.remaining <= 0;
+        console.log('📝 Message limit check:', {
+          used: usage.messages.used,
+          limit: usage.messages.limit,
+          remaining: usage.messages.remaining,
+          hasReachedLimit,
+          hasSubscription: subscription.has_subscription
+        });
+
+        // Show upgrade modal if limit reached and no subscription
+        if (hasReachedLimit && !subscription.has_subscription) {
+          console.log('🔒 Showing upgrade modal - limit reached');
+          setShowUpgradeModal(true);
+        }
       }
       
       fetchUsageStats();
     }
   }, [subscription, usage, fetchUsageStats]);
 
-  // Check if user can send messages
+  // Check if user can send messages using usage stats
   const canSendMessage = useCallback(() => {
     if (hasSubscription) {
       return true;
     }
-    return messagesUsed < messageLimit;
-  }, [hasSubscription, messagesUsed, messageLimit]);
+    
+    if (usage && usage.messages) {
+      const canSend = usage.messages.remaining > 0;
+      console.log('📝 Can send message check:', {
+        hasSubscription,
+        used: usage.messages.used,
+        limit: usage.messages.limit,
+        remaining: usage.messages.remaining,
+        canSend
+      });
+      return canSend;
+    }
+    
+    // Default to true if usage data not loaded yet
+    return true;
+  }, [hasSubscription, usage]);
 
   // Sync usage with backend
   const syncUsage = useCallback(async () => {
@@ -219,26 +261,30 @@ export default function ChatDetailPage() {
     }
   }, [profile?.id, fetchUserSubscription, fetchUsageStats]);
 
-  // Sensitive content filtering
+  // Sensitive content filtering - APPLIED WHEN RECEIVING MESSAGES
   const filterSensitiveContent = useCallback((content: string, userHasSubscription: boolean): string => {
     if (userHasSubscription) {
       return content;
     }
 
-    const filteredContent = content;
+    let filteredContent = content;
 
-    const hasSensitiveContent = Object.values(SENSITIVE_PATTERNS).some(pattern => 
-      pattern.test(content)
-    );
+    // Check for sensitive patterns and replace with #
+    Object.values(SENSITIVE_PATTERNS).forEach(pattern => {
+      filteredContent = filteredContent.replace(pattern, '#'.repeat(8));
+    });
 
+    // Check if any sensitive content was found
+    const hasSensitiveContent = filteredContent !== content;
+    
     if (hasSensitiveContent) {
-      return '🔒 [Upgrade to view sensitive content]';
+      return `🔒 ${filteredContent}`;
     }
 
     return filteredContent;
   }, []);
 
-  // Apply sensitive content filtering to messages
+  // Apply sensitive content filtering to messages for display
   const updateMessagesWithFilter = useCallback((msgs: Message[], userHasSubscription: boolean) => {
     return msgs.map(msg => ({
       ...msg,
@@ -456,12 +502,9 @@ export default function ChatDetailPage() {
         return [...prev, filteredMessage];
       });
 
-      if (newMessage.sender_id === profile?.id && !hasSubscription) {
-        setMessagesUsed(prev => {
-          const newCount = prev + 1;
-          setTimeout(() => syncUsage(), 1000);
-          return newCount;
-        });
+      if (newMessage.sender_id === profile?.id && !hasSubscription && usage) {
+        // Update usage stats after sending message
+        setTimeout(() => syncUsage(), 1000);
       }
 
       if (newMessage.sender_id !== profile?.id && socket) {
@@ -493,6 +536,10 @@ export default function ChatDetailPage() {
       } else {
         console.log('⌨️ User stopped typing');
         setIsTyping(false);
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = null;
+        }
       }
     };
 
@@ -578,7 +625,7 @@ export default function ChatDetailPage() {
         typingDebounceRef.current = null;
       }
     };
-  }, [socket, conversation, profile?.id, onlineStatus, hasSubscription, filterSensitiveContent, syncUsage]);
+  }, [socket, conversation, profile?.id, onlineStatus, hasSubscription, filterSensitiveContent, syncUsage, usage]);
 
   // Update online status when onlineUsers changes
   useEffect(() => {
@@ -624,10 +671,10 @@ export default function ChatDetailPage() {
   }, [messages.length, scrollToBottom]);
 
   // -----------------------------
-  // Typing Indicator Functions
+  // Typing Indicator Functions - FIXED
   // -----------------------------
   const handleTypingStart = useCallback(() => {
-    if (!socket || !conversation || isTyping) {
+    if (!socket || !conversation) {
       return;
     }
     
@@ -636,10 +683,10 @@ export default function ChatDetailPage() {
       conversation_id: chatId,
       is_typing: true
     });
-  }, [socket, conversation, isTyping]);
+  }, [socket, conversation, chatId]);
 
   const handleTypingStop = useCallback(() => {
-    if (!socket || !conversation || !isTyping) {
+    if (!socket || !conversation) {
       return;
     }
     
@@ -648,20 +695,30 @@ export default function ChatDetailPage() {
       conversation_id: chatId,
       is_typing: false
     });
-  }, [socket, conversation, isTyping]);
+  }, [socket, conversation, chatId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value);
+    const newValue = e.target.value;
+    setMessage(newValue);
 
-    if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
-    
-    if (e.target.value.trim() && !isTyping) {
-      typingDebounceRef.current = setTimeout(() => {
-        handleTypingStart();
-      }, 100);
+    // Clear existing debounce timeout
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
     }
 
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    // Start typing if there's content
+    if (newValue.trim() && !isTyping) {
+      typingDebounceRef.current = setTimeout(() => {
+        handleTypingStart();
+      }, 300);
+    }
+
+    // Clear existing stop timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Stop typing after 1 second of inactivity
     typingTimeoutRef.current = setTimeout(() => {
       handleTypingStop();
     }, 1000);
@@ -740,7 +797,11 @@ export default function ChatDetailPage() {
     }
   }, [messages, markMessagesAsRead, profile?.id]);
 
-  const sendMessage = async () => {
+  const sendMessage = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    
     if (!message.trim() || !conversation || sending) return;
     
     if (!canSendMessage()) {
@@ -748,9 +809,11 @@ export default function ChatDetailPage() {
       return;
     }
 
-    const content = message.trim();
+    const contentToSend = message.trim();
+    
     setSending(true);
     
+    // Clear message immediately but don't lose keyboard focus
     setMessage('');
     setReplyTo(null);
     setShowReplyPreview(false);
@@ -762,22 +825,19 @@ export default function ChatDetailPage() {
         console.log('📤 Sending via socket');
         socket.emit('send_message', {
           conversation_id: chatId,
-          content,
+          content: contentToSend,
           reply_to: replyTo ? String(replyTo.id) : null
         });
 
-        if (!hasSubscription) {
-          setMessagesUsed(prev => {
-            const newCount = prev + 1;
-            setTimeout(() => syncUsage(), 1000);
-            return newCount;
-          });
+        if (!hasSubscription && usage) {
+          // Update usage stats after sending message
+          setTimeout(() => syncUsage(), 1000);
         }
       } else {
         console.log('📤 Sending via HTTP API - socket not available');
         const response = await api.post(`/chat/messages/send?conversationId=${chatId}`, {
           conversation_id: chatId,
-          content,
+          content: contentToSend,
           reply_to: replyTo ? String(replyTo.id) : null
         });
         
@@ -787,11 +847,8 @@ export default function ChatDetailPage() {
           await fetchConversationById(conversation.id);
           
           if (!hasSubscription) {
-            setMessagesUsed(prev => {
-              const newCount = prev + 1;
-              setTimeout(() => syncUsage(), 1000);
-              return newCount;
-            });
+            // Update usage stats after sending message
+            setTimeout(() => syncUsage(), 1000);
           }
         } else {
           throw new Error('Failed to send message');
@@ -892,8 +949,8 @@ export default function ChatDetailPage() {
 
   return (
     <div className="h-screen flex flex-col bg-[#e5ddd5] dark:bg-gray-900">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-pink-500 to-purple-600 text-white">
+      {/* Header - Fixed at top */}
+      <div className="flex-none bg-gradient-to-r from-pink-500 to-purple-600 text-white">
         <div className="flex items-center justify-between p-3">
           <div className="flex items-center space-x-3">
             <Button
@@ -943,7 +1000,7 @@ export default function ChatDetailPage() {
         </div>
       </div>
 
-      {/* Messages Area */}
+      {/* Messages Area - Flexible middle section */}
       <div
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto bg-[#e5ddd5] dark:bg-gray-800 bg-chat-background bg-repeat bg-center"
@@ -967,7 +1024,7 @@ export default function ChatDetailPage() {
               const isOwn = msg.sender_id === profile?.id;
               const showDate = index === 0 || !isSameDay(msg.timestamp, messages[index - 1].timestamp);
               const isSwiping = swipingMessageId === msg.id;
-              const isLockedContent = msg.content.includes('🔒 [Upgrade to view sensitive content]');
+              const isLockedContent = msg.content.includes('🔒');
 
               const replyPreview = msg.reply_to ? (
                 <div className="mb-1 px-2 py-1 rounded bg-black/10 dark:bg-white/10 text-xs text-gray-700 dark:text-gray-300 border-l-2 border-purple-500">
@@ -1080,7 +1137,7 @@ export default function ChatDetailPage() {
         </div>
       )}
 
-      {/* Input Area */}
+      {/* Input Area - Fixed at bottom */}
       <div className="flex-none p-3 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
         {error && (
           <div className="mb-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
@@ -1092,48 +1149,50 @@ export default function ChatDetailPage() {
           <UpgradePrompt onUpgrade={() => setShowUpgradeModal(true)} />
         )}
 
-        <div className="flex items-end space-x-2 max-w-3xl mx-auto">
-          <div className="flex-1 relative">
-            <textarea
-              ref={textareaRef}
-              placeholder={!canSendMessage() ? "Upgrade to continue messaging" : "Type a message"}
-              value={message}
-              onChange={handleInputChange}
-              className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-[88px] overflow-y-auto disabled:opacity-50 disabled:cursor-not-allowed"
-              rows={1}
-              disabled={sending || !canSendMessage()}
-              style={{ 
-                lineHeight: '1.25rem'
-              }}
-              onClick={() => {
-                if (!canSendMessage()) {
-                  setShowUpgradeModal(true);
-                }
-              }}
-            />
-          </div>
+        <form onSubmit={sendMessage} className="max-w-3xl mx-auto">
+          <div className="flex items-end space-x-2">
+            <div className="flex-1 relative">
+              <textarea
+                ref={textareaRef}
+                placeholder={!canSendMessage() ? "Upgrade to continue messaging" : "Type a message"}
+                value={message}
+                onChange={handleInputChange}
+                className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-[88px] overflow-y-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                rows={1}
+                disabled={sending || !canSendMessage()}
+                style={{ 
+                  lineHeight: '1.25rem'
+                }}
+                onClick={() => {
+                  if (!canSendMessage()) {
+                    setShowUpgradeModal(true);
+                  }
+                }}
+              />
+            </div>
 
-          <Button
-            onClick={sendMessage}
-            disabled={!message.trim() || sending || !canSendMessage()}
-            size="icon"
-            className="flex-none bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed h-11 w-11 rounded-full shadow-lg"
-          >
-            {sending ? (
-              <Loader2 className="h-5 w-5 animate-spin text-white" />
-            ) : (
-              <Send className="h-5 w-5 text-white" />
-            )}
-          </Button>
-        </div>
+            <Button
+              type="submit"
+              disabled={!message.trim() || sending || !canSendMessage()}
+              size="icon"
+              className="flex-none bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed h-11 w-11 rounded-full shadow-lg"
+            >
+              {sending ? (
+                <Loader2 className="h-5 w-5 animate-spin text-white" />
+              ) : (
+                <Send className="h-5 w-5 text-white" />
+              )}
+            </Button>
+          </div>
+        </form>
       </div>
 
       {/* Upgrade Modal */}
       <UpgradeModal
         open={showUpgradeModal}
         onOpenChange={setShowUpgradeModal}
-        messageLimit={messageLimit}
-        messagesUsed={messagesUsed}
+        messageLimit={usage?.messages?.limit || 50}
+        messagesUsed={usage?.messages?.used || 0}
         onUpgrade={handleUpgrade}
       />
 
@@ -1243,6 +1302,7 @@ export default function ChatDetailPage() {
                           onClick={() => {
                             setLightboxIndex(index);
                             setLightboxOpen(true);
+                            setShowUserDetails(false)
                           }}
                         />
                       ))}

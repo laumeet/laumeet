@@ -69,7 +69,9 @@ export default function AdminLayout({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [logoutLoading, setLogoutLoading] = useState(false);
   const { profile } = useProfile();
-
+  if(!profile?.is_admin){
+    router.push("/explore");
+  }
   const { socket, disconnect } = useSocketContext();
 
   const handleLogout = async () => {

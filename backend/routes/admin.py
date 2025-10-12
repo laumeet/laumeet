@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 from models.user import User, Picture, Swipe, TokenBlocklist
 from models.chat import Conversation, Message
 from models.subscription import (
-    SubscriptionPlan, 
-    UserSubscription, 
+    SubscriptionPlan,
+    UserSubscription,
     Payment,
     SubscriptionTier,
     SubscriptionStatus,
@@ -16,17 +16,29 @@ from models.core import db
 
 admin_bp = Blueprint('admin', __name__)
 
-@admin_bp.route("/admin/users", methods=["GET"])
-@jwt_required()
-def get_all_users():
+
+def check_admin_access():
+    """Helper function to check if current user is admin"""
     public_id = get_jwt_identity()
     current_user = User.query.filter_by(public_id=public_id).first()
 
     if not current_user:
         return jsonify({"success": False, "message": "User not found"}), 404
 
-    # if not current_user.is_admin:
-    #     return jsonify({"success": False, "message": "Access denied: Admins only"}), 403
+    if not current_user.is_admin:
+        return jsonify({"success": False, "message": "Access denied: Admins only"}), 403
+
+    return current_user
+
+
+@admin_bp.route("/admin/users", methods=["GET"])
+@jwt_required()
+def get_all_users():
+    # Check admin access
+    admin_check = check_admin_access()
+    if isinstance(admin_check, tuple):
+        return admin_check
+    current_user = admin_check
 
     # Pagination parameters
     page = request.args.get('page', 1, type=int)
@@ -59,7 +71,7 @@ def get_all_users():
                     SubscriptionPlan.tier != SubscriptionTier.FREE
                 )
             ).join(SubscriptionPlan).subquery()
-            
+
             query = query.filter(
                 ~User.id.in_([sub.c.user_id for sub in sub_query])
             )
@@ -83,7 +95,7 @@ def get_all_users():
     elif sort_by == 'subscription':
         # Complex sort for subscription tier
         query = query.outerjoin(
-            UserSubscription, 
+            UserSubscription,
             and_(
                 UserSubscription.user_id == User.id,
                 UserSubscription.status.in_([SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL]),
@@ -101,8 +113,8 @@ def get_all_users():
 
     # Pagination
     pagination = query.paginate(
-        page=page, 
-        per_page=per_page, 
+        page=page,
+        per_page=per_page,
         error_out=False
     )
 
@@ -110,7 +122,7 @@ def get_all_users():
     users_data = []
     for user in pagination.items:
         user_dict = user.to_dict()
-        
+
         # Add subscription information
         current_sub = user.current_subscription
         if current_sub and current_sub.is_active():
@@ -153,7 +165,7 @@ def get_all_users():
         # Add payment history summary
         total_payments = Payment.query.filter_by(user_id=user.id).count()
         successful_payments = Payment.query.filter_by(
-            user_id=user.id, 
+            user_id=user.id,
             status=PaymentStatus.COMPLETED
         ).count()
         total_revenue = db.session.query(
@@ -229,19 +241,16 @@ def get_all_users():
 @jwt_required()
 def delete_user(user_id):
     """Delete a user and all associated data"""
-    public_id = get_jwt_identity()
-    current_user = User.query.filter_by(public_id=public_id).first()
-
-    if not current_user:
-        return jsonify({"success": False, "message": "User not found"}), 404
-
-    # if not current_user.is_admin:
-    #     return jsonify({"success": False, "message": "Access denied: Admins only"}), 403
+    # Check admin access
+    admin_check = check_admin_access()
+    if isinstance(admin_check, tuple):
+        return admin_check
+    current_user = admin_check
 
     try:
         # Find the user to delete
         user_to_delete = User.query.filter_by(public_id=user_id).first()
-        
+
         if not user_to_delete:
             return jsonify({"success": False, "message": "User not found"}), 404
 
@@ -254,7 +263,7 @@ def delete_user(user_id):
         # Delete user data in the correct order to avoid foreign key constraints
         # 1. Delete token blacklist entries
         TokenBlocklist.query.filter_by(user_id=user_id_to_delete).delete()
-        
+
         # 2. Delete messages (both sent and received in conversations)
         user_conversations = Conversation.query.filter(
             or_(
@@ -262,11 +271,11 @@ def delete_user(user_id):
                 Conversation.user2_id == user_id_to_delete
             )
         ).all()
-        
+
         for conversation in user_conversations:
             Message.query.filter_by(conversation_id=conversation.id).delete()
             db.session.delete(conversation)
-        
+
         # 3. Delete swipes (both sent and received)
         Swipe.query.filter(
             or_(
@@ -274,17 +283,17 @@ def delete_user(user_id):
                 Swipe.target_user_id == user_id_to_delete
             )
         ).delete()
-        
+
         # 4. Delete subscription data
         UserSubscription.query.filter_by(user_id=user_id_to_delete).delete()
         Payment.query.filter_by(user_id=user_id_to_delete).delete()
-        
+
         # 5. Delete pictures
         Picture.query.filter_by(user_id=user_id_to_delete).delete()
-        
+
         # 6. Finally delete the user
         db.session.delete(user_to_delete)
-        
+
         db.session.commit()
 
         return jsonify({
@@ -305,14 +314,10 @@ def delete_user(user_id):
 @jwt_required()
 def get_all_subscriptions():
     """Get all subscriptions with detailed information"""
-    public_id = get_jwt_identity()
-    current_user = User.query.filter_by(public_id=public_id).first()
-
-    if not current_user:
-        return jsonify({"success": False, "message": "User not found"}), 404
-
-    # if not current_user.is_admin:
-    #     return jsonify({"success": False, "message": "Access denied: Admins only"}), 403
+    # Check admin access
+    admin_check = check_admin_access()
+    if isinstance(admin_check, tuple):
+        return admin_check
 
     # Pagination and filtering
     page = request.args.get('page', 1, type=int)
@@ -340,8 +345,8 @@ def get_all_subscriptions():
 
     # Pagination
     pagination = query.order_by(desc(UserSubscription.created_at)).paginate(
-        page=page, 
-        per_page=per_page, 
+        page=page,
+        per_page=per_page,
         error_out=False
     )
 
@@ -364,7 +369,7 @@ def get_all_subscriptions():
             UserSubscription.end_date > datetime.utcnow()
         )
     ).count()
-    
+
     # Revenue by tier
     revenue_by_tier = db.session.query(
         SubscriptionPlan.tier,
@@ -402,14 +407,10 @@ def get_all_subscriptions():
 @jwt_required()
 def get_all_payments():
     """Get all payment transactions"""
-    public_id = get_jwt_identity()
-    current_user = User.query.filter_by(public_id=public_id).first()
-
-    if not current_user:
-        return jsonify({"success": False, "message": "User not found"}), 404
-
-    # if not current_user.is_admin:
-    #     return jsonify({"success": False, "message": "Access denied: Admins only"}), 403
+    # Check admin access
+    admin_check = check_admin_access()
+    if isinstance(admin_check, tuple):
+        return admin_check
 
     # Pagination and filtering
     page = request.args.get('page', 1, type=int)
@@ -446,8 +447,8 @@ def get_all_payments():
 
     # Pagination
     pagination = query.order_by(desc(Payment.created_at)).paginate(
-        page=page, 
-        per_page=per_page, 
+        page=page,
+        per_page=per_page,
         error_out=False
     )
 
@@ -470,7 +471,7 @@ def get_all_payments():
 
     # Monthly revenue trend - Database agnostic approach
     six_months_ago = datetime.utcnow() - timedelta(days=180)
-    
+
     # Get all completed payments in the last 6 months
     recent_payments = Payment.query.filter(
         Payment.status == PaymentStatus.COMPLETED,
@@ -517,18 +518,15 @@ def get_all_payments():
         }
     }), 200
 
+
 @admin_bp.route("/admin/subscriptions/<string:subscription_id>", methods=["PUT"])
 @jwt_required()
 def update_subscription(subscription_id):
     """Admin update subscription (extend, change plan, etc.)"""
-    public_id = get_jwt_identity()
-    current_user = User.query.filter_by(public_id=public_id).first()
-
-    if not current_user:
-        return jsonify({"success": False, "message": "User not found"}), 404
-
-    # if not current_user.is_admin:
-    #     return jsonify({"success": False, "message": "Access denied: Admins only"}), 403
+    # Check admin access
+    admin_check = check_admin_access()
+    if isinstance(admin_check, tuple):
+        return admin_check
 
     data = request.json or {}
     subscription = UserSubscription.query.filter_by(public_id=subscription_id).first()
@@ -576,14 +574,10 @@ def update_subscription(subscription_id):
 @jwt_required()
 def get_admin_dashboard():
     """Get comprehensive admin dashboard data"""
-    public_id = get_jwt_identity()
-    current_user = User.query.filter_by(public_id=public_id).first()
-
-    if not current_user:
-        return jsonify({"success": False, "message": "User not found"}), 404
-
-    # if not current_user.is_admin:
-    #     return jsonify({"success": False, "message": "Access denied: Admins only"}), 403
+    # Check admin access
+    admin_check = check_admin_access()
+    if isinstance(admin_check, tuple):
+        return admin_check
 
     # User statistics
     total_users = User.query.count()
@@ -674,19 +668,15 @@ def get_admin_dashboard():
     }), 200
 
 
-
 @admin_bp.route("/admin/users/<string:user_id>", methods=["PUT"])
 @jwt_required()
 def update_user(user_id):
     """Update user information"""
-    public_id = get_jwt_identity()
-    current_user = User.query.filter_by(public_id=public_id).first()
-
-    if not current_user:
-        return jsonify({"success": False, "message": "User not found"}), 404
-
-    # if not current_user.is_admin:
-    #     return jsonify({"success": False, "message": "Access denied: Admins only"}), 403
+    # Check admin access
+    admin_check = check_admin_access()
+    if isinstance(admin_check, tuple):
+        return admin_check
+    current_user = admin_check
 
     data = request.json or {}
     user_to_update = User.query.filter_by(public_id=user_id).first()
@@ -700,8 +690,9 @@ def update_user(user_id):
             return jsonify({"success": False, "message": "Cannot modify your own admin status"}), 400
 
         # Update allowed fields
-        allowed_fields = ['name', 'department', 'level', 'genotype', 'religious', 'interestedIn', 'category', 'bio', 'is_admin']
-        
+        allowed_fields = ['name', 'department', 'level', 'genotype', 'religious', 'interestedIn', 'category', 'bio',
+                          'is_admin']
+
         for field in allowed_fields:
             if field in data:
                 setattr(user_to_update, field, data[field])

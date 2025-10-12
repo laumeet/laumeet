@@ -6,7 +6,6 @@
   <component name="ChangeListManager">
     <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="database">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/models/user.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/user.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -98,14 +97,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1758428877896</updated>
-    </task>
-    <task id="LOCAL-00011" summary="i love u tori toru &#10;toba na u i dey follow talk">
-      <option name="closed" value="true" />
-      <created>1758915531777</created>
-      <option name="number" value="00011" />
-      <option name="presentableId" value="LOCAL-00011" />
-      <option name="project" value="LOCAL" />
-      <updated>1758915531777</updated>
     </task>
     <task id="LOCAL-00012" summary="Jesus is Lord">
       <option name="closed" value="true" />
@@ -491,7 +482,15 @@
       <option name="project" value="LOCAL" />
       <updated>1760201059839</updated>
     </task>
-    <option name="localTasksCounter" value="60" />
+    <task id="LOCAL-00060" summary="database">
+      <option name="closed" value="true" />
+      <created>1760202720997</created>
+      <option name="number" value="00060" />
+      <option name="presentableId" value="LOCAL-00060" />
+      <option name="project" value="LOCAL" />
+      <updated>1760202720997</updated>
+    </task>
+    <option name="localTasksCounter" value="61" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

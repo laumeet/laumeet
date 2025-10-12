@@ -1,6 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/(main)/chat/[slug]/page.tsx
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -13,17 +12,15 @@ import {
   Check,
   X,
   Info,
-  Crown,
   Lock,
-  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import api from '@/lib/axio';
 import { useSocketContext } from '@/lib/socket-context';
 import { useProfile } from '@/hooks/get-profile';
 import { useUserSubscription } from '@/hooks/useUserSubscription';
+import { UpgradeModal, LockedContentTooltip, UpgradePrompt } from '@/components/chat/SubscriptionComponents';
 
 // -----------------------------
 // Types
@@ -77,72 +74,6 @@ export interface UserProfile {
 }
 
 // -----------------------------
-// Custom Modal Component
-// -----------------------------
-interface ModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  children: React.ReactNode;
-  className?: string;
-}
-
-const Modal = ({ open, onOpenChange, children, className = '' }: ModalProps) => {
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div 
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
-        onClick={() => onOpenChange(false)}
-      />
-      <div className={`
-        relative z-50 
-        bg-white dark:bg-gray-900 
-        rounded-lg 
-        shadow-lg 
-        max-w-md w-full 
-        mx-4
-        max-h-[90vh] overflow-y-auto
-        animate-in fade-in-0 zoom-in-95 duration-200
-        ${className}
-      `}>
-        {children}
-      </div>
-    </div>
-  );
-};
-
-const ModalHeader = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
-  <div className={`flex flex-col gap-2 p-6 pb-4 text-center sm:text-left ${className}`}>
-    {children}
-  </div>
-);
-
-const ModalTitle = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
-  <h2 className={`text-lg font-semibold leading-none ${className}`}>
-    {children}
-  </h2>
-);
-
-const ModalDescription = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
-  <p className={`text-sm text-gray-600 dark:text-gray-400 ${className}`}>
-    {children}
-  </p>
-);
-
-const ModalContent = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
-  <div className={`p-6 pt-0 ${className}`}>
-    {children}
-  </div>
-);
-
-const ModalFooter = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
-  <div className={`flex flex-col-reverse gap-2 p-6 pt-4 sm:flex-row sm:justify-end ${className}`}>
-    {children}
-  </div>
-);
-
-// -----------------------------
 // Utility helpers
 // -----------------------------
 const isTempId = (id: any) => String(id).startsWith('temp-');
@@ -160,9 +91,8 @@ const SENSITIVE_PATTERNS = {
 // Component
 // -----------------------------
 export default function ChatDetailPage() {
-  // All hooks must be called at the top level consistently
   const { profile } = useProfile();
-  const { subscription } = useUserSubscription(profile?.id);
+  const { subscription, fetchUserSubscription } = useUserSubscription(profile?.id);
   const { socket, isConnected: socketConnected, onlineUsers } = useSocketContext();
   const params = useParams();
   const router = useRouter();
@@ -184,7 +114,6 @@ export default function ChatDetailPage() {
   const [messagesUsed, setMessagesUsed] = useState(0);
   const [messageLimit, setMessageLimit] = useState(50);
   const [hasSubscription, setHasSubscription] = useState(true);
-  const [lastUpgradePrompt, setLastUpgradePrompt] = useState<number>(0);
 
   // Reply states
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -195,20 +124,20 @@ export default function ChatDetailPage() {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [showUserDetails, setShowUserDetails] = useState(false);
 
-  // refs
+  // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const upgradePromptTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoScrollEnabledRef = useRef(true);
+  const lastMessageCountRef = useRef(0);
+  const initialMessagesLoadedRef = useRef(false);
 
   // Swipe states
   const [swipeStartX, setSwipeStartX] = useState(0);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [swipingMessageId, setSwipingMessageId] = useState<string | number | null>(null);
-
-
 
   // -----------------------------
   // Subscription Management
@@ -221,6 +150,7 @@ export default function ChatDetailPage() {
         setMessageLimit(subscription.subscription.usage.messages.limit);
       } else if (subscription.current_plan) {
         setMessageLimit(subscription.current_plan.features.max_messages);
+        setMessagesUsed(subscription.current_plan.features.max_messages_used || 0);
       }
     }
   }, [subscription]);
@@ -233,34 +163,20 @@ export default function ChatDetailPage() {
     return messagesUsed < messageLimit;
   }, [hasSubscription, messagesUsed, messageLimit]);
 
-  // Show upgrade prompt every 20 minutes
-  useEffect(() => {
-    if (!hasSubscription && conversation) {
-      const showPrompt = () => {
-        // Check if at least 20 minutes have passed since last prompt
-        const now = Date.now();
-        if (now - lastUpgradePrompt >= 20 * 60 * 1000) {
-          setShowUpgradeModal(true);
-          setLastUpgradePrompt(now);
-        }
-      };
-
-      // Show first prompt after 1 minute (for testing, change to 20 * 60 * 1000 for production)
-      const firstPromptDelay = 1 * 60 * 1000; // 1 minute for testing
-      upgradePromptTimerRef.current = setTimeout(showPrompt, firstPromptDelay);
-
-      // Then show every 20 minutes
-      const interval = 20 * 60 * 1000; // 20 minutes
-      upgradePromptTimerRef.current = setInterval(showPrompt, interval);
-
-      return () => {
-        if (upgradePromptTimerRef.current) {
-          clearTimeout(upgradePromptTimerRef.current);
-          clearInterval(upgradePromptTimerRef.current);
-        }
-      };
+  // Sync usage with backend
+  const syncUsage = useCallback(async () => {
+    if (!profile?.id) return;
+    
+    try {
+      await api.post('/subscription/usage/sync', {
+        user_id: profile.id
+      });
+      // Refresh subscription data
+      await fetchUserSubscription(profile.id);
+    } catch (err) {
+      console.error('Failed to sync usage:', err);
     }
-  }, [hasSubscription, conversation, lastUpgradePrompt]);
+  }, [profile?.id, fetchUserSubscription]);
 
   // Sensitive content filtering
   const filterSensitiveContent = useCallback((content: string, userHasSubscription: boolean): string => {
@@ -278,13 +194,13 @@ export default function ChatDetailPage() {
     return filteredContent;
   }, []);
 
-  // Apply sensitive content filtering to all messages
-  const getFilteredMessages = useCallback((msgs: Message[]): Message[] => {
+  // Apply sensitive content filtering to messages (only when subscription changes)
+  const updateMessagesWithFilter = useCallback((msgs: Message[], userHasSubscription: boolean) => {
     return msgs.map(msg => ({
       ...msg,
-      content: filterSensitiveContent(msg.content, hasSubscription)
+      content: filterSensitiveContent(msg.content, userHasSubscription)
     }));
-  }, [filterSensitiveContent, hasSubscription]);
+  }, [filterSensitiveContent]);
 
   // -----------------------------
   // Formatting helpers
@@ -393,8 +309,9 @@ export default function ChatDetailPage() {
       const response = await api.get(`/chat/messages/conversationId?conversationId=${id}`);
       if (response.data.success) {
         const serverMessages: Message[] = response.data.messages || [];
-        const filteredMessages = getFilteredMessages(serverMessages);
+        const filteredMessages = updateMessagesWithFilter(serverMessages, hasSubscription);
         setMessages(filteredMessages);
+        initialMessagesLoadedRef.current = true;
       } else {
         setError('Failed to load messages');
       }
@@ -422,12 +339,12 @@ export default function ChatDetailPage() {
       return;
     }
 
-    console.log('🔌 Setting up socket events for conversation:', conversation.id);
+    console.log('🔌 Setting up socket events for conversation:', chatId);
 
     const joinRoom = () => {
       try {
-        console.log('🚪 Joining conversation room:', conversation.id);
-        socket.emit('join_conversation', { conversation_id: conversation.id });
+        console.log('🚪 Joining conversation room:', chatId);
+        socket.emit('join_conversation', { conversation_id: chatId });
       } catch (err) {
         console.warn('Failed to join conversation room', err);
       }
@@ -452,7 +369,7 @@ export default function ChatDetailPage() {
       console.log('📨 New message received:', newMessage);
       
       // Only add message if it belongs to current conversation
-      if (String(newMessage.conversation_id) !== String(conversation.id)) {
+      if (String(newMessage.conversation_id) !== String(chatId)) {
         console.log('📨 Message for different conversation, ignoring');
         return;
       }
@@ -474,9 +391,14 @@ export default function ChatDetailPage() {
         return [...prev, filteredMessage];
       });
 
-      // Update message count for free users
+      // Update message count for free users and sync with backend
       if (newMessage.sender_id === profile?.id && !hasSubscription) {
-        setMessagesUsed(prev => prev + 1);
+        setMessagesUsed(prev => {
+          const newCount = prev + 1;
+          // Sync with backend when message count changes
+          setTimeout(() => syncUsage(), 1000);
+          return newCount;
+        });
       }
 
       // Mark as delivered if it's not our message
@@ -484,10 +406,9 @@ export default function ChatDetailPage() {
         console.log('📬 Marking message as delivered:', newMessage.id);
         socket.emit('message_delivered', {
           message_id: newMessage.id,
-          conversation_id: conversation.id
+          conversation_id: chatId
         });
       }
-      scrollToBottom();
     };
 
     const handleTyping = (data: any) => {
@@ -597,7 +518,7 @@ export default function ChatDetailPage() {
         typingDebounceRef.current = null;
       }
     };
-  }, [socket, conversation, profile?.id, onlineStatus, hasSubscription, filterSensitiveContent]);
+  }, [socket, conversation, profile?.id, onlineStatus, hasSubscription, filterSensitiveContent, syncUsage]);
 
   // Update online status when onlineUsers changes
   useEffect(() => {
@@ -608,13 +529,49 @@ export default function ChatDetailPage() {
     }
   }, [conversation, onlineUsers]);
 
-  // Update messages when subscription status changes
+  // Update messages when subscription status changes - FIXED: Only update when hasSubscription changes
   useEffect(() => {
-    if (messages.length > 0) {
-      const filteredMessages = getFilteredMessages(messages);
+    if (initialMessagesLoadedRef.current && messages.length > 0) {
+      const filteredMessages = updateMessagesWithFilter(messages, hasSubscription);
       setMessages(filteredMessages);
     }
-  }, [hasSubscription, getFilteredMessages, messages]);
+  }, [hasSubscription, updateMessagesWithFilter]); // Removed messages from dependencies
+
+  // -----------------------------
+  // Scroll Management
+  // -----------------------------
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    if (autoScrollEnabledRef.current && messagesEndRef.current) {
+      try {
+        messagesEndRef.current.scrollIntoView({ behavior });
+      } catch (err) {
+        // Ignore scroll errors
+      }
+    }
+  }, []);
+
+  // Handle scroll events to disable auto-scroll when user scrolls up
+  useEffect(() => {
+    const messagesContainer = messagesContainerRef.current;
+    if (!messagesContainer) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+      autoScrollEnabledRef.current = isAtBottom;
+    };
+
+    messagesContainer.addEventListener('scroll', handleScroll);
+    return () => messagesContainer.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-scroll only when new messages are added and user is at bottom
+  useEffect(() => {
+    if (messages.length > lastMessageCountRef.current && autoScrollEnabledRef.current) {
+      scrollToBottom('smooth');
+    }
+    lastMessageCountRef.current = messages.length;
+  }, [messages.length, scrollToBottom]);
 
   // -----------------------------
   // Typing Indicator Functions
@@ -626,7 +583,7 @@ export default function ChatDetailPage() {
     
     console.log('⌨️ Sending typing start');
     socket.emit('typing', {
-      conversation_id: conversation.id,
+      conversation_id: chatId,
       is_typing: true
     });
   }, [socket, conversation, isTyping]);
@@ -638,7 +595,7 @@ export default function ChatDetailPage() {
     
     console.log('⌨️ Sending typing stop');
     socket.emit('typing', {
-      conversation_id: conversation.id,
+      conversation_id: chatId,
       is_typing: false
     });
   }, [socket, conversation, isTyping]);
@@ -703,18 +660,12 @@ export default function ChatDetailPage() {
   // -----------------------------
   // Message Functions
   // -----------------------------
-  const scrollToBottom = () => {
-    try {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    } catch (err) { /* ignore */ }
-  };
-
   const markMessagesAsRead = useCallback((messageIds: (string | number)[]) => {
     if (!socket || !conversation) return;
     
     console.log('📖 Marking messages as read:', messageIds);
     socket.emit('read_messages', {
-      conversation_id: conversation.id,
+      conversation_id: chatId,
       message_ids: messageIds
     });
   }, [socket, conversation]);
@@ -745,7 +696,6 @@ export default function ChatDetailPage() {
     setMessage('');
     setReplyTo(null);
     setShowReplyPreview(false);
-    scrollToBottom();
 
     try {
       handleTypingStop();
@@ -753,19 +703,24 @@ export default function ChatDetailPage() {
       if (socket && socketConnected) {
         console.log('📤 Sending via socket');
         socket.emit('send_message', {
-          conversation_id: conversation.id,
+          conversation_id: chatId,
           content,
           reply_to: replyTo ? String(replyTo.id) : null
         });
         
-        // Update message count for free users
+        // Update message count for free users and sync with backend
         if (!hasSubscription) {
-          setMessagesUsed(prev => prev + 1);
+          setMessagesUsed(prev => {
+            const newCount = prev + 1;
+            // Sync with backend when message count changes
+            setTimeout(() => syncUsage(), 1000);
+            return newCount;
+          });
         }
       } else {
         console.log('📤 Sending via HTTP API - socket not available');
-        const response = await api.post('/chat/messages/send', {
-          conversation_id: conversation.id,
+        const response = await api.post(`/chat/messages/send?conversationId=${chatId}`, {
+          conversation_id: chatId,
           content,
           reply_to: replyTo ? String(replyTo.id) : null
         });
@@ -776,9 +731,14 @@ export default function ChatDetailPage() {
           await fetchMessagesById(conversation.id);
           await fetchConversationById(conversation.id);
           
-          // Update message count for free users
+          // Update message count for free users and sync with backend
           if (!hasSubscription) {
-            setMessagesUsed(prev => prev + 1);
+            setMessagesUsed(prev => {
+              const newCount = prev + 1;
+              // Sync with backend when message count changes
+              setTimeout(() => syncUsage(), 1000);
+              return newCount;
+            });
           }
         } else {
           throw new Error('Failed to send message');
@@ -799,6 +759,11 @@ export default function ChatDetailPage() {
     setShowReplyPreview(false);
   };
 
+  const handleUpgrade = () => {
+    setShowUpgradeModal(false);
+    router.push('/subscription');
+  };
+
   // -----------------------------
   // Load Chat Data
   // -----------------------------
@@ -811,11 +776,6 @@ export default function ChatDetailPage() {
     try {
       setLoading(true);
       setError('');
-
-      // Fetch user subscription first
-      // if (profile?.id) {
-      //   await fetchUserSubscription(profile.id);
-      // }
 
       const conv = await fetchConversation();
       if (conv) {
@@ -833,10 +793,6 @@ export default function ChatDetailPage() {
   }, [chatId]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping]);
-
-  useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
@@ -844,125 +800,8 @@ export default function ChatDetailPage() {
   }, [message]);
 
   // -----------------------------
-  // Subscription-related Components
+  // UI Components
   // -----------------------------
-  const UpgradeModal = () => (
-    <Modal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} className="sm:max-w-md">
-      <ModalHeader>
-        <ModalTitle className="flex items-center gap-2">
-          <Crown className="h-6 w-6 text-yellow-500" />
-          Upgrade Your Plan
-        </ModalTitle>
-        <ModalDescription>
-          {!canSendMessage() 
-            ? `You've used all ${messageLimit} free messages. Upgrade to continue chatting.`
-            : "Get unlimited messages and premium features with our subscription plans."
-          }
-        </ModalDescription>
-      </ModalHeader>
-      
-      <ModalContent>
-        <div className="space-y-4">
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-4 rounded-lg">
-            <h4 className="font-semibold text-sm mb-2">Premium Features:</h4>
-            <ul className="text-sm space-y-1 text-gray-600 dark:text-gray-400">
-              <li>• Unlimited messages</li>
-              <li>• See who liked you</li>
-              <li>• Advanced filters</li>
-              <li>• Priority matching</li>
-              <li>• No ads</li>
-            </ul>
-          </div>
-          
-          {!canSendMessage() && (
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                <span className="text-sm text-yellow-800 dark:text-yellow-200">
-                  Chat locked until you upgrade
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      </ModalContent>
-      
-      <ModalFooter className="flex gap-2 sm:gap-0">
-        <Button variant="outline" onClick={() => setShowUpgradeModal(false)}>
-          Maybe Later
-        </Button>
-        <Button onClick={() => {
-          setShowUpgradeModal(false);
-          router.push('/subscription');
-        }}>
-          <Crown className="h-4 w-4 mr-2" />
-          Upgrade Now
-        </Button>
-      </ModalFooter>
-    </Modal>
-  );
-
-  const LockedContentTooltip = ({ children, message }: { children: React.ReactNode; message: string }) => (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          {children}
-        </TooltipTrigger>
-        <TooltipContent>
-          <div className="flex items-center gap-2">
-            <Lock className="h-3 w-3" />
-            <span>{message}</span>
-          </div>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-
-  const MessageLimitIndicator = () => {
-    if (hasSubscription) return null;
-
-    const remaining = messageLimit - messagesUsed;
-    const percentage = (messagesUsed / messageLimit) * 100;
-
-    return (
-      <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-3">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex items-center justify-between text-sm mb-2">
-            <span className="text-gray-600 dark:text-gray-400">
-              Free messages: {remaining} remaining
-            </span>
-            <span className="text-gray-500">
-              {messagesUsed}/{messageLimit}
-            </span>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div 
-              className={`h-2 rounded-full transition-all duration-300 ${
-                percentage >= 80 ? 'bg-red-500' : 
-                percentage >= 60 ? 'bg-yellow-500' : 'bg-green-500'
-              }`}
-              style={{ width: `${percentage}%` }}
-            />
-          </div>
-          {remaining <= 5 && (
-            <div className="mt-2 flex items-center justify-between">
-              <span className="text-xs text-red-500">
-                Running low on messages
-              </span>
-              <Button 
-                variant="link" 
-                className="text-xs p-0 h-auto"
-                onClick={() => setShowUpgradeModal(true)}
-              >
-                Upgrade to continue
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   const TypingBubble = () => (
     <div className="flex justify-start">
       <div className="max-w-[70%] mr-12">
@@ -1063,6 +902,7 @@ export default function ChatDetailPage() {
       <div
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto bg-[#e5ddd5] dark:bg-gray-800 bg-chat-background bg-repeat bg-center"
+        style={{ backgroundImage: 'url(/chat-bg.png)' }}
       >
         <div className="max-w-3xl mx-auto p-2 space-y-1">
           {messages.length === 0 ? (
@@ -1076,13 +916,6 @@ export default function ChatDetailPage() {
               <p className="text-gray-500 dark:text-gray-400 max-w-sm">
                 Send your first message to {conversation.other_user.name || conversation.other_user.username} and get the chat started!
               </p>
-              {!hasSubscription && (
-                <div className="mt-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 max-w-sm">
-                  <p className="text-sm text-blue-800 dark:text-blue-200">
-                    You have {messageLimit - messagesUsed} free messages remaining
-                  </p>
-                </div>
-              )}
             </div>
           ) : (
             messages.map((msg, index) => {
@@ -1154,7 +987,7 @@ export default function ChatDetailPage() {
                           {isOwn && (
                             <span className="flex items-center" style={{ fontSize: '11px' }}>
                               {msg.status === 'read' ? (
-                                <CheckCheck size={14} className="text-[blue]" />
+                                <CheckCheck size={14} className="text-blue-300" />
                               ) : msg.status === 'delivered' ? (
                                 <CheckCheck size={14} className="text-white/80" />
                               ) : (
@@ -1177,9 +1010,6 @@ export default function ChatDetailPage() {
           <div ref={messagesEndRef} />
         </div>
       </div>
-
-      {/* Message Limit Indicator */}
-      <MessageLimitIndicator />
 
       {/* Reply preview */}
       {showReplyPreview && replyTo && (
@@ -1214,24 +1044,7 @@ export default function ChatDetailPage() {
         )}
 
         {!canSendMessage() && (
-          <div className="mb-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                <span className="text-sm text-yellow-800 dark:text-yellow-200">
-                  You&apos;ve used all {messageLimit} free messages
-                </span>
-              </div>
-              <Button 
-                size="sm" 
-                onClick={() => setShowUpgradeModal(true)}
-                className="bg-gradient-to-r from-pink-500 to-purple-600"
-              >
-                <Crown className="h-3 w-3 mr-1" />
-                Upgrade
-              </Button>
-            </div>
-          </div>
+          <UpgradePrompt onUpgrade={() => setShowUpgradeModal(true)} />
         )}
 
         <div className="flex items-end space-x-2 max-w-3xl mx-auto">
@@ -1245,6 +1058,11 @@ export default function ChatDetailPage() {
               rows={1}
               disabled={sending || !canSendMessage()}
               style={{ overflow: 'hidden' }}
+              onClick={() => {
+                if (!canSendMessage()) {
+                  setShowUpgradeModal(true);
+                }
+              }}
             />
           </div>
 
@@ -1264,7 +1082,13 @@ export default function ChatDetailPage() {
       </div>
 
       {/* Upgrade Modal */}
-      <UpgradeModal />
+      <UpgradeModal
+        open={showUpgradeModal}
+        onOpenChange={setShowUpgradeModal}
+        messageLimit={messageLimit}
+        messagesUsed={messagesUsed}
+        onUpgrade={handleUpgrade}
+      />
 
       {/* Lightbox Modal */}
       {lightboxOpen && userProfile?.pictures && (

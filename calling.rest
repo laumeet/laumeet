@@ -14,7 +14,7 @@ POST  http://localhost:3000/api/auth/signup
 Content-Type: application/json
 
 {
-    "username": "tope",
+    "username": "micheal",
     "password": "helloE@123",
     "security_question": "Who is your mother",
     "security_answer":"Hello",
@@ -23,8 +23,7 @@ Content-Type: application/json
 }
 ###
 GET   http://localhost:3000/api/chat/messages/conversationId?conversationId=2
-Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDIwMjY3NywianRpIjoiMWZlMDVmYzAtNzQ4OS00MzlmLTlkYWYtNTVjMjNlNTY0MTBiIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6ImQzOTAxOGM3LWI4ZDItNDk1Mi05ZTZjLThlNjE5MGRkNmJmZCIsIm5iZiI6MTc2MDIwMjY3NywiZXhwIjoxNzYwMjg5MDc3fQ.uSVyvC2nuDah8Dpj5dODuYrVghpTAgOMFe3Yu6rfGVo
-
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDI2NTUzOCwianRpIjoiNjY5ODFkYmYtN2IyZS00MDIyLTg2NjMtMjRjMGRmNDgxOWRiIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6ImZkYzEyNGNhLTYyZDctNDBmYi04MmI4LTc0OTIyNDM2NDgzMSIsIm5iZiI6MTc2MDI2NTUzOCwiZXhwIjoxNzYwMzUxOTM4fQ.BmW2e-UaOTiu10oDe1W9bqK1tmNJquSZ6rxWLDr5bxU
 
 ###
 POST  http://localhost:3000/api/auth/logout

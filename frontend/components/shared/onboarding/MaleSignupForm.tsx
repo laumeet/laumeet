@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import api from '@/lib/axio';
+import { useSocket } from '@/hooks/useSocket';
 
 interface MaleSignupFormProps {
   onBack: () => void;
@@ -36,7 +37,7 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
     securityQuestion: '',
     securityAnswer: ''
   });
-  
+  const { socket, isConnected } = useSocket();
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -159,6 +160,17 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
       const res = await api.post('/auth/signup', payload);
       if (res.data) {
         toast.success('Profile created successfully!');
+        // Set user as online immediately after successful login
+        if (socket && isConnected) {
+          console.log('✅ Login successful - setting user online');
+          socket.emit('set_online', { 
+            user_id: res.data.user?.id || res.data.user_id, 
+            is_online: true 
+          });
+        } else {
+          console.log('⚠️ Socket not connected, online status will be set when socket connects');
+        }
+
         onNext();
       }
     } catch (error: any) {

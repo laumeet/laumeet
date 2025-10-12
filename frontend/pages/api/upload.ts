@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // pages/api/feed/upload.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import { IncomingForm, Files, Fields } from "formidable";

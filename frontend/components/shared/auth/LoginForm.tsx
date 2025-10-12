@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import api from '@/lib/axio'; // use your configured axios
+import api from '@/lib/axio';
 import { useState } from 'react';
 import { Eye, EyeOff, Loader2, Lock, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { useSocket } from '@/hooks/useSocket';
 
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -15,24 +16,35 @@ export default function LoginForm() {
     username: '',
     password: '',
   });
-
-  const[isProcessing, setIsProcessing] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false);
+  const router = useRouter();
+  const { socket, isConnected } = useSocket();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const router = useRouter();
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-  setIsProcessing(true)
+    setIsProcessing(true);
 
     try {
       const res = await api.post("/auth/login", formData); 
       if (res.data) {
         toast.success('Login Successful');
+        
+        // Set user as online immediately after successful login
+        if (socket && isConnected) {
+          console.log('✅ Login successful - setting user online');
+          socket.emit('set_online', { 
+            user_id: res.data.user?.id || res.data.user_id, 
+            is_online: true 
+          });
+        } else {
+          console.log('⚠️ Socket not connected, online status will be set when socket connects');
+        }
+
         setTimeout(() => {
           toast.success('Redirecting to homepage');
           router.replace('/explore');
@@ -44,8 +56,8 @@ export default function LoginForm() {
       } else {
         toast.error('An unexpected error occurred');
       }
-    }finally{
-      setIsProcessing(false)
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -123,20 +135,20 @@ export default function LoginForm() {
       </div>
 
       {/* Submit Button */}
-     <Button
-            type="submit"
-            className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white py-3"
-            disabled={isProcessing }
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Logging in...
-              </>
-            ) : (
-              'Login'
-            )}
-          </Button>
+      <Button
+        type="submit"
+        className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white py-3"
+        disabled={isProcessing}
+      >
+        {isProcessing ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Logging in...
+          </>
+        ) : (
+          'Login'
+        )}
+      </Button>
 
       {/* Sign Up Link */}
       <div className="text-center text-sm text-gray-600 dark:text-gray-400">

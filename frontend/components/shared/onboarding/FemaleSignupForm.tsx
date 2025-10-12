@@ -18,6 +18,7 @@ import ImageUploader from './ImageUploader';
 import { Shield, Loader2, Eye, EyeOff, Camera, CameraOff } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/axio';
+import { useSocket } from '@/hooks/useSocket';
 
 interface FemaleSignupFormProps {
   isAnonymous: boolean | null;
@@ -48,6 +49,7 @@ export default function FemaleSignupForm({
     name: ''
   });
 
+    const { socket, isConnected } = useSocket();
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -210,6 +212,17 @@ export default function FemaleSignupForm({
       const res = await api.post('/auth/signup', payload);
       if(res.data){
         toast.success('Profile created successfully!');
+              // Set user as online immediately after successful login
+        if (socket && isConnected) {
+          console.log('✅ Login successful - setting user online');
+          socket.emit('set_online', { 
+            user_id: res.data.user?.id || res.data.user_id, 
+            is_online: true 
+          });
+        } else {
+          console.log('⚠️ Socket not connected, online status will be set when socket connects');
+        }
+
         onNext();
       }
     } catch (error: unknown) {

@@ -21,6 +21,7 @@ import { useSocketContext } from '@/lib/socket-context';
 import { useProfile } from '@/hooks/get-profile';
 import { useUserSubscription } from '@/hooks/useUserSubscription';
 import { UpgradeModal, LockedContentTooltip, UpgradePrompt } from '@/components/chat/SubscriptionComponents';
+import { useUsageStats } from '@/hooks/useUsageStats';
 
 // -----------------------------
 // Types
@@ -82,9 +83,35 @@ const isTempId = (id: any) => String(id).startsWith('temp-');
 const SENSITIVE_PATTERNS = {
   PHONE: /(\+?234[\s-]?|0)?[789][01]\d{1}[\s-]?\d{3}[\s-]?\d{4}/g,
   EMAIL: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
-  URL: /https?:\/\/[^\s]+|www\.[^\s]+/g,
-  SOCIAL_MEDIA: /(instagram|facebook|twitter|tiktok|snapchat|whatsapp|telegram)[\s\.\/:][^\s]*/gi,
+  URL: /https?:\/\/[^\s]+|www\.[^\s]+|\.[a-z]{2,}\/[^\s]*/gi,
+  SOCIAL_MEDIA: /(instagram|facebook|twitter|tiktok|snapchat|whatsapp|telegram|discord)[\s\.\/:][^\s]*/gi,
   DISCORD: /discord\.gg\/[^\s]+|discordapp\.com\/[^\s]+/gi,
+  INSTAGRAM: /instagram\.com\/[^\s]+/gi,
+  FACEBOOK: /facebook\.com\/[^\s]+/gi,
+  TWITTER: /twitter\.com\/[^\s]+|x\.com\/[^\s]+/gi,
+  SNAPCHAT: /snapchat\.com\/add\/[^\s]+/gi,
+  TELEGRAM: /t\.me\/[^\s]+|telegram\.me\/[^\s]+/gi,
+  WHATSAPP: /wa\.me\/[^\s]+|whatsapp\.com\/[^\s]+/gi,
+  TIKTOK: /tiktok\.com\/[^\s]+/gi,
+  MONEY: /₦\s?\d+|\d+\s?naira|payment|pay\s?me|send\s?money/gi,
+  ADDRESS: /\b(house|street|road|avenue|close|drive|lane|estate)\b.*\b\d+/gi,
+};
+
+// -----------------------------
+// Custom Hook for Upgrade Prompts
+// -----------------------------
+const useUpgradePrompts = (hasSubscription: boolean, showUpgradeModal: boolean, setShowUpgradeModal: (show: boolean) => void) => {
+  useEffect(() => {
+    if (hasSubscription || showUpgradeModal) return;
+
+    const promptInterval = setInterval(() => {
+      if (!hasSubscription && !showUpgradeModal) {
+        setShowUpgradeModal(true);
+      }
+    }, 20 * 60 * 1000); // 20 minutes
+
+    return () => clearInterval(promptInterval);
+  }, [hasSubscription, showUpgradeModal, setShowUpgradeModal]);
 };
 
 // -----------------------------
@@ -92,7 +119,8 @@ const SENSITIVE_PATTERNS = {
 // -----------------------------
 export default function ChatDetailPage() {
   const { profile } = useProfile();
-  const { subscription, fetchUserSubscription } = useUserSubscription(profile?.id);
+  const { subscription, fetchUserSubscription } = useUserSubscription();
+  const { usage, fetchUsageStats } = useUsageStats();
   const { socket, isConnected: socketConnected, onlineUsers } = useSocketContext();
   const params = useParams();
   const router = useRouter();
@@ -104,6 +132,7 @@ export default function ChatDetailPage() {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -140,20 +169,32 @@ export default function ChatDetailPage() {
   const [swipingMessageId, setSwipingMessageId] = useState<string | number | null>(null);
 
   // -----------------------------
+  // Upgrade Prompts
+  // -----------------------------
+  useUpgradePrompts(hasSubscription, showUpgradeModal, setShowUpgradeModal);
+
+  // -----------------------------
   // Subscription Management
   // -----------------------------
   useEffect(() => {
+    console.log('🔔 Subscription data updated:', subscription);
     if (subscription) {
       setHasSubscription(subscription.has_subscription);
-      if (subscription.has_subscription && subscription.subscription) {
+      
+      if (usage) {
+        setMessagesUsed(usage.messages.used);
+        setMessageLimit(usage.messages.limit);
+      } else if (subscription.has_subscription && subscription.subscription) {
         setMessagesUsed(subscription.subscription.usage.messages.used);
         setMessageLimit(subscription.subscription.usage.messages.limit);
       } else if (subscription.current_plan) {
         setMessageLimit(subscription.current_plan.features.max_messages);
         setMessagesUsed(subscription.current_plan.features.max_messages_used || 0);
       }
+      
+      fetchUsageStats();
     }
-  }, [subscription]);
+  }, [subscription, usage, fetchUsageStats]);
 
   // Check if user can send messages
   const canSendMessage = useCallback(() => {
@@ -171,12 +212,12 @@ export default function ChatDetailPage() {
       await api.post('/subscription/usage/sync', {
         user_id: profile.id
       });
-      // Refresh subscription data
       await fetchUserSubscription(profile.id);
+      await fetchUsageStats();
     } catch (err) {
       console.error('Failed to sync usage:', err);
     }
-  }, [profile?.id, fetchUserSubscription]);
+  }, [profile?.id, fetchUserSubscription, fetchUsageStats]);
 
   // Sensitive content filtering
   const filterSensitiveContent = useCallback((content: string, userHasSubscription: boolean): string => {
@@ -184,23 +225,43 @@ export default function ChatDetailPage() {
       return content;
     }
 
-    let filteredContent = content;
+    const filteredContent = content;
 
-    // Replace sensitive patterns with locked content
-    Object.values(SENSITIVE_PATTERNS).forEach(pattern => {
-      filteredContent = filteredContent.replace(pattern, '🔒 [Content locked - upgrade to view]');
-    });
+    const hasSensitiveContent = Object.values(SENSITIVE_PATTERNS).some(pattern => 
+      pattern.test(content)
+    );
+
+    if (hasSensitiveContent) {
+      return '🔒 [Upgrade to view sensitive content]';
+    }
 
     return filteredContent;
   }, []);
 
-  // Apply sensitive content filtering to messages (only when subscription changes)
+  // Apply sensitive content filtering to messages
   const updateMessagesWithFilter = useCallback((msgs: Message[], userHasSubscription: boolean) => {
     return msgs.map(msg => ({
       ...msg,
       content: filterSensitiveContent(msg.content, userHasSubscription)
     }));
   }, [filterSensitiveContent]);
+
+  // Apply filtering when subscription changes
+  useEffect(() => {
+    if (initialMessagesLoadedRef.current && messages.length > 0) {
+      const filteredMessages = updateMessagesWithFilter(messages, hasSubscription);
+      setMessages(filteredMessages);
+    }
+  }, [hasSubscription, updateMessagesWithFilter]);
+
+  // Apply filtering on initial message load
+  useEffect(() => {
+    if (messages.length > 0 && !initialMessagesLoadedRef.current) {
+      const filteredMessages = updateMessagesWithFilter(messages, hasSubscription);
+      setMessages(filteredMessages);
+      initialMessagesLoadedRef.current = true;
+    }
+  }, [messages.length, hasSubscription, updateMessagesWithFilter]);
 
   // -----------------------------
   // Formatting helpers
@@ -306,10 +367,16 @@ export default function ChatDetailPage() {
     if (!id) return;
 
     try {
+      setMessagesLoading(true);
       const response = await api.get(`/chat/messages/conversationId?conversationId=${id}`);
       if (response.data.success) {
         const serverMessages: Message[] = response.data.messages || [];
-        const filteredMessages = updateMessagesWithFilter(serverMessages, hasSubscription);
+        
+        const filteredMessages = serverMessages.map(msg => ({
+          ...msg,
+          content: filterSensitiveContent(msg.content, hasSubscription)
+        }));
+        
         setMessages(filteredMessages);
         initialMessagesLoadedRef.current = true;
       } else {
@@ -317,6 +384,8 @@ export default function ChatDetailPage() {
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load messages');
+    } finally {
+      setMessagesLoading(false);
     }
   };
 
@@ -350,10 +419,8 @@ export default function ChatDetailPage() {
       }
     };
 
-    // Join room immediately
     joinRoom();
 
-    // Debounced join room on reconnect to prevent duplicates
     let reconnectTimer: NodeJS.Timeout;
     const handleReconnect = () => {
       clearTimeout(reconnectTimer);
@@ -364,11 +431,9 @@ export default function ChatDetailPage() {
 
     socket.on('connect', handleReconnect);
 
-    // Event handlers
     const handleNewMessage = (newMessage: any) => {
       console.log('📨 New message received:', newMessage);
       
-      // Only add message if it belongs to current conversation
       if (String(newMessage.conversation_id) !== String(chatId)) {
         console.log('📨 Message for different conversation, ignoring');
         return;
@@ -391,17 +456,14 @@ export default function ChatDetailPage() {
         return [...prev, filteredMessage];
       });
 
-      // Update message count for free users and sync with backend
       if (newMessage.sender_id === profile?.id && !hasSubscription) {
         setMessagesUsed(prev => {
           const newCount = prev + 1;
-          // Sync with backend when message count changes
           setTimeout(() => syncUsage(), 1000);
           return newCount;
         });
       }
 
-      // Mark as delivered if it's not our message
       if (newMessage.sender_id !== profile?.id && socket) {
         console.log('📬 Marking message as delivered:', newMessage.id);
         socket.emit('message_delivered', {
@@ -490,14 +552,12 @@ export default function ChatDetailPage() {
       console.log('✅ Joined conversation room:', data);
     };
 
-    // Register all event listeners
     socket.on('new_message', handleNewMessage);
     socket.on('user_typing', handleTyping);
     socket.on('user_online_status', handleOnlineStatus);
     socket.on('message_status_update', handleMessageStatusUpdate);
     socket.on('joined_conversation', handleJoinedConversation);
 
-    // Cleanup function
     return () => {
       console.log('🧹 Cleaning up socket event listeners');
       
@@ -529,14 +589,6 @@ export default function ChatDetailPage() {
     }
   }, [conversation, onlineUsers]);
 
-  // Update messages when subscription status changes - FIXED: Only update when hasSubscription changes
-  useEffect(() => {
-    if (initialMessagesLoadedRef.current && messages.length > 0) {
-      const filteredMessages = updateMessagesWithFilter(messages, hasSubscription);
-      setMessages(filteredMessages);
-    }
-  }, [hasSubscription, updateMessagesWithFilter]); // Removed messages from dependencies
-
   // -----------------------------
   // Scroll Management
   // -----------------------------
@@ -550,7 +602,6 @@ export default function ChatDetailPage() {
     }
   }, []);
 
-  // Handle scroll events to disable auto-scroll when user scrolls up
   useEffect(() => {
     const messagesContainer = messagesContainerRef.current;
     if (!messagesContainer) return;
@@ -565,7 +616,6 @@ export default function ChatDetailPage() {
     return () => messagesContainer.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Auto-scroll only when new messages are added and user is at bottom
   useEffect(() => {
     if (messages.length > lastMessageCountRef.current && autoScrollEnabledRef.current) {
       scrollToBottom('smooth');
@@ -603,7 +653,6 @@ export default function ChatDetailPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value);
 
-    // Debounced typing start
     if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
     
     if (e.target.value.trim() && !isTyping) {
@@ -617,6 +666,19 @@ export default function ChatDetailPage() {
       handleTypingStop();
     }, 1000);
   };
+
+  // -----------------------------
+  // Textarea Height Management
+  // -----------------------------
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      const newHeight = Math.min(textareaRef.current.scrollHeight, 88);
+      textareaRef.current.style.height = `${newHeight}px`;
+      
+      textareaRef.current.style.overflowY = newHeight >= 88 ? 'auto' : 'hidden';
+    }
+  }, [message]);
 
   // -----------------------------
   // Swipe to Reply
@@ -634,16 +696,14 @@ export default function ChatDetailPage() {
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const diff = clientX - swipeStartX;
     
-    // Only allow left swipe (negative values)
     if (diff < 0) {
-      setSwipeOffset(Math.max(diff, -80)); // Max swipe distance
+      setSwipeOffset(Math.max(diff, -80));
     }
   };
 
   const handleSwipeEnd = () => {
     if (!swipingMessageId) return;
     
-    // If swiped enough, set reply
     if (swipeOffset < -50) {
       const msg = messages.find(m => String(m.id) === String(swipingMessageId));
       if (msg) {
@@ -652,7 +712,6 @@ export default function ChatDetailPage() {
       }
     }
     
-    // Reset swipe
     setSwipingMessageId(null);
     setSwipeOffset(0);
   };
@@ -684,7 +743,6 @@ export default function ChatDetailPage() {
   const sendMessage = async () => {
     if (!message.trim() || !conversation || sending) return;
     
-    // Check if user can send messages
     if (!canSendMessage()) {
       setShowUpgradeModal(true);
       return;
@@ -707,12 +765,10 @@ export default function ChatDetailPage() {
           content,
           reply_to: replyTo ? String(replyTo.id) : null
         });
-        
-        // Update message count for free users and sync with backend
+
         if (!hasSubscription) {
           setMessagesUsed(prev => {
             const newCount = prev + 1;
-            // Sync with backend when message count changes
             setTimeout(() => syncUsage(), 1000);
             return newCount;
           });
@@ -726,16 +782,13 @@ export default function ChatDetailPage() {
         });
         
         if (response.data.success) {
-          // Remove temp message and fetch fresh messages
           setMessages(prev => prev.filter(m => !isTempId(m.id)));
           await fetchMessagesById(conversation.id);
           await fetchConversationById(conversation.id);
           
-          // Update message count for free users and sync with backend
           if (!hasSubscription) {
             setMessagesUsed(prev => {
               const newCount = prev + 1;
-              // Sync with backend when message count changes
               setTimeout(() => syncUsage(), 1000);
               return newCount;
             });
@@ -747,7 +800,6 @@ export default function ChatDetailPage() {
     } catch (err: any) {
       console.error('❌ Error sending message:', err);
       setError(err.response?.data?.message || 'Failed to send message');
-      // Remove temp message on error
       setMessages(prev => prev.filter(m => !isTempId(m.id)));
     } finally {
       setSending(false);
@@ -792,13 +844,6 @@ export default function ChatDetailPage() {
     loadChatData();
   }, [chatId]);
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
-    }
-  }, [message]);
-
   // -----------------------------
   // UI Components
   // -----------------------------
@@ -821,7 +866,7 @@ export default function ChatDetailPage() {
   // -----------------------------
   // UI Render
   // -----------------------------
-  if (loading) {
+  if (loading || messagesLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-white dark:bg-gray-900">
         <div className="text-center">
@@ -865,18 +910,18 @@ export default function ChatDetailPage() {
                 <Avatar className="h-10 w-10 border-2 border-white">
                   <AvatarImage
                     src={conversation.other_user.avatar || '/placeholder-avatar.jpg'}
-                    alt={conversation.other_user.name}
+                    alt={conversation.other_user.username}
                     className="object-cover"
                   />
-                  <AvatarFallback className="bg-gradient-to-r from-pink-500 to-purple-600 text-white">
-                    {conversation.other_user.name?.charAt(0) || conversation.other_user.username?.charAt(0)}
+                  <AvatarFallback className="bg-gradient-to-r from-pink-500 capitalize to-purple-600 text-white">
+                    {conversation.other_user.username?.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
               </div>
 
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-white truncate">
-                  {conversation.other_user.name || conversation.other_user.username}
+                <h3 className="font-semibold capitalize text-white truncate">
+                  {conversation.other_user.username}
                 </h3>
                 <p className="text-purple-100 text-xs">
                   {onlineStatus ? 'online' : `Last seen: ${formatLastSeen(conversation.other_user.lastSeen)}`}
@@ -922,7 +967,7 @@ export default function ChatDetailPage() {
               const isOwn = msg.sender_id === profile?.id;
               const showDate = index === 0 || !isSameDay(msg.timestamp, messages[index - 1].timestamp);
               const isSwiping = swipingMessageId === msg.id;
-              const isLockedContent = msg.content.includes('🔒 [Content locked - upgrade to view]');
+              const isLockedContent = msg.content.includes('🔒 [Upgrade to view sensitive content]');
 
               const replyPreview = msg.reply_to ? (
                 <div className="mb-1 px-2 py-1 rounded bg-black/10 dark:bg-white/10 text-xs text-gray-700 dark:text-gray-300 border-l-2 border-purple-500">
@@ -1054,10 +1099,12 @@ export default function ChatDetailPage() {
               placeholder={!canSendMessage() ? "Upgrade to continue messaging" : "Type a message"}
               value={message}
               onChange={handleInputChange}
-              className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-32 overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-[88px] overflow-y-auto disabled:opacity-50 disabled:cursor-not-allowed"
               rows={1}
               disabled={sending || !canSendMessage()}
-              style={{ overflow: 'hidden' }}
+              style={{ 
+                lineHeight: '1.25rem'
+              }}
               onClick={() => {
                 if (!canSendMessage()) {
                   setShowUpgradeModal(true);
@@ -1140,13 +1187,13 @@ export default function ChatDetailPage() {
             <div className="flex flex-col items-center space-y-4 mb-6">
               <Avatar className="h-20 w-20">
                 <AvatarImage src={conversation.other_user.avatar || '/placeholder-avatar.jpg'} />
-                <AvatarFallback className="bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xl">
-                  {conversation.other_user.name?.charAt(0) || conversation.other_user.username?.charAt(0)}
+                <AvatarFallback className="bg-gradient-to-r capitalize from-pink-500 to-purple-600 text-white text-xl">
+                  { conversation.other_user.username?.charAt(0)}
                 </AvatarFallback>
               </Avatar>
               <div className="text-center">
-                <h3 className="font-semibold text-lg">{conversation.other_user.name || conversation.other_user.username}</h3>
-                <p className="text-sm text-gray-500">@{conversation.other_user.username}</p>
+                <h3 className="font-semibold text-lg capitalize">{conversation.other_user.name || conversation.other_user.username}</h3>
+                <p className="text-sm text-gray-500 capitalize">@{conversation.other_user.username}</p>
                 <p className={`text-xs ${onlineStatus ? 'text-green-500' : 'text-gray-500'}`}>
                   {onlineStatus ? 'Online' : `Last seen ${formatLastSeen(conversation.other_user.lastSeen)}`}
                 </p>

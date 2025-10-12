@@ -43,8 +43,8 @@ def explore():
     elif current_user.interested_in.lower() == "both":
         query = query.filter(User.gender.ilike("male") | User.gender.ilike("female"))
     else:
-        # Default fallback: show all users (excluding self + swiped)
-        query = query.filter(User.gender.in_(["Male", "Female"]))
+        # If interested_in is invalid, return empty results
+        query = query.filter(User.id == None)  # Force empty results
 
     print("Current user:", current_user.username)
     print("Interested in:", current_user.interested_in)
@@ -60,20 +60,7 @@ def explore():
 
     print("Candidates found:", [u.username for u in candidates])
 
-    # Fallback: if no candidates found, still exclude swiped users
-    if not candidates:
-        query = User.query.filter(User.id != current_user.id)
-        if swiped_ids:
-            query = query.filter(~User.id.in_(swiped_ids))
-
-        candidates = (
-            query.order_by(func.random())
-            .offset((page - 1) * limit)
-            .limit(limit)
-            .all()
-        )
-
-    # ✅ Always return a response — no matter what
+    # Return results based on the filter criteria
     result = [user.to_dict() for user in candidates]
 
     return jsonify({
@@ -82,7 +69,6 @@ def explore():
         "limit": limit,
         "profiles": result
     }), 200
-
 
 
 @matching_bp.route("/swipe", methods=["POST"])

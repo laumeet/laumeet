@@ -468,9 +468,9 @@ export default function ChatPage() {
                       src={conversation.other_user.avatar || '/placeholder-avatar.jpg'}
                       alt={conversation.other_user.name}
                     />
-                    <AvatarFallback className="bg-gradient-to-r from-pink-500 to-purple-600 text-white">
-                      {conversation.other_user.name?.charAt(0) ||
-                        conversation.other_user.username?.charAt(0)}
+                    <AvatarFallback className="bg-gradient-to-r capitalize from-pink-500 to-purple-600 text-white">
+                      {conversation.other_user.username?.charAt(0)} 
+
                     </AvatarFallback>
                   </Avatar>
                   {conversation.other_user.isOnline && (
@@ -484,8 +484,8 @@ export default function ChatPage() {
                       {conversation.isPinned && (
                         <span className="text-purple-500" title="Pinned conversation">📌</span>
                       )}
-                      <h3 className="font-semibold text-gray-900 dark:text-white truncate">
-                        {conversation.other_user.name || conversation.other_user.username}
+                      <h3 className="font-semibold capitalize text-gray-900 dark:text-white truncate">
+                        {conversation.other_user.username  }
                       </h3>
                     </div>
                     <div className="flex items-center space-x-1">

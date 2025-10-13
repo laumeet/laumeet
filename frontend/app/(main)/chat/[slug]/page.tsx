@@ -1162,17 +1162,17 @@ export default function ChatDetailPage() {
             })
           )}
 
-          {/* Typing Indicator */}
-          {isTyping && <TypingBubble />}
-                 {/* Scroll to bottom button */}
-        {showScrollButton && (
-          <button
-            onClick={() => {scrollToBottom('smooth');setShowScrollButton(false)}}
-            className="absolute bottom-4 right-4 z-10 bg-white dark:bg-gray-700 rounded-full p-2 shadow-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-          >
-            <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-          </button>
-        )}
+      {/* Typing Indicator */}
+      {isTyping && <TypingBubble />}
+      {/* Scroll to bottom button */}
+      {showScrollButton && (
+        <button
+          onClick={() => {scrollToBottom('smooth');setShowScrollButton(false)}}
+          className="absolute bottom-4 right-4 z-10 bg-white dark:bg-gray-700 rounded-full p-2 shadow-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+        >
+          <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+        </button>
+      )}
 
           <div ref={messagesEndRef} />
         </div>

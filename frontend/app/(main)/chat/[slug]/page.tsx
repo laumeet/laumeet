@@ -13,6 +13,7 @@ import {
   X,
   Info,
   Lock,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -93,8 +94,7 @@ const SENSITIVE_PATTERNS = {
   TELEGRAM: /t\.me\/[^\s]+|telegram\.me\/[^\s]+/gi,
   WHATSAPP: /wa\.me\/[^\s]+|whatsapp\.com\/[^\s]+/gi,
   TIKTOK: /tiktok\.com\/[^\s]+/gi,
-  MONEY: /₦\s?\d+|\d+\s?naira|payment|pay\s?me|send\s?money/gi,
-  ADDRESS: /\b(house|street|road|avenue|close|drive|lane|estate)\b.*\b\d+/gi,
+  ADDRESS: /\b(house|street|road|avenue|close|drive|lane|estate|hostel)\b.*\b\d+/gi,
 };
 
 // -----------------------------
@@ -102,7 +102,7 @@ const SENSITIVE_PATTERNS = {
 // -----------------------------
 const useUpgradePrompts = (hasSubscription: boolean, showUpgradeModal: boolean, setShowUpgradeModal: (show: boolean) => void) => {
   useEffect(() => {
-    if (hasSubscription || showUpgradeModal) return;
+    if (!hasSubscription || showUpgradeModal) return;
 
     const LAST_PROMPT_KEY = 'last_upgrade_prompt_time';
     const FIRST_VISIT_KEY = 'first_chat_visit_done';
@@ -140,7 +140,7 @@ const useUpgradePrompts = (hasSubscription: boolean, showUpgradeModal: boolean, 
 // -----------------------------
 export default function ChatDetailPage() {
   const { profile } = useProfile();
-  const { subscription, fetchUserSubscription } = useUserSubscription();
+  const { subscription } = useUserSubscription();
   const { usage, fetchUsageStats } = useUsageStats();
   const { socket, isConnected: socketConnected, onlineUsers } = useSocketContext();
   const params = useParams();
@@ -171,6 +171,9 @@ export default function ChatDetailPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [showUserDetails, setShowUserDetails] = useState(false);
+
+  // Scroll states
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -246,20 +249,7 @@ export default function ChatDetailPage() {
     return true;
   }, [hasSubscription, usage]);
 
-  // Sync usage with backend
-  const syncUsage = useCallback(async () => {
-    if (!profile?.id) return;
-    
-    try {
-      await api.post('/subscription/usage/sync', {
-        user_id: profile.id
-      });
-      await fetchUserSubscription(profile.id);
-      await fetchUsageStats();
-    } catch (err) {
-      console.error('Failed to sync usage:', err);
-    }
-  }, [profile?.id, fetchUserSubscription, fetchUsageStats]);
+
 
   // Sensitive content filtering - APPLIED WHEN RECEIVING MESSAGES
   const filterSensitiveContent = useCallback((content: string, userHasSubscription: boolean): string => {
@@ -504,7 +494,7 @@ export default function ChatDetailPage() {
 
       if (newMessage.sender_id === profile?.id && !hasSubscription && usage) {
         // Update usage stats after sending message
-        setTimeout(() => syncUsage(), 1000);
+       fetchUsageStats()
       }
 
       if (newMessage.sender_id !== profile?.id && socket) {
@@ -625,7 +615,7 @@ export default function ChatDetailPage() {
         typingDebounceRef.current = null;
       }
     };
-  }, [socket, conversation, profile?.id, onlineStatus, hasSubscription, filterSensitiveContent, syncUsage, usage]);
+  }, [socket, conversation, profile?.id, onlineStatus, hasSubscription, filterSensitiveContent, usage, chatId]);
 
   // Update online status when onlineUsers changes
   useEffect(() => {
@@ -640,14 +630,26 @@ export default function ChatDetailPage() {
   // Scroll Management
   // -----------------------------
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    if (autoScrollEnabledRef.current && messagesEndRef.current) {
+    if (messagesEndRef.current) {
       try {
         messagesEndRef.current.scrollIntoView({ behavior });
+        autoScrollEnabledRef.current = true;
+        setShowScrollButton(false);
       } catch (err) {
         // Ignore scroll errors
       }
     }
   }, []);
+
+  // Auto scroll to bottom on initial load and when new messages arrive
+  useEffect(() => {
+    if (messages.length > 0 && !messagesLoading) {
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        scrollToBottom('auto');
+      }, 100);
+    }
+  }, [messages.length, messagesLoading, scrollToBottom]);
 
   useEffect(() => {
     const messagesContainer = messagesContainerRef.current;
@@ -657,18 +659,21 @@ export default function ChatDetailPage() {
       const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
       const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
       autoScrollEnabledRef.current = isAtBottom;
+      
+      // Show scroll button when not at bottom and there are enough messages
+      setShowScrollButton(!isAtBottom && messages.length > 5);
     };
 
     messagesContainer.addEventListener('scroll', handleScroll);
     return () => messagesContainer.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [messages.length]);
 
+  // Auto scroll when typing indicator is shown
   useEffect(() => {
-    if (messages.length > lastMessageCountRef.current && autoScrollEnabledRef.current) {
+    if (isTyping && autoScrollEnabledRef.current) {
       scrollToBottom('smooth');
     }
-    lastMessageCountRef.current = messages.length;
-  }, [messages.length, scrollToBottom]);
+  }, [isTyping, scrollToBottom]);
 
   // -----------------------------
   // Typing Indicator Functions - FIXED
@@ -680,22 +685,21 @@ export default function ChatDetailPage() {
     
     console.log('⌨️ Sending typing start');
     socket.emit('typing', {
-      conversation_id: chatId,
+      conversation_id: conversation.id,
       is_typing: true
     });
-  }, [socket, conversation, chatId]);
+  }, [socket, conversation]);
 
   const handleTypingStop = useCallback(() => {
     if (!socket || !conversation) {
       return;
     }
-    
     console.log('⌨️ Sending typing stop');
     socket.emit('typing', {
-      conversation_id: chatId,
+      conversation_id: conversation.id,
       is_typing: false
     });
-  }, [socket, conversation, chatId]);
+  }, [socket, conversation]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
@@ -781,7 +785,7 @@ export default function ChatDetailPage() {
     
     console.log('📖 Marking messages as read:', messageIds);
     socket.emit('read_messages', {
-      conversation_id: chatId,
+      conversation_id: conversation.id,
       message_ids: messageIds
     });
   }, [socket, conversation]);
@@ -829,10 +833,8 @@ export default function ChatDetailPage() {
           reply_to: replyTo ? String(replyTo.id) : null
         });
 
-        if (!hasSubscription && usage) {
-          // Update usage stats after sending message
-          setTimeout(() => syncUsage(), 1000);
-        }
+        fetchUsageStats()
+    
       } else {
         console.log('📤 Sending via HTTP API - socket not available');
         const response = await api.post(`/chat/messages/send?conversationId=${chatId}`, {
@@ -846,10 +848,7 @@ export default function ChatDetailPage() {
           await fetchMessagesById(conversation.id);
           await fetchConversationById(conversation.id);
           
-          if (!hasSubscription) {
-            // Update usage stats after sending message
-            setTimeout(() => syncUsage(), 1000);
-          }
+         fetchUsageStats()
         } else {
           throw new Error('Failed to send message');
         }
@@ -906,13 +905,13 @@ export default function ChatDetailPage() {
   // -----------------------------
   const TypingBubble = () => (
     <div className="flex justify-start">
-      <div className="max-w-[70%] mr-12">
-        <div className="bg-white dark:bg-gray-700 px-4 py-3 rounded-lg rounded-bl-none shadow-sm">
-          <div className="flex items-center space-x-2">
+      <div className="max-w-[70px] mr-12">
+        <div className="bg-white dark:bg-gray-700 px-3 py-2 rounded-lg rounded-bl-none shadow-sm">
+          <div className="flex items-center space-x-1">
             <div className="flex space-x-1">
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
             </div>
           </div>
         </div>
@@ -1003,9 +1002,19 @@ export default function ChatDetailPage() {
       {/* Messages Area - Flexible middle section */}
       <div
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto bg-[#e5ddd5] dark:bg-gray-800 bg-chat-background bg-repeat bg-center"
+        className="flex-1 overflow-y-auto bg-[#e5ddd5] dark:bg-gray-800 bg-chat-background bg-repeat bg-center relative"
         style={{ backgroundImage: 'url(/chat-bg.png)' }}
       >
+        {/* Scroll to bottom button */}
+        {showScrollButton && (
+          <button
+            onClick={() => scrollToBottom('smooth')}
+            className="absolute bottom-4 right-4 z-10 bg-white dark:bg-gray-700 rounded-full p-2 shadow-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+          >
+            <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+          </button>
+        )}
+
         <div className="max-w-3xl mx-auto p-2 space-y-1">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center py-12">

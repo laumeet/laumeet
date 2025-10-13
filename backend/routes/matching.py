@@ -6,6 +6,8 @@ from utils.security import get_current_user_from_jwt
 from utils.validation import get_opposite_gender
 from models.user import User, Swipe
 from models.core import db
+from datetime import datetime, timedelta
+
 
 matching_bp = Blueprint('matching', __name__)
 
@@ -15,25 +17,41 @@ def explore():
     """
     Explore endpoint for discovering potential matches
     Returns users based on the current user's 'interested_in' preference
-    Excludes users already swiped on by current user
+    Excludes users already liked by current user
+    Includes passed users after 2 hours for reshows
     Includes pagination for performance
     """
     current_user, error_response, status_code = get_current_user_from_jwt()
     if error_response:
         return error_response, status_code
 
-    # Get IDs of users already swiped by current user (liked or passed)
-    swiped_ids = db.session.query(Swipe.target_user_id).filter_by(user_id=current_user.id).all()
-    swiped_ids = [s[0] for s in swiped_ids]
+    # Get IDs of users liked by current user (permanent exclusion)
+    liked_ids = db.session.query(Swipe.target_user_id).filter_by(
+        user_id=current_user.id, 
+        action="like"
+    ).all()
+    liked_ids = [s[0] for s in liked_ids]
+
+    # Get IDs of users passed by current user within last 2 hours (temporary exclusion)
+    two_hours_ago = datetime.utcnow() - timedelta(hours=2)
+    recent_pass_ids = db.session.query(Swipe.target_user_id).filter(
+        Swipe.user_id == current_user.id,
+        Swipe.action == "pass",
+        Swipe.timestamp > two_hours_ago
+    ).all()
+    recent_pass_ids = [s[0] for s in recent_pass_ids]
+
+    # Combine exclusion lists
+    excluded_ids = liked_ids + recent_pass_ids
 
     # Pagination parameters
     page = int(request.args.get("page", 1))
     limit = int(request.args.get("limit", 10))
 
-    # Base query (exclude self and already swiped users)
+    # Base query (exclude self, liked users, and recently passed users)
     query = User.query.filter(User.id != current_user.id)
-    if swiped_ids:
-        query = query.filter(~User.id.in_(swiped_ids))
+    if excluded_ids:
+        query = query.filter(~User.id.in_(excluded_ids))
 
     # Match logic based on 'interested_in'
     if current_user.interested_in.lower() == "male":
@@ -48,7 +66,9 @@ def explore():
 
     print("Current user:", current_user.username)
     print("Interested in:", current_user.interested_in)
-    print("Already swiped:", swiped_ids)
+    print("Liked users (permanent exclude):", liked_ids)
+    print("Recently passed users (temporary exclude):", recent_pass_ids)
+    print("Total excluded:", excluded_ids)
 
     # Get paginated random users
     candidates = (
@@ -69,7 +89,6 @@ def explore():
         "limit": limit,
         "profiles": result
     }), 200
-
 
 @matching_bp.route("/swipe", methods=["POST"])
 @jwt_required()
@@ -200,11 +219,11 @@ def get_online_users():
     }), 200
 
 
-@matching_bp.route("/users/all-liked-me", methods=["GET"])
+@matching_bp.route("/users/liked-me", methods=["GET"])
 @jwt_required()
 def get_all_users_who_liked_me():
     """
-    Get all users who have liked the current user, regardless of current user's swipe status
+    Get all users who have liked the current user, but current user hasn't responded to
     """
     current_user, error_response, status_code = get_current_user_from_jwt()
     if error_response:
@@ -214,14 +233,20 @@ def get_all_users_who_liked_me():
     page = int(request.args.get("page", 1))
     limit = int(request.args.get("limit", 20))
 
-    # Get users who liked current user with timestamps
+    # Subquery to get user IDs that current user has already swiped on
+    user_swiped_subquery = db.session.query(Swipe.target_user_id).filter(
+        Swipe.user_id == current_user.id
+    ).subquery()
+
+    # Get users who liked current user but current user hasn't responded to
     liked_me_users = (
         db.session.query(User, Swipe.timestamp)
         .join(Swipe, Swipe.user_id == User.id)
         .filter(
             Swipe.target_user_id == current_user.id,
             Swipe.action == "like",
-            User.id != current_user.id
+            User.id != current_user.id,
+            ~User.id.in_(user_swiped_subquery)  # Exclude users current user has already swiped on
         )
         .order_by(Swipe.timestamp.desc())
         .offset((page - 1) * limit)
@@ -235,14 +260,8 @@ def get_all_users_who_liked_me():
         user_data = user.to_dict()
         user_data["liked_at"] = liked_timestamp.isoformat() + "Z" if liked_timestamp else None
         
-        # Check if it's a mutual match
-        mutual_match = Swipe.query.filter_by(
-            user_id=current_user.id,
-            target_user_id=user.id,
-            action="like"
-        ).first()
-        
-        user_data["is_mutual_match"] = mutual_match is not None
+        # Since we're excluding users current user has swiped on, is_mutual_match will always be False
+        user_data["is_mutual_match"] = False
         result.append(user_data)
 
     # Get total count
@@ -252,70 +271,8 @@ def get_all_users_who_liked_me():
         .filter(
             Swipe.target_user_id == current_user.id,
             Swipe.action == "like",
-            User.id != current_user.id
-        )
-        .count()
-    )
-
-    return jsonify({
-        "success": True,
-        "users": result,
-        "count": len(result),
-        "total_count": total_count,
-        "page": page,
-        "limit": limit,
-        "has_more": (page * limit) < total_count
-    }), 200
-    """
-    Get all users who have liked the current user, regardless of current user's swipe status
-    """
-    current_user, error_response, status_code = get_current_user_from_jwt()
-    if error_response:
-        return error_response, status_code
-
-    # Get pagination parameters
-    page = int(request.args.get("page", 1))
-    limit = int(request.args.get("limit", 20))
-
-    # Get users who liked current user with timestamps
-    liked_me_users = (
-        db.session.query(User, Swipe.timestamp)
-        .join(Swipe, Swipe.user_id == User.id)
-        .filter(
-            Swipe.target_user_id == current_user.id,
-            Swipe.action == "like",
-            User.id != current_user.id
-        )
-        .order_by(Swipe.timestamp.desc())
-        .offset((page - 1) * limit)
-        .limit(limit)
-        .all()
-    )
-
-    # Format response
-    result = []
-    for user, liked_timestamp in liked_me_users:
-        user_data = user.to_dict()
-        user_data["liked_at"] = liked_timestamp.isoformat() + "Z" if liked_timestamp else None
-        
-        # Check if it's a mutual match
-        mutual_match = Swipe.query.filter_by(
-            user_id=current_user.id,
-            target_user_id=user.id,
-            action="like"
-        ).first()
-        
-        user_data["is_mutual_match"] = mutual_match is not None
-        result.append(user_data)
-
-    # Get total count
-    total_count = (
-        db.session.query(User)
-        .join(Swipe, Swipe.user_id == User.id)
-        .filter(
-            Swipe.target_user_id == current_user.id,
-            Swipe.action == "like",
-            User.id != current_user.id
+            User.id != current_user.id,
+            ~User.id.in_(user_swiped_subquery)
         )
         .count()
     )

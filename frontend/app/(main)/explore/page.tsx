@@ -4,7 +4,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { 
-  Heart, X, Filter, MapPin, Calendar, Users, 
+  Heart, X, Filter,Users, 
   Loader2, AlertCircle, ChevronLeft, ChevronRight,
   Book, GraduationCap, Droplets, Cross, Eye, MessageCircle
 } from 'lucide-react';
@@ -370,8 +370,9 @@ export default function ExplorePage() {
                         </>
                       ) : (
                         // Fallback when no images
-                        <div className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
-                          <Users className="h-16 w-16 text-gray-400" />
+                        <div className="w-full flex-col h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                        <MessageCircle className="h-12 w-12 text-gray-400" />
+                        <p>No Pictures</p>
                         </div>
                       )}
                     </div>

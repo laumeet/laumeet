@@ -25,18 +25,12 @@ interface UsersWhoLikedMeResponse {
   has_more: boolean;
 }
 
-interface SwipeResponse {
-  success: boolean;
-  message: string;
-  matched_with?: string;
-  match?: boolean;
-}
+
 
 export const useLikedMe = () => {
   const [users, setUsers] = useState<UserWhoLikedMe[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [swiping, setSwiping] = useState<string | null>(null);
 
   const fetchUsersWhoLikedMe = async () => {
     try {
@@ -58,53 +52,7 @@ export const useLikedMe = () => {
     }
   };
 
-  const swipeUser = async (targetUserId: string, action: 'like' | 'pass') => {
-    try {
-      setSwiping(targetUserId);
-      
-      const response = await fetch('/api/matching/swipe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          target_user_id: targetUserId,
-          action: action
-        })
-      });
 
-      const data: SwipeResponse = await response.json();
-
-      if (data.success) {
-        // Remove the user from the list after swiping
-        setUsers(prev => prev.filter(user => user.id !== targetUserId));
-        
-        return {
-          success: true,
-          match: data.match,
-          matched_with: data.matched_with,
-          message: data.message
-        };
-      } else {
-        throw new Error(data.message || 'Failed to process swipe');
-      }
-    } catch (err: any) {
-      return {
-        success: false,
-        message: err.message || 'Failed to process swipe'
-      };
-    } finally {
-      setSwiping(null);
-    }
-  };
-
-  const likeBack = async (targetUserId: string) => {
-    return await swipeUser(targetUserId, 'like');
-  };
-
-  const passUser = async (targetUserId: string) => {
-    return await swipeUser(targetUserId, 'pass');
-  };
 
   useEffect(() => {
     fetchUsersWhoLikedMe();
@@ -114,9 +62,7 @@ export const useLikedMe = () => {
     users,
     loading,
     error,
-    swiping,
     fetchUsersWhoLikedMe,
-    likeBack,
-    passUser
+   
   };
 };

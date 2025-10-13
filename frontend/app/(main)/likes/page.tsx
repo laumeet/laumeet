@@ -18,15 +18,20 @@ import {
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useLikedMe } from '@/hooks/useUsersWhoLikedMe';
+import useExploreProfiles from '@/hooks/use-explore-profiles';
 
 export default function LikesPage() {
-  const { users, loading, error, swiping, fetchUsersWhoLikedMe, likeBack, passUser } = useLikedMe();
+  const { users, loading, error,  fetchUsersWhoLikedMe,  } = useLikedMe();
+    const { swipeProfile } = useExploreProfiles();
+    
+          const [isSwiping, setIsSwiping] = useState(false);
   const [expandedBio, setExpandedBio] = useState<string | null>(null);
   const router = useRouter();
 
   const handleLikeBack = async (user: any) => {
-    const result = await likeBack(user.id);
-    
+    setIsSwiping(true)
+    try{
+    const result = await swipeProfile(user.id, 'like')
     if (result.success) {
       if (result.match) {
         toast.success(`It's a match with ${user.name}! 🎉`, {
@@ -42,16 +47,26 @@ export default function LikesPage() {
     } else {
       toast.error(result.message || 'Failed to like back');
     }
+  }
+  finally{
+    setIsSwiping(false)
+  }
   };
 
   const handlePass = async (user: any) => {
-    const result = await passUser(user.id);
+     setIsSwiping(true)
+    try{
+    const result = await swipeProfile(user.id, 'like')
     
     if (result.success) {
       toast.info(`You passed on ${user.name}`);
     } else {
       toast.error(result.message || 'Failed to pass');
     }
+    }
+  finally{
+    setIsSwiping(false)
+  }
   };
 
   const toggleBio = (userId: string) => {
@@ -113,7 +128,7 @@ export default function LikesPage() {
 
   if (users.length === 0) {
     return (
-      <div className="space-y-6 px-4">
+      <div className="space-y-6 px-4 pt-9 pb-32">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">People Who Liked You</h1>
@@ -138,7 +153,7 @@ export default function LikesPage() {
   }
 
   return (
-    <div className="space-y-6 px-4 pb-6">
+    <div className="space-y-6 px-4 pt-9 pb-32">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -147,7 +162,7 @@ export default function LikesPage() {
             {users.length} {users.length === 1 ? 'person' : 'people'} liked your profile
           </p>
         </div>
-        <Button onClick={fetchUsersWhoLikedMe} variant="outline" size="sm">
+        <Button onClick={() => fetchUsersWhoLikedMe()} variant="outline" size="sm">
           <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>
@@ -160,11 +175,17 @@ export default function LikesPage() {
             <CardContent className="p-0">
               {/* Header with Image and Basic Info */}
               <div className="relative">
-                <img
+               {
+                user.pictures && user.pictures.length > 0  ? <img
                   src={user.pictures[0] || '/api/placeholder/400/300'}
-                  alt={user.name}
+                  alt={user.username}
                   className="w-full h-48 object-cover"
-                />
+                /> : <div className="w-full flex-col h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                  <MessageCircle className="h-12 w-12 text-gray-400" />
+                  <p>No Pictures</p>
+                </div>
+               } 
+
                 <div className="absolute top-3 left-3 bg-pink-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center">
                   <Heart className="h-3 w-3 mr-1" fill="white" />
                   Liked You
@@ -178,7 +199,7 @@ export default function LikesPage() {
                 
                 {/* Basic Info Overlay */}
                 <div className="absolute bottom-3 left-3 right-3 text-white">
-                  <h3 className="font-bold text-lg truncate">{user.name}</h3>
+                  <h3 className="font-bold text-lg truncate">{user.username}</h3>
                   <div className="flex items-center space-x-2 text-sm opacity-90">
                     {user.age && <span>{user.age} years</span>}
                     {user.department && (
@@ -219,9 +240,9 @@ export default function LikesPage() {
                     onClick={() => handlePass(user)}
                     variant="outline"
                     className="flex-1"
-                    disabled={swiping === user.id}
+                    disabled={isSwiping}
                   >
-                    {swiping === user.id ? (
+                    {isSwiping ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <>
@@ -234,9 +255,9 @@ export default function LikesPage() {
                   <Button
                     onClick={() => handleLikeBack(user)}
                     className="flex-1 bg-pink-500 hover:bg-pink-600 text-white"
-                    disabled={swiping === user.id}
+                    disabled={isSwiping}
                   >
-                    {swiping === user.id ? (
+                    {isSwiping ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <>

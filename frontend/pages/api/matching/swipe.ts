@@ -46,7 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       console.log(`🔧 Swiping ${action} on user: ${target_user_id}`);
       
-      const backendRes = await fetch(`${BACKEND_URL}/matching/swipe`, {
+      const backendRes = await fetch(`${BACKEND_URL}/swipe`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",

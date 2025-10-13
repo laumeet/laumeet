@@ -2,26 +2,38 @@
 // components/professional/ProfessionalHeader.tsx
 'use client';
 
-import { Bell, Search, MessageCircle, User, Settings, LogOut, Home, Heart, Loader2, Wallet, Timer } from 'lucide-react';
+import { Search, MessageCircle, User, Settings, LogOut, Home, Heart, Wallet} from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import api from '@/lib/axio';
 import { useProfile } from '@/hooks/get-profile';
-import { Button } from '../ui/button';
 import { useSocketContext } from '@/lib/socket-context';
 
-interface ProfessionalHeaderProps {
-  activeTab: string;
-}
 
-export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProps) {
+export default function ProfessionalHeader() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
-
+  const[activeTab,setActiveTab]=useState("")
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
- 
+  const pathname = usePathname();
+  const { profile } = useProfile();
+  const { socket, disconnect } = useSocketContext();
+
+  if(pathname) {
+    if (pathname.startsWith('/feed')) {
+      if(activeTab!=="feed") setActiveTab('feed');
+    } else if (pathname.startsWith('/explore')) {
+      if(activeTab!=="explore") setActiveTab('explore');
+    } else if (pathname.startsWith('/chat') || pathname.startsWith('/messages')) {
+      if(activeTab!=="chat") setActiveTab('chat');
+    } else if (pathname.startsWith('/profile')) {
+      if(activeTab!=="profile") setActiveTab('profile');
+    } else if (pathname.startsWith('/create-post') || pathname.startsWith('/create-event')) {
+      if(activeTab!=="create") setActiveTab('create');
+    }
+  }
 
   const getTitleConfig = () => {
     const config = {
@@ -30,13 +42,10 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
       chat: { title: 'Messages', icon: MessageCircle, gradient: 'from-green-500 to-teal-500' },
       feed: { title: 'Campus Feed', icon: Home, gradient: 'from-orange-500 to-red-500' },
       create: { title: 'Create Post', icon: Heart, gradient: 'from-pink-500 to-purple-500' },
-      settings: { title: 'Settings', icon: Settings, gradient: 'from-gray-600 to-gray-700' }
     };
     return config[activeTab as keyof typeof config] || config.feed;
   };
- const { profile } = useProfile();
 
-  const { socket, disconnect } = useSocketContext();
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -47,8 +56,8 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
- const pathname = usePathname();
-   if (pathname && (pathname === '/subscription' || pathname.startsWith('/chat/') )&& pathname !== '/chat') return
+ 
+   if (pathname && (pathname === '/subscription' || pathname === '/likes' || pathname.startsWith('/chat/') )&& pathname !== '/chat') return
   const handleLogout = async () => {
     setLogoutLoading(true);
     try {
@@ -95,10 +104,6 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
     router.push('/profile');
   };
 
-  const handleSettingsClick = () => {
-    setShowProfileMenu(false);
-    router.push('/settings');
-  };
 
 
   const titleConfig = getTitleConfig();
@@ -176,7 +181,7 @@ export default function ProfessionalHeader({ activeTab }: ProfessionalHeaderProp
                      onClick={() => router.push('/likes')}
                     className="w-full px-4 py-3 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex items-center"
                   >
-                   <Heart className="h-4 w-4 mr-3 text-green-500" />
+                   <Heart className="h-4 w-4 mr-3 fill-red-500 text-red-500" />
                     Liked Users
                   </button>
                   {/* <button 

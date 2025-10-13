@@ -1,19 +1,30 @@
 // components/professional/AdvancedBottomNav.tsx
 'use client';
 
-import { Home, Search, MessageCircle, User, Plus, Heart, Image, Calendar } from 'lucide-react';
+import { Home, Search, MessageCircle, User, Plus, ImageIcon, } from 'lucide-react';
 import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
-interface AdvancedBottomNavProps {
-  activeTab: string;
-  onTabChange: (tab: string) => void;
-}
 
-export default function AdvancedBottomNav({ activeTab, onTabChange }: AdvancedBottomNavProps) {
+export default function AdvancedBottomNav() {
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const router = useRouter();
+  const[activeTab,setActiveTab]=useState("")
   const pathname = usePathname();
+    if(pathname) {
+    if (pathname.startsWith('/feed')) {
+      if(activeTab!=="feed") setActiveTab('feed');
+    } else if (pathname.startsWith('/explore')) {
+      if(activeTab!=="explore") setActiveTab('explore');
+    } else if (pathname.startsWith('/chat') || pathname.startsWith('/messages')) {
+      if(activeTab!=="chat") setActiveTab('chat');
+    } else if (pathname.startsWith('/profile')) {
+      if(activeTab!=="profile") setActiveTab('profile');
+    } else if (pathname.startsWith('/create-post') || pathname.startsWith('/create-event')) {
+      if(activeTab!=="create") setActiveTab('create');
+    }
+  }
+
  if (pathname && pathname.startsWith('/chat/') && pathname !== '/chat') return
 
   const navItems = [
@@ -28,7 +39,6 @@ export default function AdvancedBottomNav({ activeTab, onTabChange }: AdvancedBo
     if (itemId === 'create') {
       setShowCreateMenu(!showCreateMenu);
     } else {
-      onTabChange(itemId);
       setShowCreateMenu(false);
       // Navigate to the corresponding page
       router.push(`/${itemId === 'feed' ? '' : itemId}`);
@@ -62,7 +72,7 @@ export default function AdvancedBottomNav({ activeTab, onTabChange }: AdvancedBo
               onClick={() => handleCreateOption('post')}
               className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
-              <Image className="h-5 w-5 text-blue-500" />
+              <ImageIcon className="h-5 w-5 text-blue-500" />
               <span className="text-sm font-medium">New Post</span>
             </button>
      

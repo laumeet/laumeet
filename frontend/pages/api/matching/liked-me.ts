@@ -30,7 +30,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
-      const backendRes = await fetch(`${BACKEND_URL}/matching/users/liked-me`, {
+      const backendRes = await fetch(`${BACKEND_URL}/users/liked-me`, {
         method: "GET",
         headers: { 
           "Content-Type": "application/json",

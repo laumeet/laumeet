@@ -80,21 +80,37 @@ export interface UserProfile {
 // -----------------------------
 const isTempId = (id: any) => String(id).startsWith('temp-');
 
-// Sensitive content detection patterns
+// Enhanced sensitive content detection patterns - VERY COMPLEX
 const SENSITIVE_PATTERNS = {
-  PHONE: /(\+?234[\s-]?|0)?[789][01]\d{1}[\s-]?\d{3}[\s-]?\d{4}/g,
+
+  
+  // Contact patterns
+  PHONE: /(\+?234[\s-]?|0)?[789][01]\d{1}[\s-]?\d{3}[\s-]?\d{4}|\+\d{10,15}|\b\d{10,15}\b/g,
   EMAIL: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+  
+  // Location patterns
+  COORDINATES: /\b-?\d{1,3}\.\d+,\s*-?\d{1,3}\.\d+\b/g,
+  ADDRESS: /\b\d+\s+(?:[A-Za-z]+\s+){1,5}(?:street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|court|ct|plaza|plz|square|sq)\b/gi,
+  
+  // Social media and platform patterns
   URL: /https?:\/\/[^\s]+|www\.[^\s]+|\.[a-z]{2,}\/[^\s]*/gi,
-  SOCIAL_MEDIA: /(instagram|facebook|twitter|tiktok|snapchat|whatsapp|telegram|discord)[\s\.\/:][^\s]*/gi,
+  SOCIAL_MEDIA: /(?:instagram|facebook|twitter|x|tiktok|snapchat|whatsapp|telegram|discord|signal|viber|wechat|line)[\s\.\/:][^\s]*/gi,
   DISCORD: /discord\.gg\/[^\s]+|discordapp\.com\/[^\s]+/gi,
-  INSTAGRAM: /instagram\.com\/[^\s]+/gi,
-  FACEBOOK: /facebook\.com\/[^\s]+/gi,
-  TWITTER: /twitter\.com\/[^\s]+|x\.com\/[^\s]+/gi,
+  INSTAGRAM: /(?:instagram\.com\/|@)[^\s]+/gi,
+  FACEBOOK: /(?:facebook\.com\/|fb\.com\/)[^\s]+/gi,
+  TWITTER: /(?:twitter\.com\/|x\.com\/|@)[^\s]+/gi,
   SNAPCHAT: /snapchat\.com\/add\/[^\s]+/gi,
-  TELEGRAM: /t\.me\/[^\s]+|telegram\.me\/[^\s]+/gi,
-  WHATSAPP: /wa\.me\/[^\s]+|whatsapp\.com\/[^\s]+/gi,
+  TELEGRAM: /(?:t\.me\/|telegram\.me\/|@)[^\s]+/gi,
+  WHATSAPP: /(?:wa\.me\/|whatsapp\.com\/)[^\s]+/gi,
   TIKTOK: /tiktok\.com\/[^\s]+/gi,
-  ADDRESS: /\b(house|street|road|avenue|close|drive|lane|estate|hostel)\b.*\b\d+/gi,
+  
+
+
+
+  COMBINED_CONTACT: /(?:\b\d{10,15}\b.*\b(?:call|text|message|contact|whatsapp|instagram|facebook|twitter|x|tiktok|snapchat|whatsapp|telegram|discord|signal|viber|wechat|line)\b)|(?:\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b.*\b(?:email|contact|reach)\b)/gi,
+  
+  // Advanced pattern for multiple messages combined
+  MESSAGE_COMBINATION: /(?:(?:\b\d{10,18}\b|\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b|\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b|\b\d{10,15}\b).*){2,}/gi
 };
 
 // -----------------------------
@@ -249,26 +265,35 @@ export default function ChatDetailPage() {
     return true;
   }, [hasSubscription, usage]);
 
-
-
-  // Sensitive content filtering - APPLIED WHEN RECEIVING MESSAGES
-  const filterSensitiveContent = useCallback((content: string, userHasSubscription: boolean): string => {
+  // Enhanced sensitive content filtering - APPLIED WHEN RECEIVING MESSAGES
+  const filterSensitiveContent = useCallback((content: string, userHasSubscription: boolean, allMessages: Message[] = []): string => {
     if (userHasSubscription) {
       return content;
     }
 
     let filteredContent = content;
 
-    // Check for sensitive patterns and replace with #
+    // Check for individual sensitive patterns
     Object.values(SENSITIVE_PATTERNS).forEach(pattern => {
-      filteredContent = filteredContent.replace(pattern, '#'.repeat(8));
+      filteredContent = filteredContent.replace(pattern, '🔒');
+    });
+
+    // Advanced detection: Check if multiple messages combined could reveal sensitive info
+    const recentMessages = allMessages.slice(-5).map(msg => msg.content).join(' ');
+    const combinedContent = recentMessages + ' ' + content;
+    
+    // Check combined messages for sensitive patterns
+    Object.values(SENSITIVE_PATTERNS).forEach(pattern => {
+      if (pattern.test(combinedContent)) {
+        filteredContent = '🔒 Only subscribed users can view this message';
+      }
     });
 
     // Check if any sensitive content was found
-    const hasSensitiveContent = filteredContent !== content;
+    const hasSensitiveContent = filteredContent.includes('🔒');
     
-    if (hasSensitiveContent) {
-      return `🔒 ${filteredContent}`;
+    if (hasSensitiveContent && !filteredContent.includes('Only subscribed users')) {
+      return '🔒 Only subscribed users can view this message';
     }
 
     return filteredContent;
@@ -278,7 +303,7 @@ export default function ChatDetailPage() {
   const updateMessagesWithFilter = useCallback((msgs: Message[], userHasSubscription: boolean) => {
     return msgs.map(msg => ({
       ...msg,
-      content: filterSensitiveContent(msg.content, userHasSubscription)
+      content: filterSensitiveContent(msg.content, userHasSubscription, msgs)
     }));
   }, [filterSensitiveContent]);
 
@@ -410,7 +435,7 @@ export default function ChatDetailPage() {
         
         const filteredMessages = serverMessages.map(msg => ({
           ...msg,
-          content: filterSensitiveContent(msg.content, hasSubscription)
+          content: filterSensitiveContent(msg.content, hasSubscription, serverMessages)
         }));
         
         setMessages(filteredMessages);
@@ -483,9 +508,10 @@ export default function ChatDetailPage() {
         }
         
         console.log('📨 Adding new message to state');
+        const allMessages = [...prev, newMessage];
         const filteredMessage = {
           ...newMessage,
-          content: filterSensitiveContent(newMessage.content, hasSubscription),
+          content: filterSensitiveContent(newMessage.content, hasSubscription, allMessages),
           status: newMessage.is_read ? 'read' : (!onlineStatus ? 'sent' : 'delivered')
         };
         
@@ -817,7 +843,29 @@ export default function ChatDetailPage() {
     
     setSending(true);
     
-    // Clear message immediately but don't lose keyboard focus
+    // Create temporary message for immediate UI feedback
+    const tempMessage: Message = {
+      id: `temp-${Date.now()}`,
+      conversation_id: String(chatId),
+      sender_id: profile?.id || '',
+      sender_username: profile?.username || '',
+      content: contentToSend,
+      is_read: false,
+      timestamp: new Date().toISOString(),
+      delivered_at: null,
+      read_at: null,
+      status: 'sent',
+      reply_to: replyTo ? {
+        id: replyTo.id,
+        content: replyTo.content,
+        sender_username: replyTo.sender_username
+      } : null
+    };
+
+    // Add temporary message immediately for better UX
+    setMessages(prev => [...prev, tempMessage]);
+    
+    // Clear message but keep keyboard focus
     setMessage('');
     setReplyTo(null);
     setShowReplyPreview(false);
@@ -870,6 +918,13 @@ export default function ChatDetailPage() {
   const handleUpgrade = () => {
     setShowUpgradeModal(false);
     router.push('/subscription');
+  };
+
+  // Handle input field click - show upgrade modal if no remaining messages
+  const handleInputClick = () => {
+    if (!canSendMessage()) {
+      setShowUpgradeModal(true);
+    }
   };
 
   // -----------------------------
@@ -1005,15 +1060,7 @@ export default function ChatDetailPage() {
         className="flex-1 overflow-y-auto bg-[#e5ddd5] dark:bg-gray-800 bg-chat-background bg-repeat bg-center relative"
         style={{ backgroundImage: 'url(/chat-bg.png)' }}
       >
-        {/* Scroll to bottom button */}
-        {showScrollButton && (
-          <button
-            onClick={() => scrollToBottom('smooth')}
-            className="absolute bottom-4 right-4 z-10 bg-white dark:bg-gray-700 rounded-full p-2 shadow-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-          >
-            <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-          </button>
-        )}
+ 
 
         <div className="max-w-3xl mx-auto p-2 space-y-1">
           {messages.length === 0 ? (
@@ -1117,6 +1164,15 @@ export default function ChatDetailPage() {
 
           {/* Typing Indicator */}
           {isTyping && <TypingBubble />}
+                 {/* Scroll to bottom button */}
+        {showScrollButton && (
+          <button
+            onClick={() => {scrollToBottom('smooth');setShowScrollButton(false)}}
+            className="absolute bottom-4 right-4 z-10 bg-white dark:bg-gray-700 rounded-full p-2 shadow-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+          >
+            <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+          </button>
+        )}
 
           <div ref={messagesEndRef} />
         </div>
@@ -1166,16 +1222,12 @@ export default function ChatDetailPage() {
                 placeholder={!canSendMessage() ? "Upgrade to continue messaging" : "Type a message"}
                 value={message}
                 onChange={handleInputChange}
+                onClick={handleInputClick}
                 className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-[88px] overflow-y-auto disabled:opacity-50 disabled:cursor-not-allowed"
                 rows={1}
                 disabled={sending || !canSendMessage()}
                 style={{ 
                   lineHeight: '1.25rem'
-                }}
-                onClick={() => {
-                  if (!canSendMessage()) {
-                    setShowUpgradeModal(true);
-                  }
                 }}
               />
             </div>

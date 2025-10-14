@@ -5,6 +5,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from urllib.parse import urljoin
+import time
 
 class FlutterwaveClient:
     def __init__(self):
@@ -47,11 +48,15 @@ class FlutterwaveClient:
         endpoint = urljoin(self.base_url, "payments")
         
         try:
-            # Test DNS resolution first
+            # Test DNS resolution first with proper timeout handling
             try:
-                socket.getaddrinfo('api.flutterwave.com', 443, timeout=5)
-            except socket.gaierror as e:
-                print(f"DNS resolution warning: {e}")
+                # Create a new socket with timeout
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(5)  # 5 second timeout
+                sock.connect(('api.flutterwave.com', 443))
+                sock.close()
+            except socket.error as e:
+                print(f"DNS resolution/connection warning: {e}")
                 # Continue anyway - retry strategy will handle it
             
             response = self.session.post(
@@ -62,6 +67,15 @@ class FlutterwaveClient:
             response.raise_for_status()
             return response.json()
             
+        except requests.exceptions.ConnectTimeout as e:
+            print(f"Flutterwave connection timeout: {e}")
+            raise
+        except requests.exceptions.Timeout as e:
+            print(f"Flutterwave request timeout: {e}")
+            raise
+        except requests.exceptions.ConnectionError as e:
+            print(f"Flutterwave connection error: {e}")
+            raise
         except requests.exceptions.RequestException as e:
             print(f"Flutterwave API request failed: {e}")
             raise
@@ -83,9 +97,30 @@ class FlutterwaveClient:
             response.raise_for_status()
             return response.json()
             
+        except requests.exceptions.ConnectTimeout as e:
+            print(f"Flutterwave verification connection timeout: {e}")
+            raise
+        except requests.exceptions.Timeout as e:
+            print(f"Flutterwave verification request timeout: {e}")
+            raise
+        except requests.exceptions.ConnectionError as e:
+            print(f"Flutterwave verification connection error: {e}")
+            raise
         except requests.exceptions.RequestException as e:
             print(f"Flutterwave verification failed: {e}")
             raise
+
+    def test_connection(self):
+        """
+        Test connection to Flutterwave API
+        """
+        try:
+            # Simple DNS test
+            socket.gethostbyname('api.flutterwave.com')
+            return True
+        except socket.gaierror as e:
+            print(f"DNS resolution failed: {e}")
+            return False
 
 # Global instance
 flutterwave_client = FlutterwaveClient()

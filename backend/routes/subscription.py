@@ -559,7 +559,7 @@ def create_subscription():
             success_redirect = f"{base_redirect_url}/payment-success?payment_id={payment.public_id}"
 
             # Use user's email or fallback
-            customer_email = current_user.email or "laumeet@gmail.com"
+            customer_email = "laumeet@gmail.com"
 
             # Initialize payment using the client
             flw_result = init_flutterwave_payment(payment, customer_email, success_redirect)

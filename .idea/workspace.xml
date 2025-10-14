@@ -4,30 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="testing&#10;testing">
-      <change afterPath="$PROJECT_DIR$/frontend/lib/api/config.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/pages/api/subscription/confirm-payment.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/pages/api/subscription/usage-sync.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/pages/api/subscription/verify-payment.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/pages/api/test-backend.ts" afterDir="false" />
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="suscription&#10;testing">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.env" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/models/subscription.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/subscription.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/models/user.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/user.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/auth.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/auth.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/subscription.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/subscription.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/app/(main)/subscription/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/(main)/subscription/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/hooks/useSubscription.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/hooks/useSubscription.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/pages/api/subscription/cancel.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/pages/api/subscription/cancel.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/pages/api/subscription/current.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/pages/api/subscription/current.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/pages/api/subscription/features.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/pages/api/subscription/features.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/pages/api/subscription/payments.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/pages/api/subscription/payments.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/pages/api/subscription/plans.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/pages/api/subscription/plans.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/pages/api/subscription/reactivate.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/pages/api/subscription/reactivate.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/pages/api/subscription/subscribe.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/pages/api/subscription/subscribe.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/pages/api/subscription/usage.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/pages/api/subscription/usage.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/requirements.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -120,14 +99,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1758428877896</updated>
-    </task>
-    <task id="LOCAL-00013" summary="add gunicorn to requirement">
-      <option name="closed" value="true" />
-      <created>1758917458783</created>
-      <option name="number" value="00013" />
-      <option name="presentableId" value="LOCAL-00013" />
-      <option name="project" value="LOCAL" />
-      <updated>1758917458784</updated>
     </task>
     <task id="LOCAL-00014" summary="add gunicorn to requirement">
       <option name="closed" value="true" />
@@ -513,7 +484,15 @@
       <option name="project" value="LOCAL" />
       <updated>1760273412800</updated>
     </task>
-    <option name="localTasksCounter" value="62" />
+    <task id="LOCAL-00062" summary="suscription&#10;testing">
+      <option name="closed" value="true" />
+      <created>1760457886953</created>
+      <option name="number" value="00062" />
+      <option name="presentableId" value="LOCAL-00062" />
+      <option name="project" value="LOCAL" />
+      <updated>1760457886956</updated>
+    </task>
+    <option name="localTasksCounter" value="63" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -560,7 +539,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Added an Admin" />
     <MESSAGE value="cors" />
     <MESSAGE value="token" />
     <MESSAGE value="now" />
@@ -585,6 +563,7 @@
     <MESSAGE value="hashing2" />
     <MESSAGE value="database" />
     <MESSAGE value="testing&#10;testing" />
-    <option name="LAST_COMMIT_MESSAGE" value="testing&#10;testing" />
+    <MESSAGE value="suscription&#10;testing" />
+    <option name="LAST_COMMIT_MESSAGE" value="suscription&#10;testing" />
   </component>
 </project>

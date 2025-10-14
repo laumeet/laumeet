@@ -190,6 +190,7 @@ export default function ChatDetailPage() {
 
   // Scroll states
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [unseenMessagesCount, setUnseenMessagesCount] = useState(0);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -199,6 +200,9 @@ export default function ChatDetailPage() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const autoScrollEnabledRef = useRef(true);
   const initialMessagesLoadedRef = useRef(false);
+  const lastUsageFetchRef = useRef<number>(0);
+  const lastSeenMessageIndexRef = useRef<number>(-1);
+  const lastScrollTopRef = useRef<number>(0);
 
   // Swipe states
   const [swipeStartX, setSwipeStartX] = useState(0);
@@ -220,8 +224,8 @@ export default function ChatDetailPage() {
     if (subscription) {
       setHasSubscription(subscription.has_subscription);
       
-      // Check if user has reached message limit using usage stats
-      if (usage && usage.messages) {
+      // Only fetch usage stats if subscription status changes
+      if (usage) {
         const hasReachedLimit = usage.messages.remaining <= 0;
         console.log('📝 Message limit check:', {
           used: usage.messages.used,
@@ -238,23 +242,23 @@ export default function ChatDetailPage() {
         }
       }
       
-      fetchUsageStats();
     }
-  }, [subscription, usage, fetchUsageStats]);
+  }, [subscription]);
 
   // Check if user can send messages using usage stats
   const canSendMessage = useCallback(() => {
     if (hasSubscription) return true;
     
     if (usage && usage.messages) {
-      const canSend = usage.messages.limit <= usage.messages.used;
+      const canSend = usage.messages.remaining > 0;
       return canSend;
     }
     
+    return true; // Default to true if no usage data
   }, [hasSubscription, usage]);
 
-  // Enhanced sensitive content filtering - APPLIED WHEN RECEIVING MESSAGES
-  const filterSensitiveContent = useCallback((content: string, userHasSubscription: boolean, allMessages: Message[] = []): string => {
+  // Enhanced sensitive content filtering - ONLY FILTERS SENSITIVE PARTS, NOT WHOLE MESSAGE
+  const filterSensitiveContent = useCallback((content: string, userHasSubscription: boolean): string => {
     if (userHasSubscription) {
       return content;
     }
@@ -263,26 +267,11 @@ export default function ChatDetailPage() {
 
     // Check for individual sensitive patterns
     Object.values(SENSITIVE_PATTERNS).forEach(pattern => {
+      if (pattern.test(filteredContent)) {
+        // Replace only the sensitive parts with lock icon, keep the rest of the message
       filteredContent = filteredContent.replace(pattern, '🔒');
-    });
-
-    // Advanced detection: Check if multiple messages combined could reveal sensitive info
-    const recentMessages = allMessages.slice(-5).map(msg => msg.content).join(' ');
-    const combinedContent = recentMessages + ' ' + content;
-    
-    // Check combined messages for sensitive patterns
-    Object.values(SENSITIVE_PATTERNS).forEach(pattern => {
-      if (pattern.test(combinedContent)) {
-        filteredContent = '🔒 Only subscribed users can view this message';
       }
     });
-
-    // Check if any sensitive content was found
-    const hasSensitiveContent = filteredContent.includes('🔒');
-    
-    if (hasSensitiveContent && !filteredContent.includes('Only subscribed users')) {
-      return '🔒 Only subscribed users can view this message';
-    }
 
     return filteredContent;
   }, []);
@@ -291,7 +280,7 @@ export default function ChatDetailPage() {
   const updateMessagesWithFilter = useCallback((msgs: Message[], userHasSubscription: boolean) => {
     return msgs.map(msg => ({
       ...msg,
-      content: filterSensitiveContent(msg.content, userHasSubscription, msgs)
+      content: filterSensitiveContent(msg.content, userHasSubscription)
     }));
   }, [filterSensitiveContent]);
 
@@ -301,7 +290,8 @@ export default function ChatDetailPage() {
       const filteredMessages = updateMessagesWithFilter(messages, hasSubscription);
       setMessages(filteredMessages);
     }
-   }, [hasSubscription, updateMessagesWithFilter]);
+  }, [hasSubscription, updateMessagesWithFilter, messages.length]);
+
   // Apply filtering on initial message load
   useEffect(() => {
     if (messages.length > 0 && !initialMessagesLoadedRef.current) {
@@ -422,12 +412,16 @@ export default function ChatDetailPage() {
         
         const filteredMessages = serverMessages.map(msg => ({
           ...msg,
-          content: filterSensitiveContent(msg.content, hasSubscription, serverMessages)
+          content: filterSensitiveContent(msg.content, hasSubscription)
         }));
         
         setMessages(filteredMessages);
         console.log(messages)
         initialMessagesLoadedRef.current = true;
+        
+        // Reset unseen messages count when loading messages
+        setUnseenMessagesCount(0);
+        lastSeenMessageIndexRef.current = filteredMessages.length - 1;
       } else {
         setError('Failed to load messages');
       }
@@ -496,12 +490,22 @@ export default function ChatDetailPage() {
         }
         
         console.log('📨 Adding new message to state');
-        const allMessages = [...prev, newMessage];
         const filteredMessage = {
           ...newMessage,
-          content: filterSensitiveContent(newMessage.content, hasSubscription, allMessages),
+          content: filterSensitiveContent(newMessage.content, hasSubscription),
           status: newMessage.is_read ? 'read' : (!onlineStatus ? 'sent' : 'delivered')
         };
+        
+        // Calculate unseen messages based on scroll position
+        const messagesContainer = messagesContainerRef.current;
+        if (messagesContainer && newMessage.sender_id !== profile?.id) {
+          const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
+          const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+          
+          if (!isAtBottom) {
+            setUnseenMessagesCount(count => count + 1);
+          }
+        }
         
         return [...prev, filteredMessage];
       });
@@ -649,11 +653,13 @@ export default function ChatDetailPage() {
         messagesEndRef.current.scrollIntoView({ behavior });
         autoScrollEnabledRef.current = true;
         setShowScrollButton(false);
+        setUnseenMessagesCount(0);
+        lastSeenMessageIndexRef.current = messages.length - 1;
       } catch (err) {
         // Ignore scroll errors
       }
     }
-  }, []);
+  }, [messages.length]);
 
   // Auto scroll to bottom on initial load and when new messages arrive
   useEffect(() => {
@@ -676,11 +682,36 @@ export default function ChatDetailPage() {
       
       // Show scroll button when not at bottom and there are enough messages
       setShowScrollButton(!isAtBottom && messages.length > 5);
+      
+      // Track scroll position for unseen messages calculation
+      lastScrollTopRef.current = scrollTop;
     };
 
     messagesContainer.addEventListener('scroll', handleScroll);
     return () => messagesContainer.removeEventListener('scroll', handleScroll);
   }, [messages.length]);
+
+  // Calculate unseen messages when new messages arrive
+  useEffect(() => {
+    const messagesContainer = messagesContainerRef.current;
+    if (!messagesContainer || messages.length === 0) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+    
+    if (!isAtBottom) {
+      // Calculate how many new messages are below current view
+      const newMessagesCount = messages.slice(lastSeenMessageIndexRef.current + 1)
+        .filter(msg => msg.sender_id !== profile?.id).length;
+      
+      if (newMessagesCount > 0) {
+        setUnseenMessagesCount(newMessagesCount);
+      }
+    } else {
+      lastSeenMessageIndexRef.current = messages.length - 1;
+      setUnseenMessagesCount(0);
+    }
+  }, [messages.length, profile?.id]);
 
   // Auto scroll when typing indicator is shown
   useEffect(() => {
@@ -832,7 +863,7 @@ export default function ChatDetailPage() {
     }
 
     const contentToSend = message.trim();
-    
+    console.log('message to send',contentToSend)
     setSending(true);
 
     setMessage('');
@@ -1049,7 +1080,7 @@ export default function ChatDetailPage() {
               const isOwn = msg.sender_id === profile?.id;
               const showDate = index === 0 || !isSameDay(msg.timestamp, messages[index - 1].timestamp);
               const isSwiping = swipingMessageId === msg.id;
-              const isLockedContent = msg.content.includes('🔒');
+              const hasLockedContent = msg.content.includes('🔒');
 
               const replyPreview = msg.reply_to ? (
                 <div className="mb-1 px-2 py-1 rounded bg-black/10 dark:bg-white/10 text-xs text-gray-700 dark:text-gray-300 border-l-2 border-purple-500">
@@ -1091,13 +1122,12 @@ export default function ChatDetailPage() {
                         isOwn 
                           ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-br-none' 
                           : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none'
-                      } shadow-sm ${isLockedContent ? 'opacity-80' : ''}`}>
+                      } shadow-sm ${hasLockedContent ? 'opacity-90' : ''}`}>
                         {replyPreview}
                         <p className="text-sm break-words leading-relaxed whitespace-pre-wrap">
-                          {isLockedContent ? (
+                          {hasLockedContent ? (
                             <LockedContentTooltip message="Upgrade to view sensitive content">
-                              <span className="flex items-center gap-1 text-gray-500 italic">
-                                <Lock className="h-3 w-3" />
+                              <span className="text-gray-500 italic">
                                 {msg.content}
                               </span>
                             </LockedContentTooltip>
@@ -1133,19 +1163,28 @@ export default function ChatDetailPage() {
 
       {/* Typing Indicator */}
       {isTyping && <TypingBubble />}
-      {/* Scroll to bottom button */}
-      {showScrollButton && (
-        <button
-          onClick={() => {scrollToBottom('smooth');setShowScrollButton(false)}}
-          className="absolute bottom-4 right-4 z-10 bg-white dark:bg-gray-700 rounded-full p-2 shadow-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-        >
-          <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-        </button>
-      )}
-
+          
           <div ref={messagesEndRef} />
         </div>
       </div>
+
+      {/* Enhanced Scroll to bottom button with unseen count */}
+      {showScrollButton && (
+        <button
+          onClick={() => scrollToBottom('smooth')}
+          className="fixed bottom-20 right-4 z-50 bg-white dark:bg-gray-700 rounded-full p-1 shadow-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center justify-center"
+          style={{ bottom: '80px' }}
+        >
+          <div className="relative">
+          <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+            {unseenMessagesCount > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                {unseenMessagesCount}
+              </span>
+            )}
+          </div>
+        </button>
+      )}
 
       {/* Reply preview */}
       {showReplyPreview && replyTo && (
@@ -1183,7 +1222,7 @@ export default function ChatDetailPage() {
           <UpgradePrompt onUpgrade={() => setShowUpgradeModal(true)} />
         )}
 
-        <form onSubmit={sendMessage} className="max-w-3xl mx-auto">
+        <form  className="max-w-3xl mx-auto">
           <div className="flex items-end space-x-2">
             <div className="flex-1 relative">
               <textarea
@@ -1202,7 +1241,7 @@ export default function ChatDetailPage() {
             </div>
 
             <Button
-              type="submit"
+              onClick={sendMessage}
               disabled={!message.trim() || sending || !canSendMessage()}
               size="icon"
               className="flex-none bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed h-11 w-11 rounded-full shadow-lg"

@@ -278,17 +278,17 @@ def handle_send_message(data):
             return
 
         # ✅ ADDED: Check for restricted content
-        from utils.message_validator import MessageValidator
-        user = User.query.get(user_id)
+        # from utils.message_validator import MessageValidator
+        # user = User.query.get(user_id)
 
-        is_allowed, restriction_reason = MessageValidator.validate_message_send(user, content)
-        if not is_allowed:
-            emit("message_restricted", {
-                "error": "UPGRADE_REQUIRED",
-                "message": "Upgrade to premium to send contact information, links, or hashtags",
-                "restricted_content": True
-            })
-            return
+        # is_allowed, restriction_reason = MessageValidator.validate_message_send(user, content)
+        # if not is_allowed:
+        #     emit("message_restricted", {
+        #         "error": "UPGRADE_REQUIRED",
+        #         "message": "Upgrade to premium to send contact information, links, or hashtags",
+        #         "restricted_content": True
+        #     })
+        #     return
 
         # Create message with initial status
         msg = Message(

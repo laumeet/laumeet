@@ -559,7 +559,7 @@ def create_subscription():
         mail = "test@gmail.com"
         # FLUTTERWAVE PAYMENT INTEGRATION
         try:
-            redirect_url = os.getenv("FRONTEND_PAYMENT_REDIRECT", "https://your-app-domain.com/payment-success")
+            redirect_url = os.getenv("FRONTEND_PAYMENT_REDIRECT", "https://laumeet.vercel.app/payment-success")
             flw_response = init_flutterwave_payment(payment, mail, redirect_url)
             flw_data = flw_response.get("data", {})
             checkout_link = flw_data.get("link")

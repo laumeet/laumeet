@@ -1,6 +1,9 @@
-// pages/api/subscription/features.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import { apiHandler } from "@/lib/api/config";
+
+const BACKEND_URL =
+  process.env.NODE_ENV === "development"
+    ? "http://localhost:5000"
+    : "https://laumeet.onrender.com";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -8,13 +11,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const result = await apiHandler("/features");
-    
-    if (!result.success) {
-      return res.status(500).json({ success: false, message: result.error });
-    }
+    const response = await fetch(`${BACKEND_URL}/features`, {
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: req.headers.cookie || "",
+      },
+      credentials: "include",
+    });
 
-    return res.status(200).json(result.data);
+    const data = await response.json();
+    return res.status(response.status).json(data);
   } catch (err) {
     console.error("Features fetch error:", err);
     return res.status(500).json({ success: false, message: "Cannot fetch features" });

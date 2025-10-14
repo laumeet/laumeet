@@ -1,13 +1,9 @@
-// pages/api/subscription/subscribe.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import { apiHandler } from "@/lib/api/config";
 
-interface SubscribeRequest {
-  plan_id: string;
-  billing_cycle: "monthly" | "yearly";
-  payment_provider?: string;
-  mock_payment?: boolean;
-}
+const BACKEND_URL =
+  process.env.NODE_ENV === "development"
+    ? "http://localhost:5000"
+    : "https://laumeet.onrender.com";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -15,29 +11,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { plan_id, billing_cycle, payment_provider = "flutterwave", mock_payment = false }: SubscribeRequest = req.body;
-
-    if (!plan_id || !billing_cycle) {
-      return res.status(400).json({ success: false, message: "Plan ID and billing cycle are required" });
-    }
-
-    const result = await apiHandler("/subscribe", req, { // Pass req here
+    const response = await fetch(`${BACKEND_URL}/subscribe`, {
       method: "POST",
-      body: JSON.stringify({
-        plan_id,
-        billing_cycle,
-        payment_provider,
-        mock_payment,
-      }),
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: req.headers.cookie || "",
+      },
+      credentials: "include",
+      body: JSON.stringify(req.body),
     });
 
-    if (!result.success) {
-      return res.status(500).json({ success: false, message: result.error });
-    }
-
-    return res.status(201).json(result.data);
+    const data = await response.json();
+    return res.status(response.status).json(data);
   } catch (err) {
-    console.error("Subscription creation error:", err);
-    return res.status(500).json({ success: false, message: "Cannot create subscription" });
+    console.error("Subscribe error:", err);
+    return res.status(500).json({ success: false, message: "Cannot subscribe" });
   }
 }

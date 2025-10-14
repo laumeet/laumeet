@@ -1,10 +1,9 @@
-// pages/api/subscription/reactivate.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import { apiHandler } from "@/lib/api/config";
 
-interface ReactivateRequest {
-  billing_cycle?: "monthly" | "yearly";
-}
+const BACKEND_URL =
+  process.env.NODE_ENV === "development"
+    ? "http://localhost:5000"
+    : "https://laumeet.onrender.com";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -12,20 +11,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { billing_cycle = "monthly" }: ReactivateRequest = req.body;
-
-    const result = await apiHandler("/reactivate", {
+    const response = await fetch(`${BACKEND_URL}/reactivate`, {
       method: "POST",
-      body: JSON.stringify({ billing_cycle }),
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: req.headers.cookie || "",
+      },
+      credentials: "include",
+      body: JSON.stringify(req.body),
     });
 
-    if (!result.success) {
-      return res.status(500).json({ success: false, message: result.error });
-    }
-
-    return res.status(200).json(result.data);
+    const data = await response.json();
+    return res.status(response.status).json(data);
   } catch (err) {
-    console.error("Subscription reactivation error:", err);
+    console.error("Reactivate subscription error:", err);
     return res.status(500).json({ success: false, message: "Cannot reactivate subscription" });
   }
 }

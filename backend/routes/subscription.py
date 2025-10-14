@@ -545,7 +545,7 @@ def create_subscription():
             base_redirect_url = os.getenv("FRONTEND_BASE_URL", "https://laumeet.vercel.app")
             success_redirect = f"{base_redirect_url}/payment-success?payment_id={payment.public_id}"
 
-            customer_email = current_user.email or "laumeet@gmail.com"
+            customer_email ="laumeet@gmail.com"
 
             # Initialize payment using direct IP
             flw_result = init_flutterwave_payment(payment, customer_email, success_redirect)

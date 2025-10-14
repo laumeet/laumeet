@@ -35,7 +35,6 @@ def init_flutterwave_payment(payment, customer_email, redirect_url):
     """
     FLW_SECRET_KEY = os.getenv("FLW_SECRET_KEY")
     FLW_BASE = os.getenv("FLW_BASE_URL", "https://api.flutterwave.com/v3/")
-    print("FLW_SECRET_KEY:", os.getenv("FLW_SECRET_KEY"))
 
     endpoint = urljoin(FLW_BASE, "payments")
     tx_ref = f"payment_{payment.public_id}"
@@ -50,7 +49,7 @@ def init_flutterwave_payment(payment, customer_email, redirect_url):
             "name": getattr(payment.user, "name", "") if getattr(payment, "user", None) else ""
         },
         "customizations": {
-            "title": "Matchmaking Subscription",
+            "title": "Laumeet Subscription Payment",
             "description": f"{payment.billing_cycle} subscription"
         }
     }
@@ -107,7 +106,7 @@ def verify_transaction_with_flutterwave(transaction_id=None, tx_ref=None):
 
 
 # =============================================================================
-# EXISTING ROUTES (UPDATED WITH FLUTTERWAVE INTEGRATION)
+# SUBSCRIPTION ROUTES (WITH PROPER PAYMENT HANDLING)
 # =============================================================================
 
 @subscription_bp.route("/plans", methods=["GET"])
@@ -556,11 +555,14 @@ def create_subscription():
                 "payment_id": payment.public_id,
                 "subscription": current_user.current_subscription.to_dict() if current_user.current_subscription else None
             }), 201
-        mail = "test@gmail.com"
+
         # FLUTTERWAVE PAYMENT INTEGRATION
         try:
-            redirect_url = os.getenv("FRONTEND_PAYMENT_REDIRECT", "https://laumeet.vercel.app/payment-success")
-            flw_response = init_flutterwave_payment(payment, mail, redirect_url)
+            # Define success and failure redirect URLs
+            base_redirect_url = os.getenv("FRONTEND_BASE_URL", "https://laumeet.vercel.app")
+            success_redirect = f"{base_redirect_url}/payment-success?payment_id={payment.public_id}"
+            
+            flw_response = init_flutterwave_payment(payment, current_user.email, success_redirect)
             flw_data = flw_response.get("data", {})
             checkout_link = flw_data.get("link")
             provider_id = flw_data.get("id")
@@ -569,13 +571,17 @@ def create_subscription():
                 payment.provider_payment_id = str(provider_id)
                 payment.provider_reference = f"payment_{payment.public_id}"
 
+            # DO NOT create subscription here - wait for webhook confirmation
             db.session.commit()
 
             return jsonify({
                 "success": True,
                 "message": "Payment initiated successfully",
                 "payment_id": payment.public_id,
-                "checkout_url": checkout_link
+                "checkout_url": checkout_link,
+                "redirect_urls": {
+                    "success": success_redirect,
+                }
             }), 200
 
         except Exception as e:
@@ -1439,13 +1445,24 @@ def flutterwave_webhook():
                 print(f"Payment completed and subscription activated: {payment.public_id}")
 
         elif event_type in ["charge.failed", "transfer.failed"]:
-            # Payment failed
+            # Payment failed - update payment status
             tx_ref = data.get("tx_ref")
             payment = Payment.query.filter_by(provider_reference=tx_ref).first()
             if payment and payment.status == PaymentStatus.PENDING:
                 payment.status = PaymentStatus.FAILED
+                payment.failure_reason = data.get("failure_reason", "Payment failed")
                 db.session.commit()
                 print(f"Payment marked as failed: {payment.public_id}")
+
+        elif event_type == "charge.cancelled":
+            # User cancelled the payment
+            tx_ref = data.get("tx_ref")
+            payment = Payment.query.filter_by(provider_reference=tx_ref).first()
+            if payment and payment.status == PaymentStatus.PENDING:
+                payment.status = PaymentStatus.CANCELLED
+                payment.failure_reason = "Cancelled by user"
+                db.session.commit()
+                print(f"Payment cancelled by user: {payment.public_id}")
 
         return jsonify({"status": "success"}), 200
 
@@ -1535,3 +1552,36 @@ def verify_payment(payment_id):
         db.session.rollback()
         print(f"Error verifying payment: {str(e)}")
         return jsonify({"success": False, "message": "Payment verification failed"}), 500
+
+
+@subscription_bp.route("/payments/<string:payment_id>/status", methods=["GET"])
+@jwt_required()
+def get_payment_status(payment_id):
+    """
+    Get payment status for frontend polling
+    """
+    current_user, error_response, status_code = get_current_user_from_jwt()
+    if error_response:
+        return error_response, status_code
+
+    try:
+        payment = Payment.query.filter_by(public_id=payment_id, user_id=current_user.id).first()
+        if not payment:
+            return jsonify({"success": False, "message": "Payment not found"}), 404
+
+        return jsonify({
+            "success": True,
+            "payment": {
+                "id": payment.public_id,
+                "status": payment.status.value,
+                "amount": payment.amount,
+                "billing_cycle": payment.billing_cycle,
+                "created_at": payment.created_at.isoformat() + "Z",
+                "failure_reason": payment.failure_reason
+            },
+            "has_subscription": current_user.current_subscription is not None
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching payment status: {str(e)}")
+        return jsonify({"success": False, "message": "Failed to fetch payment status"}), 500

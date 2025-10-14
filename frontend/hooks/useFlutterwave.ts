@@ -9,7 +9,6 @@ export const useFlutterwaveHook = () => {
   const processSubscriptionPayment = async (
     planId: string,
     billingCycle: 'monthly' | 'yearly',
-    
   ) => {
     try {
       setProcessing(true);
@@ -26,6 +25,11 @@ export const useFlutterwaveHook = () => {
 
       if (!data.success) {
         throw new Error(data.message || 'Failed to create subscription');
+      }
+
+      // For mock payments, return success immediately
+      if (data.subscription) {
+        return data;
       }
 
       // Redirect user to Flutterwave hosted checkout

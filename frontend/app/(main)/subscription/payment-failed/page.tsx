@@ -1,11 +1,24 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/payment-failed/page.tsx
+// app/subscription/payment-failed/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { XCircle, AlertTriangle, RefreshCw, ArrowLeft, Home, CreditCard } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  XCircle,
+  AlertTriangle,
+  RefreshCw,
+  ArrowLeft,
+  Home,
+  CreditCard
+} from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/axio';
@@ -17,13 +30,13 @@ interface PaymentError {
   suggestion: string;
 }
 
-export default function PaymentFailedPage() {
+function PaymentFailedContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const paymentId = searchParams?.get('payment_id');
   const errorCode = searchParams?.get('error_code');
   const errorMessage = searchParams?.get('error_message');
-  
+
   const [payment, setPayment] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
@@ -34,6 +47,7 @@ export default function PaymentFailedPage() {
     } else {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentId]);
 
   const fetchPaymentDetails = async () => {
@@ -41,7 +55,6 @@ export default function PaymentFailedPage() {
 
     try {
       const response = await api.get(`/subscription/payments/${paymentId}/status`);
-      
       if (response.data.success) {
         setPayment(response.data.payment);
       }
@@ -53,52 +66,55 @@ export default function PaymentFailedPage() {
   };
 
   const getErrorDetails = (): PaymentError => {
-    // Map specific error codes to user-friendly messages
     if (payment?.failure_reason) {
       const reason = payment.failure_reason.toLowerCase();
-      
+
       if (reason.includes('insufficient') || reason.includes('balance')) {
         return {
           code: 'INSUFFICIENT_FUNDS',
           message: 'Insufficient funds in your account',
-          suggestion: 'Please check your account balance or try a different payment method.'
+          suggestion:
+            'Please check your account balance or try a different payment method.'
         };
       }
-      
+
       if (reason.includes('card') || reason.includes('declined')) {
         return {
           code: 'CARD_DECLINED',
           message: 'Your card was declined',
-          suggestion: 'Please check your card details or try a different payment card.'
+          suggestion:
+            'Please check your card details or try a different payment card.'
         };
       }
-      
+
       if (reason.includes('expired')) {
         return {
           code: 'CARD_EXPIRED',
           message: 'Your card has expired',
-          suggestion: 'Please update your card expiration date or use a different card.'
+          suggestion:
+            'Please update your card expiration date or use a different card.'
         };
       }
-      
+
       if (reason.includes('security') || reason.includes('fraud')) {
         return {
           code: 'SECURITY_VIOLATION',
           message: 'Security check failed',
-          suggestion: 'Please contact your bank or try a different payment method.'
+          suggestion:
+            'Please contact your bank or try a different payment method.'
         };
       }
-      
+
       if (reason.includes('cancelled') || reason.includes('canceled')) {
         return {
           code: 'USER_CANCELLED',
           message: 'Payment was cancelled',
-          suggestion: 'You cancelled the payment process. You can try again whenever you\'re ready.'
+          suggestion:
+            "You cancelled the payment process. You can try again whenever you're ready."
         };
       }
     }
 
-    // Default error message
     return {
       code: errorCode || 'UNKNOWN_ERROR',
       message: errorMessage || payment?.failure_reason || 'Payment processing failed',
@@ -114,11 +130,7 @@ export default function PaymentFailedPage() {
 
     try {
       setRetrying(true);
-      
-      // In a real implementation, you might want to create a new payment
-      // or redirect to the subscription page to start over
       router.push('/subscription');
-      
     } catch (error) {
       console.error('Error retrying payment:', error);
       toast.error('Failed to retry payment');
@@ -128,8 +140,10 @@ export default function PaymentFailedPage() {
   };
 
   const handleContactSupport = () => {
-    // In a real app, this would open a support chat or email
-    window.open('mailto:support@laumeet.com?subject=Payment+Failed&body=Payment+ID:+' + paymentId, '_blank');
+    window.open(
+      `mailto:support@laumeet.com?subject=Payment+Failed&body=Payment+ID:+${paymentId}`,
+      '_blank'
+    );
   };
 
   if (loading) {
@@ -138,7 +152,9 @@ export default function PaymentFailedPage() {
         <Card className="w-full max-w-md text-center">
           <CardContent className="pt-6">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Loading payment details...</p>
+            <p className="text-gray-600 dark:text-gray-400">
+              Loading payment details...
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -184,20 +200,30 @@ export default function PaymentFailedPage() {
                   {errorDetails.code || 'Unknown Error'}
                 </Badge>
               </div>
-              
+
               <div>
-                <span className="text-gray-600 dark:text-gray-400 block mb-2">Message</span>
-                <p className="font-medium text-red-700 dark:text-red-300">{errorDetails.message}</p>
+                <span className="text-gray-600 dark:text-gray-400 block mb-2">
+                  Message
+                </span>
+                <p className="font-medium text-red-700 dark:text-red-300">
+                  {errorDetails.message}
+                </p>
               </div>
-              
+
               <div>
-                <span className="text-gray-600 dark:text-gray-400 block mb-2">Suggestion</span>
-                <p className="text-sm text-gray-700 dark:text-gray-300">{errorDetails.suggestion}</p>
+                <span className="text-gray-600 dark:text-gray-400 block mb-2">
+                  Suggestion
+                </span>
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  {errorDetails.suggestion}
+                </p>
               </div>
 
               {paymentId && (
                 <div className="flex justify-between items-center border-t pt-4">
-                  <span className="text-gray-600 dark:text-gray-400">Reference ID</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Reference ID
+                  </span>
                   <span className="font-mono text-sm bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
                     {paymentId}
                   </span>
@@ -220,7 +246,7 @@ export default function PaymentFailedPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button 
+                <Button
                   onClick={handleRetryPayment}
                   disabled={retrying}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white"
@@ -252,7 +278,7 @@ export default function PaymentFailedPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button 
+                <Button
                   onClick={handleContactSupport}
                   variant="outline"
                   className="w-full border-orange-300 text-orange-700 hover:bg-orange-50"
@@ -283,7 +309,7 @@ export default function PaymentFailedPage() {
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-start gap-3">
                 <div className="bg-green-100 dark:bg-green-900/30 rounded-full p-2 mt-1">
                   <RefreshCw className="h-4 w-4 text-green-600 dark:text-green-400" />
@@ -295,7 +321,7 @@ export default function PaymentFailedPage() {
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-start gap-3">
                 <div className="bg-purple-100 dark:bg-purple-900/30 rounded-full p-2 mt-1">
                   <AlertTriangle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
@@ -303,11 +329,12 @@ export default function PaymentFailedPage() {
                 <div>
                   <p className="font-medium">Bank Restrictions</p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Some banks block online transactions. Contact your bank to authorize the payment.
+                    Some banks block online transactions. Contact your bank to
+                    authorize the payment.
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-start gap-3">
                 <div className="bg-orange-100 dark:bg-orange-900/30 rounded-full p-2 mt-1">
                   <CreditCard className="h-4 w-4 text-orange-600 dark:text-orange-400" />
@@ -324,7 +351,7 @@ export default function PaymentFailedPage() {
 
           {/* Navigation Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button 
+            <Button
               onClick={() => router.push('/subscription')}
               variant="outline"
               className="flex-1"
@@ -332,16 +359,16 @@ export default function PaymentFailedPage() {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Subscription
             </Button>
-            
-            <Button 
+
+            <Button
               onClick={() => router.push('/dashboard')}
               variant="outline"
               className="flex-1"
             >
               Go to Dashboard
             </Button>
-            
-            <Button 
+
+            <Button
               onClick={() => router.push('/')}
               variant="ghost"
               className="flex-1"
@@ -355,11 +382,12 @@ export default function PaymentFailedPage() {
           <Card className="mt-8 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
             <CardContent className="pt-6 text-center">
               <p className="text-blue-800 dark:text-blue-200">
-                <strong>Need immediate help?</strong> Our support team is available 24/7 to assist you with payment issues.
+                <strong>Need immediate help?</strong> Our support team is available
+                24/7 to assist you with payment issues.
               </p>
-              <Button 
+              <Button
                 onClick={handleContactSupport}
-                variant="link" 
+                variant="link"
                 className="text-blue-600 dark:text-blue-400 mt-2"
               >
                 Contact Support Team →
@@ -369,5 +397,13 @@ export default function PaymentFailedPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PaymentFailedPage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center">Loading...</div>}>
+      <PaymentFailedContent />
+    </Suspense>
   );
 }

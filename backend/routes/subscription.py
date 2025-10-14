@@ -464,9 +464,6 @@ def get_current_subscription():
 @subscription_bp.route("/subscribe", methods=["POST"])
 @jwt_required()
 def create_subscription():
-    """
-    Create a new subscription or upgrade existing one
-    """
     current_user, error_response, status_code = get_current_user_from_jwt()
     if error_response:
         return error_response, status_code
@@ -474,18 +471,11 @@ def create_subscription():
     data = request.json or {}
     plan_id = data.get("plan_id")
     billing_cycle = data.get("billing_cycle", "monthly")
-    payment_provider = data.get("payment_provider", PaymentProvider.FLUTTERWAVE)
 
     if not plan_id:
         return jsonify({
             "success": False,
             "message": "Plan ID is required"
-        }), 400
-
-    if billing_cycle not in ["monthly", "yearly"]:
-        return jsonify({
-            "success": False,
-            "message": "Billing cycle must be 'monthly' or 'yearly'"
         }), 400
 
     try:
@@ -497,7 +487,7 @@ def create_subscription():
                 "message": "Subscription plan not found"
             }), 404
 
-        # Calculate price based on billing cycle
+        # Calculate price
         price = float(plan.yearly_price) if billing_cycle == "yearly" else float(plan.monthly_price)
 
         # Create payment record
@@ -506,14 +496,14 @@ def create_subscription():
             plan_id=plan.id,
             amount=price,
             billing_cycle=billing_cycle,
-            provider=payment_provider,
+            provider=PaymentProvider.FLUTTERWAVE,
             status=PaymentStatus.PENDING
         )
 
         db.session.add(payment)
         db.session.flush()
 
-        # For demo purposes, simulate immediate payment success
+        # Mock payment for testing
         if data.get("mock_payment", False):
             payment.mark_completed(
                 provider_payment_id=f"mock_pay_{payment.public_id}",
@@ -523,14 +513,12 @@ def create_subscription():
             # Create or update subscription
             current_sub = current_user.current_subscription
             if current_sub:
-                # Upgrade existing subscription
                 current_sub.plan_id = plan.id
                 current_sub.billing_cycle = billing_cycle
                 current_sub.status = SubscriptionStatus.ACTIVE
                 current_sub.auto_renew = True
                 current_sub.renew(billing_cycle)
             else:
-                # Create new subscription
                 cycle_days = 365 if billing_cycle == "yearly" else plan.billing_cycle_days
                 new_subscription = UserSubscription(
                     user_id=current_user.id,
@@ -552,16 +540,14 @@ def create_subscription():
                 "subscription": current_user.current_subscription.to_dict() if current_user.current_subscription else None
             }), 201
 
-        # FLUTTERWAVE PAYMENT INTEGRATION WITH CLIENT
+        # REAL PAYMENT WITH DIRECT IP
         try:
-            # Define success and failure redirect URLs
             base_redirect_url = os.getenv("FRONTEND_BASE_URL", "https://laumeet.vercel.app")
             success_redirect = f"{base_redirect_url}/payment-success?payment_id={payment.public_id}"
 
-            # Use user's email or fallback
-            customer_email = "laumeet@gmail.com"
+            customer_email = current_user.email or "laumeet@gmail.com"
 
-            # Initialize payment using the client
+            # Initialize payment using direct IP
             flw_result = init_flutterwave_payment(payment, customer_email, success_redirect)
             
             checkout_link = flw_result["checkout_link"]
@@ -572,7 +558,6 @@ def create_subscription():
                 payment.provider_payment_id = str(provider_id)
                 payment.provider_reference = tx_ref
 
-            # DO NOT create subscription here - wait for webhook confirmation
             db.session.commit()
 
             return jsonify({
@@ -582,35 +567,15 @@ def create_subscription():
                 "checkout_url": checkout_link,
                 "redirect_urls": {
                     "success": success_redirect,
-                },
-                "provider_data": {
-                    "provider_id": provider_id,
-                    "tx_ref": tx_ref
                 }
             }), 200
 
-        except requests.exceptions.ConnectTimeout as e:
-            db.session.rollback()
-            print(f"Flutterwave connection timeout: {e}")
-            return jsonify({
-                "success": False, 
-                "message": "Payment service temporarily unavailable. Please try again."
-            }), 503
-            
-        except requests.exceptions.Timeout as e:
-            db.session.rollback()
-            print(f"Flutterwave request timeout: {e}")
-            return jsonify({
-                "success": False,
-                "message": "Payment service is taking too long to respond. Please try again."
-            }), 504
-            
         except Exception as e:
             db.session.rollback()
-            print(f"Flutterwave payment initialization error: {e}")
+            print(f"Payment initialization error: {e}")
             return jsonify({
                 "success": False, 
-                "message": "Payment initialization failed. Please try again."
+                "message": "Unable to initialize payment. Please try again later or contact support."
             }), 500
 
     except Exception as e:

@@ -46,8 +46,8 @@ class Config:
     CORS_ORIGINS = [
         "https://laumeet.vercel.app",
         "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://api.flutterwave.com/v3/"
+        "http://127.0.0.1:3000"
+      
     ]
 
 class DevelopmentConfig(Config):

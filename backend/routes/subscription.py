@@ -9,6 +9,7 @@ from flask_jwt_extended import jwt_required
 from datetime import datetime, timedelta
 from sqlalchemy import and_, or_
 from utils.security import get_current_user_from_jwt
+from utils.flutterwave_client import flutterwave_client
 from models.subscription import (
     SubscriptionPlan,
     UserSubscription,
@@ -26,17 +27,13 @@ subscription_bp = Blueprint('subscription', __name__)
 load_dotenv()
 
 # =============================================================================
-# FLUTTERWAVE HELPER FUNCTIONS
+# FLUTTERWAVE HELPER FUNCTIONS (UPDATED)
 # =============================================================================
 
 def init_flutterwave_payment(payment, customer_email, redirect_url):
     """
-    Initializes a Flutterwave payment and returns checkout link + provider IDs.
+    Initializes a Flutterwave payment using the client
     """
-    FLW_SECRET_KEY = os.getenv("FLW_SECRET_KEY")
-    FLW_BASE = os.getenv("FLW_BASE_URL", "https://api.flutterwave.com/v3/")
-
-    endpoint = urljoin(FLW_BASE, "payments")
     tx_ref = f"payment_{payment.public_id}"
 
     payload = {
@@ -54,15 +51,22 @@ def init_flutterwave_payment(payment, customer_email, redirect_url):
         }
     }
 
-    headers = {
-        "Authorization": f"Bearer {FLW_SECRET_KEY}",
-        "Content-Type": "application/json"
-    }
+    try:
+        response = flutterwave_client.init_payment(payload)
+        flw_data = response.get("data", {})
+        checkout_link = flw_data.get("link")
+        provider_id = flw_data.get("id")
 
-    response = requests.post(endpoint, json=payload, headers=headers, timeout=30)
-    response.raise_for_status()
-
-    return response.json()
+        return {
+            "checkout_link": checkout_link,
+            "provider_id": provider_id,
+            "tx_ref": tx_ref,
+            "response_data": response
+        }
+        
+    except Exception as e:
+        print(f"Flutterwave payment initialization failed: {e}")
+        raise
 
 
 def verify_flutterwave_signature(request):
@@ -85,24 +89,16 @@ def verify_flutterwave_signature(request):
 
 def verify_transaction_with_flutterwave(transaction_id=None, tx_ref=None):
     """
-    Calls Flutterwave API to verify transaction by ID or tx_ref.
+    Calls Flutterwave API to verify transaction using the client
     """
-    FLW_SECRET_KEY = os.getenv("FLW_SECRET_KEY")
-    FLW_BASE = os.getenv("FLW_BASE_URL", "https://api.flutterwave.com/v3/")
-
-    headers = {"Authorization": f"Bearer {FLW_SECRET_KEY}"}
-
-    if transaction_id:
-        url = urljoin(FLW_BASE, f"transactions/{transaction_id}/verify")
-        resp = requests.get(url, headers=headers, timeout=20)
-    elif tx_ref:
-        url = urljoin(FLW_BASE, "transactions/verify_by_reference")
-        resp = requests.get(url, headers=headers, params={"tx_ref": tx_ref}, timeout=20)
-    else:
-        return None
-
-    resp.raise_for_status()
-    return resp.json()
+    try:
+        return flutterwave_client.verify_transaction(
+            transaction_id=transaction_id,
+            tx_ref=tx_ref
+        )
+    except Exception as e:
+        print(f"Flutterwave transaction verification failed: {e}")
+        raise
 
 
 # =============================================================================
@@ -556,22 +552,25 @@ def create_subscription():
                 "subscription": current_user.current_subscription.to_dict() if current_user.current_subscription else None
             }), 201
 
-        # FLUTTERWAVE PAYMENT INTEGRATION
+        # FLUTTERWAVE PAYMENT INTEGRATION WITH CLIENT
         try:
             # Define success and failure redirect URLs
             base_redirect_url = os.getenv("FRONTEND_BASE_URL", "https://laumeet.vercel.app")
             success_redirect = f"{base_redirect_url}/payment-success?payment_id={payment.public_id}"
 
-            mail = "laumeet@gmail.com"
+            # Use user's email or fallback
+            customer_email = current_user.email or "laumeet@gmail.com"
+
+            # Initialize payment using the client
+            flw_result = init_flutterwave_payment(payment, customer_email, success_redirect)
             
-            flw_response = init_flutterwave_payment(payment,mail, success_redirect)
-            flw_data = flw_response.get("data", {})
-            checkout_link = flw_data.get("link")
-            provider_id = flw_data.get("id")
+            checkout_link = flw_result["checkout_link"]
+            provider_id = flw_result["provider_id"]
+            tx_ref = flw_result["tx_ref"]
 
             if provider_id:
                 payment.provider_payment_id = str(provider_id)
-                payment.provider_reference = f"payment_{payment.public_id}"
+                payment.provider_reference = tx_ref
 
             # DO NOT create subscription here - wait for webhook confirmation
             db.session.commit()
@@ -583,13 +582,36 @@ def create_subscription():
                 "checkout_url": checkout_link,
                 "redirect_urls": {
                     "success": success_redirect,
+                },
+                "provider_data": {
+                    "provider_id": provider_id,
+                    "tx_ref": tx_ref
                 }
             }), 200
 
+        except requests.exceptions.ConnectTimeout as e:
+            db.session.rollback()
+            print(f"Flutterwave connection timeout: {e}")
+            return jsonify({
+                "success": False, 
+                "message": "Payment service temporarily unavailable. Please try again."
+            }), 503
+            
+        except requests.exceptions.Timeout as e:
+            db.session.rollback()
+            print(f"Flutterwave request timeout: {e}")
+            return jsonify({
+                "success": False,
+                "message": "Payment service is taking too long to respond. Please try again."
+            }), 504
+            
         except Exception as e:
             db.session.rollback()
-            print("Error initiating Flutterwave payment:", e)
-            return jsonify({"success": False, "message": "Payment initialization failed"}), 500
+            print(f"Flutterwave payment initialization error: {e}")
+            return jsonify({
+                "success": False, 
+                "message": "Payment initialization failed. Please try again."
+            }), 500
 
     except Exception as e:
         db.session.rollback()
@@ -1478,7 +1500,7 @@ def flutterwave_webhook():
 @jwt_required()
 def verify_payment(payment_id):
     """
-    Manually verify payment status with Flutterwave
+    Manually verify payment status with Flutterwave using the client
     """
     current_user, error_response, status_code = get_current_user_from_jwt()
     if error_response:
@@ -1492,63 +1514,75 @@ def verify_payment(payment_id):
         if payment.status == PaymentStatus.COMPLETED:
             return jsonify({"success": True, "message": "Payment already completed"}), 200
 
-        # Verify with Flutterwave
-        if payment.provider_payment_id:
-            verification = verify_transaction_with_flutterwave(transaction_id=payment.provider_payment_id)
-        elif payment.provider_reference:
-            verification = verify_transaction_with_flutterwave(tx_ref=payment.provider_reference)
-        else:
-            return jsonify({"success": False, "message": "No provider reference found"}), 400
-
-        if not verification:
-            return jsonify({"success": False, "message": "Verification failed"}), 400
-
-        data = verification.get("data", {})
-        if data.get("status") == "successful":
-            # Mark payment as completed
-            payment.mark_completed(
-                provider_payment_id=str(data.get("id")),
-                provider_reference=data.get("tx_ref")
-            )
-
-            # Create or update subscription
-            plan = payment.plan
-            current_sub = current_user.current_subscription
-
-            if current_sub:
-                # Upgrade existing subscription
-                current_sub.plan_id = plan.id
-                current_sub.billing_cycle = payment.billing_cycle
-                current_sub.status = SubscriptionStatus.ACTIVE
-                current_sub.auto_renew = True
-                current_sub.renew(payment.billing_cycle)
-            else:
-                # Create new subscription
-                cycle_days = 365 if payment.billing_cycle == "yearly" else plan.billing_cycle_days
-                new_subscription = UserSubscription(
-                    user_id=current_user.id,
-                    plan_id=plan.id,
-                    status=SubscriptionStatus.ACTIVE,
-                    billing_cycle=payment.billing_cycle,
-                    start_date=datetime.utcnow(),
-                    end_date=datetime.utcnow() + timedelta(days=cycle_days),
-                    auto_renew=True
+        # Verify with Flutterwave using the client
+        try:
+            if payment.provider_payment_id:
+                verification = flutterwave_client.verify_transaction(
+                    transaction_id=payment.provider_payment_id
                 )
-                db.session.add(new_subscription)
+            elif payment.provider_reference:
+                verification = flutterwave_client.verify_transaction(
+                    tx_ref=payment.provider_reference
+                )
+            else:
+                return jsonify({"success": False, "message": "No provider reference found"}), 400
 
-            db.session.commit()
+            if not verification:
+                return jsonify({"success": False, "message": "Verification failed"}), 400
 
-            return jsonify({
-                "success": True,
-                "message": "Payment verified and subscription activated",
-                "payment_id": payment.public_id
-            }), 200
-        else:
+            data = verification.get("data", {})
+            if data.get("status") == "successful":
+                # Mark payment as completed
+                payment.mark_completed(
+                    provider_payment_id=str(data.get("id")),
+                    provider_reference=data.get("tx_ref")
+                )
+
+                # Create or update subscription
+                plan = payment.plan
+                current_sub = current_user.current_subscription
+
+                if current_sub:
+                    # Upgrade existing subscription
+                    current_sub.plan_id = plan.id
+                    current_sub.billing_cycle = payment.billing_cycle
+                    current_sub.status = SubscriptionStatus.ACTIVE
+                    current_sub.auto_renew = True
+                    current_sub.renew(payment.billing_cycle)
+                else:
+                    # Create new subscription
+                    cycle_days = 365 if payment.billing_cycle == "yearly" else plan.billing_cycle_days
+                    new_subscription = UserSubscription(
+                        user_id=current_user.id,
+                        plan_id=plan.id,
+                        status=SubscriptionStatus.ACTIVE,
+                        billing_cycle=payment.billing_cycle,
+                        start_date=datetime.utcnow(),
+                        end_date=datetime.utcnow() + timedelta(days=cycle_days),
+                        auto_renew=True
+                    )
+                    db.session.add(new_subscription)
+
+                db.session.commit()
+
+                return jsonify({
+                    "success": True,
+                    "message": "Payment verified and subscription activated",
+                    "payment_id": payment.public_id
+                }), 200
+            else:
+                return jsonify({
+                    "success": False,
+                    "message": f"Payment status: {data.get('status')}",
+                    "status": data.get("status")
+                }), 400
+
+        except requests.exceptions.RequestException as e:
+            print(f"Flutterwave verification API error: {e}")
             return jsonify({
                 "success": False,
-                "message": f"Payment status: {data.get('status')}",
-                "status": data.get("status")
-            }), 400
+                "message": "Payment service temporarily unavailable. Please try again later."
+            }), 503
 
     except Exception as e:
         db.session.rollback()

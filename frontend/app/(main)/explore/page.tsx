@@ -272,10 +272,7 @@ export default function ExplorePage() {
             {totalProfiles} people nearby • Swipe to connect
           </p>
         </div>
-        <Button variant="outline" className="rounded-xl border-gray-300 dark:border-gray-600">
-          <Filter className="h-4 w-4 mr-2" />
-          Filters
-        </Button>
+      
       </div>
 
       {/* Cards Container */}
@@ -370,7 +367,7 @@ export default function ExplorePage() {
                         </>
                       ) : (
                         // Fallback when no images
-                        <div className="w-full flex-col h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                        <div className="w-full flex-col h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                         <MessageCircle className="h-12 w-12 text-gray-400" />
                         <p>No Pictures</p>
                         </div>
@@ -392,7 +389,7 @@ export default function ExplorePage() {
                     <div className="absolute bottom-4 left-4 right-4 z-10">
                       <div className="flex items-end justify-between">
                         <div className="flex-1">
-                          <h2 className="text-2xl font-bold text-white mb-1 drop-shadow-lg">
+                          <h2 className="text-2xl font-bold capitalize text-white mb-1 drop-shadow-lg">
                             {displayName}
                             {profile.age > 0 && `, ${profile.age}`}
                           </h2>

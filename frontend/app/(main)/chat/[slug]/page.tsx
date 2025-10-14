@@ -245,24 +245,13 @@ export default function ChatDetailPage() {
 
   // Check if user can send messages using usage stats
   const canSendMessage = useCallback(() => {
-    if (hasSubscription) {
-      return true;
-    }
+    if (hasSubscription) return true;
     
     if (usage && usage.messages) {
-      const canSend = usage.messages.remaining > 0;
-      console.log('📝 Can send message check:', {
-        hasSubscription,
-        used: usage.messages.used,
-        limit: usage.messages.limit,
-        remaining: usage.messages.remaining,
-        canSend
-      });
+      const canSend = usage.messages.limit <= usage.messages.used;
       return canSend;
     }
     
-    // Default to true if usage data not loaded yet
-    return true;
   }, [hasSubscription, usage]);
 
   // Enhanced sensitive content filtering - APPLIED WHEN RECEIVING MESSAGES
@@ -313,8 +302,7 @@ export default function ChatDetailPage() {
       const filteredMessages = updateMessagesWithFilter(messages, hasSubscription);
       setMessages(filteredMessages);
     }
-  }, [hasSubscription, updateMessagesWithFilter]);
-
+   }, [hasSubscription, updateMessagesWithFilter]);
   // Apply filtering on initial message load
   useEffect(() => {
     if (messages.length > 0 && !initialMessagesLoadedRef.current) {
@@ -439,6 +427,7 @@ export default function ChatDetailPage() {
         }));
         
         setMessages(filteredMessages);
+        console.log(messages)
         initialMessagesLoadedRef.current = true;
       } else {
         setError('Failed to load messages');
@@ -696,7 +685,11 @@ export default function ChatDetailPage() {
 
   // Auto scroll when typing indicator is shown
   useEffect(() => {
-    if (isTyping && autoScrollEnabledRef.current) {
+     const messagesContainer = messagesContainerRef.current;
+      if (!messagesContainer) return;
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+    if (isTyping && isAtBottom && autoScrollEnabledRef.current) {
       scrollToBottom('smooth');
     }
   }, [isTyping, scrollToBottom]);
@@ -842,30 +835,7 @@ export default function ChatDetailPage() {
     const contentToSend = message.trim();
     
     setSending(true);
-    
-    // Create temporary message for immediate UI feedback
-    const tempMessage: Message = {
-      id: `temp-${Date.now()}`,
-      conversation_id: String(chatId),
-      sender_id: profile?.id || '',
-      sender_username: profile?.username || '',
-      content: contentToSend,
-      is_read: false,
-      timestamp: new Date().toISOString(),
-      delivered_at: null,
-      read_at: null,
-      status: 'sent',
-      reply_to: replyTo ? {
-        id: replyTo.id,
-        content: replyTo.content,
-        sender_username: replyTo.sender_username
-      } : null
-    };
 
-    // Add temporary message immediately for better UX
-    setMessages(prev => [...prev, tempMessage]);
-    
-    // Clear message but keep keyboard focus
     setMessage('');
     setReplyTo(null);
     setShowReplyPreview(false);

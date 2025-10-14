@@ -41,7 +41,7 @@ export default function AdvancedBottomNav() {
     } else {
       setShowCreateMenu(false);
       // Navigate to the corresponding page
-      router.push(`/${itemId === 'feed' ? '' : itemId}`);
+      router.push(`/${itemId}`);
     }
   };
 

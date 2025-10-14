@@ -1,6 +1,5 @@
 // lib/api/config.ts
 
-
 import type { NextApiRequest } from "next";
 
 const BACKEND_URL =

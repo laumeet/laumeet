@@ -1,5 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -24,9 +25,10 @@ import { useUserSubscription } from '@/hooks/useUserSubscription';
 import { UpgradeModal, LockedContentTooltip, UpgradePrompt } from '@/components/chat/SubscriptionComponents';
 import { useUsageStats } from '@/hooks/useUsageStats';
 
-// -----------------------------
+// ---------------------------------------------------------------------
 // Types
-// -----------------------------
+// ---------------------------------------------------------------------
+
 export interface Message {
   id: string | number;
   conversation_id: string;
@@ -75,26 +77,31 @@ export interface UserProfile {
   lastSeen: string | null;
 }
 
-// -----------------------------
+// ---------------------------------------------------------------------
 // Utility helpers
-// -----------------------------
+// ---------------------------------------------------------------------
+
 const isTempId = (id: any) => String(id).startsWith('temp-');
 
-// Enhanced sensitive content detection patterns - VERY COMPLEX
+// ENHANCED SENSITIVE CONTENT DETECTION PATTERNS - UPDATED FOR SMART FILTERING
 const SENSITIVE_PATTERNS = {
+  // Enhanced phone number patterns
+  PHONE: /(\+?234[\s-]?|0)?[789][01]\d{1}[\s-]?\d{3}[\s-]?\d{4}|\+\d{10,15}|\b\d{4,15}\b/g,
 
-  
-  // Contact patterns
-  PHONE: /(\+?234[\s-]?|0)?[789][01]\d{1}[\s-]?\d{3}[\s-]?\d{4}|\+\d{10,15}|\b\d{10,15}\b/g,
+  // Email patterns
   EMAIL: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
-  
+
   // Location patterns
   COORDINATES: /\b-?\d{1,3}\.\d+,\s*-?\d{1,3}\.\d+\b/g,
-  ADDRESS: /\b\d+\s+(?:[A-Za-z]+\s+){1,5}(?:street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|court|ct|plaza|plz|square|sq)\b/gi,
-  
-  // Social media and platform patterns
+  ADDRESS: /\b\d+\s+(?:[A-Za-z]+\s+){1,5}(?:street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|court|ct|plaza|plz|square|sq|hostel|apartment|apt|building|bldg|house)\b/gi,
+
+  // Social media and platform patterns - ENHANCED
   URL: /https?:\/\/[^\s]+|www\.[^\s]+|\.[a-z]{2,}\/[^\s]*/gi,
-  SOCIAL_MEDIA: /(?:instagram|facebook|twitter|x|tiktok|snapchat|whatsapp|telegram|discord|signal|viber|wechat|line)[\s\.\/:][^\s]*/gi,
+
+  // Social media names with variations and common bypass attempts
+  SOCIAL_MEDIA_NAMES: /\b(?:whatsapp|whats app|whats\.app|wh@tsapp|wh@ts@pp|whtasapp|whatsap|whatsappp|telegram|telegran|telegramm|teligram|tele gram|telegrm|telgram|facebook|face book|fb|facebok|facebookk|f@cebook|instagram|insta|instagrm|instgram|instagran|insta gram|ingstagram|twitter|x|twiter|twittr|twtter|twiter|tweet|tiktok|tik tok|tikt0k|tik-tok|snapchat|snap chat|snapchat|sc|snapch@t|discord|discrod|discordd|d!scord|disc0rd|signal|signl|sign@l|signal|viber|vib3r|viberr|wechat|we chat|wech@t|line|lin3|linee)\b/gi,
+
+  // Social media handles and URLs
   DISCORD: /discord\.gg\/[^\s]+|discordapp\.com\/[^\s]+/gi,
   INSTAGRAM: /(?:instagram\.com\/|@)[^\s]+/gi,
   FACEBOOK: /(?:facebook\.com\/|fb\.com\/)[^\s]+/gi,
@@ -103,19 +110,91 @@ const SENSITIVE_PATTERNS = {
   TELEGRAM: /(?:t\.me\/|telegram\.me\/|@)[^\s]+/gi,
   WHATSAPP: /(?:wa\.me\/|whatsapp\.com\/)[^\s]+/gi,
   TIKTOK: /tiktok\.com\/[^\s]+/gi,
-  
 
+  // Number word replacements (like "zero eight zero")
+  NUMBER_WORDS: /\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\b/gi,
 
+  // Spaced out text detection
+  SPACED_TEXT: /(\w\s+){3,}\w/g,
 
-  COMBINED_CONTACT: /(?:\b\d{10,15}\b.*\b(?:call|text|message|contact|whatsapp|instagram|facebook|twitter|x|tiktok|snapchat|whatsapp|telegram|discord|signal|viber|wechat|line)\b)|(?:\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b.*\b(?:email|contact|reach)\b)/gi,
-  
-  // Advanced pattern for multiple messages combined
-  MESSAGE_COMBINATION: /(?:(?:\b\d{10,18}\b|\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b|\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b|\b\d{10,15}\b).*){2,}/gi
+  // Combined contact pattern
+  COMBINED_CONTACT: /(?:\b\d{4,15}\b.*\b(?:call|text|message|contact|whatsapp|instagram|facebook|twitter|x|tiktok|snapchat|telegram|discord|signal|viber|wechat|line)\b)|(?:\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b.*\b(?:email|contact|reach)\b)/gi,
 };
 
-// -----------------------------
+// ---------------------------------------------------------------------
+// Advanced Content Filtering Functions
+// ---------------------------------------------------------------------
+
+/**
+ * Detects and replaces sensitive content with hashes for free users
+ * Only filters sensitive parts, keeps the rest of the message intact
+ */
+const filterSensitiveContent = (content: string, userHasSubscription: boolean): string => {
+  if (userHasSubscription) {
+    return content;
+  }
+
+  let filteredContent = content;
+
+  // Helper function to replace matches with hashes
+  const replaceWithHashes = (text: string, pattern: RegExp): string => {
+    return text.replace(pattern, (match) => {
+      // For longer patterns like phone numbers, emails, etc., use full hash
+      if (match.length >= 4) {
+        return '#####';
+      }
+      // For shorter patterns, preserve some context but still hash
+      return '###';
+    });
+  };
+
+  // 1. First, detect and hash phone numbers (including disguised ones)
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.PHONE);
+
+  // 2. Detect and hash emails
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.EMAIL);
+
+  // 3. Detect and hash social media names with variations
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.SOCIAL_MEDIA_NAMES);
+
+  // 4. Detect and hash social media URLs and handles
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.INSTAGRAM);
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.FACEBOOK);
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.TWITTER);
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.WHATSAPP);
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.TELEGRAM);
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.DISCORD);
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.SNAPCHAT);
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.TIKTOK);
+
+  // 5. Detect and hash addresses and locations
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.ADDRESS);
+
+  // 6. Detect and hash general URLs
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.URL);
+
+  // 7. Advanced: Detect number words (like "zero eight zero")
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.NUMBER_WORDS);
+
+  // 8. Detect combined contact patterns
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.COMBINED_CONTACT);
+
+  return filteredContent;
+};
+
+/**
+ * Validates if a message contains sensitive content that should be filtered
+ * Used to determine if we should show upgrade prompts
+ */
+const containsSensitiveContent = (content: string): boolean => {
+  const patterns = Object.values(SENSITIVE_PATTERNS);
+  return patterns.some(pattern => pattern.test(content));
+};
+
+// ---------------------------------------------------------------------
 // Custom Hook for Upgrade Prompts
-// -----------------------------
+// ---------------------------------------------------------------------
+
 const useUpgradePrompts = (hasSubscription: boolean, showUpgradeModal: boolean, setShowUpgradeModal: (show: boolean) => void) => {
   useEffect(() => {
     if (!hasSubscription || showUpgradeModal) return;
@@ -126,7 +205,7 @@ const useUpgradePrompts = (hasSubscription: boolean, showUpgradeModal: boolean, 
 
     // Check if this is first visit to chat
     const firstVisit = !localStorage.getItem(FIRST_VISIT_KEY);
-    
+
     const checkAndShowPrompt = () => {
       const lastPromptTime = localStorage.getItem(LAST_PROMPT_KEY);
       const currentTime = Date.now();
@@ -151,9 +230,10 @@ const useUpgradePrompts = (hasSubscription: boolean, showUpgradeModal: boolean, 
   }, [hasSubscription, showUpgradeModal, setShowUpgradeModal]);
 };
 
-// -----------------------------
+// ---------------------------------------------------------------------
 // Component
-// -----------------------------
+// ---------------------------------------------------------------------
+
 export default function ChatDetailPage() {
   const { profile } = useProfile();
   const { subscription } = useUserSubscription(profile?.id);
@@ -188,9 +268,10 @@ export default function ChatDetailPage() {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [showUserDetails, setShowUserDetails] = useState(false);
 
-  // Scroll states
+  // Scroll states - ENHANCED FOR WHATSAPP-LIKE BEHAVIOR
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [unseenMessagesCount, setUnseenMessagesCount] = useState(0);
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -209,21 +290,23 @@ export default function ChatDetailPage() {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [swipingMessageId, setSwipingMessageId] = useState<string | number | null>(null);
 
-  // -----------------------------
+  // ---------------------------------------------------------------------
   // Upgrade Prompts
-  // -----------------------------
+  // ---------------------------------------------------------------------
+
   useUpgradePrompts(hasSubscription, showUpgradeModal, setShowUpgradeModal);
 
-  // -----------------------------
+  // ---------------------------------------------------------------------
   // Subscription Management
-  // -----------------------------
+  // ---------------------------------------------------------------------
+
   useEffect(() => {
     console.log('🔔 Subscription data updated:', subscription);
     console.log('📊 Usage data:', usage);
-    
+
     if (subscription) {
       setHasSubscription(subscription.has_subscription);
-      
+
       // Only fetch usage stats if subscription status changes
       if (usage) {
         const hasReachedLimit = usage.messages.remaining <= 0;
@@ -241,40 +324,18 @@ export default function ChatDetailPage() {
           setShowUpgradeModal(true);
         }
       }
-      
     }
   }, [subscription]);
 
   // Check if user can send messages using usage stats
   const canSendMessage = useCallback(() => {
     if (hasSubscription) return true;
-    
     if (usage && usage.messages) {
       const canSend = usage.messages.remaining > 0;
       return canSend;
     }
-    
     return true; // Default to true if no usage data
   }, [hasSubscription, usage]);
-
-  // Enhanced sensitive content filtering - ONLY FILTERS SENSITIVE PARTS, NOT WHOLE MESSAGE
-  const filterSensitiveContent = useCallback((content: string, userHasSubscription: boolean): string => {
-    if (userHasSubscription) {
-      return content;
-    }
-
-    let filteredContent = content;
-
-    // Check for individual sensitive patterns
-    Object.values(SENSITIVE_PATTERNS).forEach(pattern => {
-      if (pattern.test(filteredContent)) {
-        // Replace only the sensitive parts with lock icon, keep the rest of the message
-      filteredContent = filteredContent.replace(pattern, '🔒');
-      }
-    });
-
-    return filteredContent;
-  }, []);
 
   // Apply sensitive content filtering to messages for display
   const updateMessagesWithFilter = useCallback((msgs: Message[], userHasSubscription: boolean) => {
@@ -282,7 +343,7 @@ export default function ChatDetailPage() {
       ...msg,
       content: filterSensitiveContent(msg.content, userHasSubscription)
     }));
-  }, [filterSensitiveContent]);
+  }, []);
 
   // Apply filtering when subscription changes
   useEffect(() => {
@@ -301,9 +362,10 @@ export default function ChatDetailPage() {
     }
   }, [messages.length, hasSubscription, updateMessagesWithFilter]);
 
-  // -----------------------------
+  // ---------------------------------------------------------------------
   // Formatting helpers
-  // -----------------------------
+  // ---------------------------------------------------------------------
+
   const formatMessageTime = (timestamp: string) => {
     try {
       return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -346,7 +408,6 @@ export default function ChatDetailPage() {
 
   const formatLastSeen = (lastSeen: string | null) => {
     if (!lastSeen) return 'Never seen';
-
     const now = new Date();
     const seen = new Date(lastSeen);
     const diffMinutes = Math.floor((now.getTime() - seen.getTime()) / (1000 * 60));
@@ -357,9 +418,10 @@ export default function ChatDetailPage() {
     return `${Math.floor(diffMinutes / 1440)}d ago`;
   };
 
-  // -----------------------------
+  // ---------------------------------------------------------------------
   // Fetch functions
-  // -----------------------------
+  // ---------------------------------------------------------------------
+
   const fetchUserProfile = async (userId: string) => {
     try {
       const response = await api.get(`/users/userId/profile?userId=${userId}`);
@@ -373,7 +435,6 @@ export default function ChatDetailPage() {
 
   const fetchConversationById = async (id: string | number) => {
     if (!id) return null;
-
     try {
       const response = await api.get('/chat/conversations');
       if (response.data.success) {
@@ -403,22 +464,18 @@ export default function ChatDetailPage() {
 
   const fetchMessagesById = async (id: string | number) => {
     if (!id) return;
-
     try {
       setMessagesLoading(true);
       const response = await api.get(`/chat/messages/conversationId?conversationId=${id}`);
       if (response.data.success) {
         const serverMessages: Message[] = response.data.messages || [];
-        
         const filteredMessages = serverMessages.map(msg => ({
           ...msg,
           content: filterSensitiveContent(msg.content, hasSubscription)
         }));
-        
         setMessages(filteredMessages);
         console.log(messages)
         initialMessagesLoadedRef.current = true;
-        
         // Reset unseen messages count when loading messages
         setUnseenMessagesCount(0);
         lastSeenMessageIndexRef.current = filteredMessages.length - 1;
@@ -442,9 +499,10 @@ export default function ChatDetailPage() {
     return fetchConversationById(chatId);
   };
 
-  // -----------------------------
+  // ---------------------------------------------------------------------
   // Socket Connection & Event Handlers
-  // -----------------------------
+  // ---------------------------------------------------------------------
+
   useEffect(() => {
     if (!socket || !conversation) {
       console.log('🚫 Socket or conversation not available');
@@ -465,6 +523,7 @@ export default function ChatDetailPage() {
     joinRoom();
 
     let reconnectTimer: NodeJS.Timeout;
+
     const handleReconnect = () => {
       clearTimeout(reconnectTimer);
       reconnectTimer = setTimeout(() => {
@@ -476,43 +535,43 @@ export default function ChatDetailPage() {
 
     const handleNewMessage = (newMessage: any) => {
       console.log('📨 New message received:', newMessage);
-      
+
       if (String(newMessage.conversation_id) !== String(chatId)) {
         console.log('📨 Message for different conversation, ignoring');
         return;
       }
-      
+
       setMessages(prev => {
         const exists = prev.some(msg => String(msg.id) === String(newMessage.id));
         if (exists) {
           console.log('📨 Message already exists, skipping');
           return prev;
         }
-        
+
         console.log('📨 Adding new message to state');
         const filteredMessage = {
           ...newMessage,
           content: filterSensitiveContent(newMessage.content, hasSubscription),
           status: newMessage.is_read ? 'read' : (!onlineStatus ? 'sent' : 'delivered')
         };
-        
-        // Calculate unseen messages based on scroll position
+
+        // ENHANCED: Calculate unseen messages based on scroll position
         const messagesContainer = messagesContainerRef.current;
         if (messagesContainer && newMessage.sender_id !== profile?.id) {
           const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
           const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
-          
+
           if (!isAtBottom) {
             setUnseenMessagesCount(count => count + 1);
           }
         }
-        
+
         return [...prev, filteredMessage];
       });
 
       if (newMessage.sender_id === profile?.id && !hasSubscription && usage) {
         // Update usage stats after sending message
-       fetchUsageStats()
+        fetchUsageStats()
       }
 
       if (newMessage.sender_id !== profile?.id && socket) {
@@ -526,14 +585,12 @@ export default function ChatDetailPage() {
 
     const handleTyping = (data: any) => {
       console.log('⌨️ Typing event received:', data);
-      
       if (data.user_id !== conversation.other_user.id) {
         console.log('⌨️ Typing from different user, ignoring');
         return;
       }
-      
+
       setIsTyping(data.is_typing);
-      
       if (data.is_typing) {
         console.log('⌨️ User started typing');
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -553,7 +610,6 @@ export default function ChatDetailPage() {
 
     const handleOnlineStatus = (data: any) => {
       console.log('👤 Online status update:', data);
-      
       if (data.user_id === conversation.other_user.id) {
         setOnlineStatus(Boolean(data.is_online));
         setConversation(prev =>
@@ -573,30 +629,28 @@ export default function ChatDetailPage() {
 
     const handleMessageStatusUpdate = (data: any) => {
       console.log('📬 Message status update:', data);
-      
       if (!data) return;
-      
+
       setMessages(prev =>
         prev.map(msg => {
           if (String(msg.id) !== String(data.message_id)) return msg;
-          
+
           let updatedMsg = { ...msg };
-          
           if (data.status === 'delivered') {
-            updatedMsg = { 
-              ...msg, 
-              status: 'delivered', 
-              delivered_at: data.delivered_at ?? msg.delivered_at 
+            updatedMsg = {
+              ...msg,
+              status: 'delivered',
+              delivered_at: data.delivered_at ?? msg.delivered_at
             };
           } else if (data.status === 'read') {
-            updatedMsg = { 
-              ...msg, 
-              status: 'read', 
-              read_at: data.read_at ?? msg.read_at, 
-              is_read: true 
+            updatedMsg = {
+              ...msg,
+              status: 'read',
+              read_at: data.read_at ?? msg.read_at,
+              is_read: true
             };
           }
-          
+
           console.log('📬 Updated message status:', updatedMsg);
           return updatedMsg;
         })
@@ -615,14 +669,13 @@ export default function ChatDetailPage() {
 
     return () => {
       console.log('🧹 Cleaning up socket event listeners');
-      
       socket.off('connect', handleReconnect);
       socket.off('new_message', handleNewMessage);
       socket.off('user_typing', handleTyping);
       socket.off('user_online_status', handleOnlineStatus);
       socket.off('message_status_update', handleMessageStatusUpdate);
       socket.off('joined_conversation', handleJoinedConversation);
-      
+
       clearTimeout(reconnectTimer);
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
@@ -644,9 +697,10 @@ export default function ChatDetailPage() {
     }
   }, [conversation, onlineUsers]);
 
-  // -----------------------------
-  // Scroll Management
-  // -----------------------------
+  // ---------------------------------------------------------------------
+  // ENHANCED Scroll Management (WhatsApp-like behavior)
+  // ---------------------------------------------------------------------
+
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     if (messagesEndRef.current) {
       try {
@@ -655,83 +709,77 @@ export default function ChatDetailPage() {
         setShowScrollButton(false);
         setUnseenMessagesCount(0);
         lastSeenMessageIndexRef.current = messages.length - 1;
+        setIsAtBottom(true);
       } catch (err) {
         // Ignore scroll errors
       }
     }
   }, [messages.length]);
 
-  // Auto scroll to bottom on initial load and when new messages arrive
+  // Auto scroll to bottom on initial load only
   useEffect(() => {
-    if (messages.length > 0 && !messagesLoading) {
+    if (messages.length > 0 && !messagesLoading && initialMessagesLoadedRef.current === false) {
       // Small delay to ensure DOM is updated
       setTimeout(() => {
         scrollToBottom('auto');
+        initialMessagesLoadedRef.current = true;
       }, 100);
     }
   }, [messages.length, messagesLoading, scrollToBottom]);
 
+  // Enhanced scroll behavior - WhatsApp-like
   useEffect(() => {
     const messagesContainer = messagesContainerRef.current;
     if (!messagesContainer) return;
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
-      const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
-      autoScrollEnabledRef.current = isAtBottom;
-      
+      const currentIsAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+
+      setIsAtBottom(currentIsAtBottom);
+      autoScrollEnabledRef.current = currentIsAtBottom;
+
       // Show scroll button when not at bottom and there are enough messages
-      setShowScrollButton(!isAtBottom && messages.length > 5);
-      
+      setShowScrollButton(!currentIsAtBottom && messages.length > 5);
+
       // Track scroll position for unseen messages calculation
       lastScrollTopRef.current = scrollTop;
+
+      // Calculate unseen messages when scrolling
+      if (currentIsAtBottom) {
+        setUnseenMessagesCount(0);
+        lastSeenMessageIndexRef.current = messages.length - 1;
+      } else {
+        // Calculate how many new messages are below current view
+        const newMessagesCount = messages
+          .slice(lastSeenMessageIndexRef.current + 1)
+          .filter(msg => msg.sender_id !== profile?.id).length;
+
+        if (newMessagesCount > 0) {
+          setUnseenMessagesCount(newMessagesCount);
+        }
+      }
     };
 
     messagesContainer.addEventListener('scroll', handleScroll);
     return () => messagesContainer.removeEventListener('scroll', handleScroll);
-  }, [messages.length]);
-
-  // Calculate unseen messages when new messages arrive
-  useEffect(() => {
-    const messagesContainer = messagesContainerRef.current;
-    if (!messagesContainer || messages.length === 0) return;
-
-    const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
-    
-    if (!isAtBottom) {
-      // Calculate how many new messages are below current view
-      const newMessagesCount = messages.slice(lastSeenMessageIndexRef.current + 1)
-        .filter(msg => msg.sender_id !== profile?.id).length;
-      
-      if (newMessagesCount > 0) {
-        setUnseenMessagesCount(newMessagesCount);
-      }
-    } else {
-      lastSeenMessageIndexRef.current = messages.length - 1;
-      setUnseenMessagesCount(0);
-    }
   }, [messages.length, profile?.id]);
 
-  // Auto scroll when typing indicator is shown
+  // Auto scroll when typing indicator is shown ONLY if user is at bottom
   useEffect(() => {
-     const messagesContainer = messagesContainerRef.current;
-      if (!messagesContainer) return;
-    const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
     if (isTyping && isAtBottom && autoScrollEnabledRef.current) {
       scrollToBottom('smooth');
     }
-  }, [isTyping, scrollToBottom]);
+  }, [isTyping, isAtBottom, scrollToBottom]);
 
-  // -----------------------------
+  // ---------------------------------------------------------------------
   // Typing Indicator Functions - FIXED
-  // -----------------------------
+  // ---------------------------------------------------------------------
+
   const handleTypingStart = useCallback(() => {
     if (!socket || !conversation) {
       return;
     }
-    
     console.log('⌨️ Sending typing start');
     socket.emit('typing', {
       conversation_id: conversation.id,
@@ -777,22 +825,23 @@ export default function ChatDetailPage() {
     }, 1000);
   };
 
-  // -----------------------------
+  // ---------------------------------------------------------------------
   // Textarea Height Management
-  // -----------------------------
+  // ---------------------------------------------------------------------
+
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       const newHeight = Math.min(textareaRef.current.scrollHeight, 88);
       textareaRef.current.style.height = `${newHeight}px`;
-      
       textareaRef.current.style.overflowY = newHeight >= 88 ? 'auto' : 'hidden';
     }
   }, [message]);
 
-  // -----------------------------
+  // ---------------------------------------------------------------------
   // Swipe to Reply
-  // -----------------------------
+  // ---------------------------------------------------------------------
+
   const handleSwipeStart = (e: React.TouchEvent | React.MouseEvent, messageId: string | number) => {
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     setSwipeStartX(clientX);
@@ -802,10 +851,8 @@ export default function ChatDetailPage() {
 
   const handleSwipeMove = (e: React.TouchEvent | React.MouseEvent) => {
     if (!swipingMessageId) return;
-    
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const diff = clientX - swipeStartX;
-    
     if (diff < 0) {
       setSwipeOffset(Math.max(diff, -80));
     }
@@ -813,7 +860,6 @@ export default function ChatDetailPage() {
 
   const handleSwipeEnd = () => {
     if (!swipingMessageId) return;
-    
     if (swipeOffset < -50) {
       const msg = messages.find(m => String(m.id) === String(swipingMessageId));
       if (msg) {
@@ -821,17 +867,16 @@ export default function ChatDetailPage() {
         setShowReplyPreview(true);
       }
     }
-    
     setSwipingMessageId(null);
     setSwipeOffset(0);
   };
 
-  // -----------------------------
+  // ---------------------------------------------------------------------
   // Message Functions
-  // -----------------------------
+  // ---------------------------------------------------------------------
+
   const markMessagesAsRead = useCallback((messageIds: (string | number)[]) => {
     if (!socket || !conversation) return;
-    
     console.log('📖 Marking messages as read:', messageIds);
     socket.emit('read_messages', {
       conversation_id: conversation.id,
@@ -854,25 +899,34 @@ export default function ChatDetailPage() {
     if (e) {
       e.preventDefault();
     }
+
     console.log('Can Send message', canSendMessage())
+
     if (!message.trim() || !conversation || sending) return;
-    
+
     if (!canSendMessage()) {
       setShowUpgradeModal(true);
       return;
     }
 
     const contentToSend = message.trim();
-    console.log('message to send',contentToSend)
-    setSending(true);
+    console.log('message to send', contentToSend)
 
+    setSending(true);
     setMessage('');
     setReplyTo(null);
     setShowReplyPreview(false);
 
     try {
       handleTypingStop();
-      
+
+      // ENHANCED: Check if free user is trying to send sensitive content
+      if (!hasSubscription && containsSensitiveContent(contentToSend)) {
+        console.log('🔒 Free user attempting to send sensitive content - filtering');
+        // The content will be filtered when displayed to other free users
+        // Premium users will see the original content
+      }
+
       if (socket && socketConnected) {
         console.log('📤 Sending via socket');
         socket.emit('send_message', {
@@ -880,9 +934,7 @@ export default function ChatDetailPage() {
           content: contentToSend,
           reply_to: replyTo ? String(replyTo.id) : null
         });
-
         fetchUsageStats()
-    
       } else {
         console.log('📤 Sending via HTTP API - socket not available');
         const response = await api.post(`/chat/messages/send?conversationId=${chatId}`, {
@@ -890,13 +942,11 @@ export default function ChatDetailPage() {
           content: contentToSend,
           reply_to: replyTo ? String(replyTo.id) : null
         });
-        
         if (response.data.success) {
           setMessages(prev => prev.filter(m => !isTempId(m.id)));
           await fetchMessagesById(conversation.id);
           await fetchConversationById(conversation.id);
-          
-         fetchUsageStats()
+          fetchUsageStats()
         } else {
           throw new Error('Failed to send message');
         }
@@ -927,9 +977,10 @@ export default function ChatDetailPage() {
     }
   };
 
-  // -----------------------------
+  // ---------------------------------------------------------------------
   // Load Chat Data
-  // -----------------------------
+  // ---------------------------------------------------------------------
+
   const loadChatData = async () => {
     if (!chatId) {
       router.push('/chat');
@@ -939,7 +990,6 @@ export default function ChatDetailPage() {
     try {
       setLoading(true);
       setError('');
-
       const conv = await fetchConversation();
       if (conv) {
         await fetchMessages();
@@ -955,9 +1005,10 @@ export default function ChatDetailPage() {
     loadChatData();
   }, [chatId]);
 
-  // -----------------------------
+  // ---------------------------------------------------------------------
   // UI Components
-  // -----------------------------
+  // ---------------------------------------------------------------------
+
   const TypingBubble = () => (
     <div className="flex justify-start">
       <div className="max-w-[70px] mr-12">
@@ -974,9 +1025,10 @@ export default function ChatDetailPage() {
     </div>
   );
 
-  // -----------------------------
+  // ---------------------------------------------------------------------
   // UI Render
-  // -----------------------------
+  // ---------------------------------------------------------------------
+
   if (loading || messagesLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-white dark:bg-gray-900">
@@ -1015,7 +1067,6 @@ export default function ChatDetailPage() {
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
-
             <div className="flex items-center space-x-3">
               <div onClick={() => setShowUserDetails(true)} className="cursor-pointer">
                 <Avatar className="h-10 w-10 border-2 border-white">
@@ -1029,7 +1080,6 @@ export default function ChatDetailPage() {
                   </AvatarFallback>
                 </Avatar>
               </div>
-
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold capitalize text-white truncate">
                   {conversation.other_user.username}
@@ -1040,11 +1090,10 @@ export default function ChatDetailPage() {
               </div>
             </div>
           </div>
-
           <div className="flex items-center space-x-2">
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               className="text-white"
               onClick={() => setShowUserDetails(true)}
             >
@@ -1060,8 +1109,6 @@ export default function ChatDetailPage() {
         className="flex-1 overflow-y-auto bg-[#e5ddd5] dark:bg-gray-800 bg-chat-background bg-repeat bg-center relative"
         style={{ backgroundImage: 'url(/chat-bg.png)' }}
       >
- 
-
         <div className="max-w-3xl mx-auto p-2 space-y-1">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center py-12">
@@ -1080,8 +1127,7 @@ export default function ChatDetailPage() {
               const isOwn = msg.sender_id === profile?.id;
               const showDate = index === 0 || !isSameDay(msg.timestamp, messages[index - 1].timestamp);
               const isSwiping = swipingMessageId === msg.id;
-              const hasLockedContent = msg.content.includes('🔒');
-
+              const hasLockedContent = msg.content.includes('#####') || msg.content.includes('###');
               const replyPreview = msg.reply_to ? (
                 <div className="mb-1 px-2 py-1 rounded bg-black/10 dark:bg-white/10 text-xs text-gray-700 dark:text-gray-300 border-l-2 border-purple-500">
                   <div className="font-medium text-xs truncate">
@@ -1102,7 +1148,6 @@ export default function ChatDetailPage() {
                       </div>
                     </div>
                   )}
-
                   <div
                     className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
                     onTouchStart={(e) => handleSwipeStart(e, msg.id)}
@@ -1119,8 +1164,8 @@ export default function ChatDetailPage() {
                   >
                     <div className={`max-w-[70%] ${isOwn ? 'ml-12' : 'mr-12'}`}>
                       <div className={`relative px-3 py-2 rounded-lg ${
-                        isOwn 
-                          ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-br-none' 
+                        isOwn
+                          ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-br-none'
                           : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none'
                       } shadow-sm ${hasLockedContent ? 'opacity-90' : ''}`}>
                         {replyPreview}
@@ -1161,9 +1206,8 @@ export default function ChatDetailPage() {
             })
           )}
 
-      {/* Typing Indicator */}
-      {isTyping && <TypingBubble />}
-          
+          {/* Typing Indicator */}
+          {isTyping && <TypingBubble />}
           <div ref={messagesEndRef} />
         </div>
       </div>
@@ -1176,7 +1220,7 @@ export default function ChatDetailPage() {
           style={{ bottom: '80px' }}
         >
           <div className="relative">
-          <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+            <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-300" />
             {unseenMessagesCount > 0 && (
               <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
                 {unseenMessagesCount}
@@ -1222,7 +1266,7 @@ export default function ChatDetailPage() {
           <UpgradePrompt onUpgrade={() => setShowUpgradeModal(true)} />
         )}
 
-        <form  className="max-w-3xl mx-auto">
+        <form className="max-w-3xl mx-auto">
           <div className="flex items-end space-x-2">
             <div className="flex-1 relative">
               <textarea
@@ -1234,12 +1278,11 @@ export default function ChatDetailPage() {
                 className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm min-h-[44px] max-h-[88px] overflow-y-auto disabled:opacity-50 disabled:cursor-not-allowed"
                 rows={1}
                 disabled={sending || !canSendMessage()}
-                style={{ 
+                style={{
                   lineHeight: '1.25rem'
                 }}
               />
             </div>
-
             <Button
               onClick={sendMessage}
               disabled={!message.trim() || sending || !canSendMessage()}
@@ -1277,13 +1320,11 @@ export default function ChatDetailPage() {
             >
               <X className="h-6 w-6" />
             </Button>
-            
             <img
               src={userProfile.pictures[lightboxIndex]}
               alt={`Photo ${lightboxIndex + 1}`}
               className="max-w-full max-h-full object-contain"
             />
-            
             {userProfile.pictures.length > 1 && (
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
                 {userProfile.pictures.map((_, index) => (
@@ -1311,7 +1352,6 @@ export default function ChatDetailPage() {
                 <X className="h-5 w-5" />
               </Button>
             </div>
-
             <div className="flex flex-col items-center space-y-4 mb-6">
               <Avatar className="h-20 w-20">
                 <AvatarImage src={conversation.other_user.avatar || '/placeholder-avatar.jpg'} />
@@ -1327,7 +1367,6 @@ export default function ChatDetailPage() {
                 </p>
               </div>
             </div>
-
             {userProfile ? (
               <div className="space-y-4 text-sm">
                 {userProfile.bio && (
@@ -1336,7 +1375,6 @@ export default function ChatDetailPage() {
                     <p className="text-gray-600 dark:text-gray-400">{userProfile.bio}</p>
                   </div>
                 )}
-                
                 <div className="grid grid-cols-2 gap-4">
                   {userProfile.age && (
                     <div>
@@ -1357,7 +1395,6 @@ export default function ChatDetailPage() {
                     </div>
                   )}
                 </div>
-
                 {userProfile.pictures && userProfile.pictures.length > 0 && (
                   <div>
                     <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Media</h4>

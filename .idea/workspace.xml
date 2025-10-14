@@ -4,9 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="suscription&#10;testing">
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="now&#10;# Conflicts:&#10;#&#9;.idea/workspace.xml">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/(main)/chat/[slug]/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/(main)/chat/[slug]/page.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -99,14 +99,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1758428877896</updated>
-    </task>
-    <task id="LOCAL-00014" summary="add gunicorn to requirement">
-      <option name="closed" value="true" />
-      <created>1758917542855</created>
-      <option name="number" value="00014" />
-      <option name="presentableId" value="LOCAL-00014" />
-      <option name="project" value="LOCAL" />
-      <updated>1758917542855</updated>
     </task>
     <task id="LOCAL-00015" summary="Added an Admin">
       <option name="closed" value="true" />
@@ -492,7 +484,15 @@
       <option name="project" value="LOCAL" />
       <updated>1760457886956</updated>
     </task>
-    <option name="localTasksCounter" value="63" />
+    <task id="LOCAL-00063" summary="now&#10;# Conflicts:&#10;#&#9;.idea/workspace.xml">
+      <option name="closed" value="true" />
+      <created>1760459707456</created>
+      <option name="number" value="00063" />
+      <option name="presentableId" value="LOCAL-00063" />
+      <option name="project" value="LOCAL" />
+      <updated>1760459707456</updated>
+    </task>
+    <option name="localTasksCounter" value="64" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

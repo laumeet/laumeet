@@ -138,7 +138,7 @@ class Post(db.Model):
 
     # Post content
     text: Mapped[str] = mapped_column(db.Text, nullable=True)
-    image: Mapped[str] = mapped_column(String(500), nullable=True)
+    image: Mapped[str] = mapped_column(Text, nullable=True)
     category: Mapped[str] = mapped_column(String(100), nullable=True)
     location: Mapped[str] = mapped_column(String(200), nullable=True)
 

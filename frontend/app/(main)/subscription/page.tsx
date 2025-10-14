@@ -1,14 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/subscription/page.tsx
 'use client';
 
 import { useState } from 'react';
 import { Crown, Star, Zap, CheckCircle, Loader2, Calendar, Infinity, MessageCircle, Heart, Hand } from 'lucide-react';
 import { useSubscription } from '@/hooks/useSubscription';
-import { useUsageStats } from '@/hooks/useUsageStats';
-import { useCurrentPlan } from '@/hooks/useCurrentPlan';
-import { useFlutterwaveHook } from '@/hooks/useFlutterwave';
-import { FlutterwavePayment } from '@/components/FlutterwavePayment';
 import { PlanCard } from '@/components/subscription/PlanCard';
 import { BillingCycleToggle } from '@/components/subscription/BillingCycleToggle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,55 +15,59 @@ import { toast } from 'sonner';
 export default function SubscriptionPage() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<{id: string, cycle: 'monthly' | 'yearly'} | null>(null);
-  const { plans, loading: plansLoading } = useSubscription();
-  const { usage, fetchUsageStats } = useUsageStats();
-  const { currentPlan, hasSubscription, loading: planLoading } = useCurrentPlan();
-  const { processing, processSubscriptionPayment } = useFlutterwaveHook();
 
-  const userData = {
-    email: 'user@example.com',
-    name: 'John Doe',
-    phone: '+2348000000000',
-  };
+  const {
+    plans,
+    currentSubscription,
+    usageStats,
+    loading,
+    error,
+    subscribe,
+    fetchUsageStats,
+    hasSubscription,
+    clearError
+  } = useSubscription();
 
   const handleSubscribe = async (planId: string, cycle: 'monthly' | 'yearly') => {
     try {
-      const plan = plans.find(p => p.id === planId);
-      if (!plan) return;
-
       setSelectedPlan({ id: planId, cycle });
-      
-      await processSubscriptionPayment(
-        planId, 
-        cycle, 
-        userData.email, 
-        userData.name, 
-        userData.phone
-      );
-      
-      // If we get here, payment was successful
-      await fetchUsageStats();
-      
-      toast.success('Subscription activated successfully!', {
-        description: `You now have access to ${plan.name} features.`,
-      });
-      
+
+      const result = await subscribe(planId, cycle);
+
+      if (result?.checkout_url) {
+        // Redirect to Flutterwave checkout
+        window.location.href = result.checkout_url;
+      } else {
+        // Payment was completed immediately (mock payment or direct)
+        await fetchUsageStats();
+
+        toast.success('Subscription activated successfully!', {
+          description: `You now have access to premium features.`,
+        });
+      }
+
       setSelectedPlan(null);
-      
+
     } catch (error: any) {
       console.error('Subscription error:', error);
-      
+
       if (error.message !== 'Payment cancelled by user') {
         toast.error('Subscription failed', {
           description: error.message || 'Please try again or contact support if the issue persists.',
         });
       }
-      
+
       setSelectedPlan(null);
     }
   };
 
-  const loading = plansLoading || planLoading;
+  // Clear errors when they occur
+  if (error) {
+    toast.error('Error', {
+      description: error,
+    });
+    clearError();
+  }
 
   return (
     <div className="container mx-auto p-6 pb-32 space-y-8">
@@ -80,10 +79,10 @@ export default function SubscriptionPage() {
         <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
           Get more matches, unlimited likes, and premium features to enhance your dating experience.
         </p>
-        
-        <BillingCycleToggle 
-          billingCycle={billingCycle} 
-          onBillingCycleChange={setBillingCycle} 
+
+        <BillingCycleToggle
+          billingCycle={billingCycle}
+          onBillingCycleChange={setBillingCycle}
         />
       </div>
 
@@ -105,8 +104,8 @@ export default function SubscriptionPage() {
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   ₦{(() => {
                     const plan = plans.find(p => p.id === selectedPlan.id);
-                    return selectedPlan.cycle === 'yearly' 
-                      ? plan?.pricing.yearly.toLocaleString() 
+                    return selectedPlan.cycle === 'yearly'
+                      ? plan?.pricing.yearly.toLocaleString()
                       : plan?.pricing.monthly.toLocaleString();
                   })()}
                 </p>
@@ -114,12 +113,13 @@ export default function SubscriptionPage() {
                   {selectedPlan.cycle === 'yearly' ? 'Per Year' : 'Per Month'}
                 </p>
               </div>
-              
-              <FlutterwavePayment
-                onPay={() => handleSubscribe(selectedPlan.id, selectedPlan.cycle)}
-                disabled={processing}
+
+              <Button
+                className="w-full"
+                onClick={() => handleSubscribe(selectedPlan.id, selectedPlan.cycle)}
+                disabled={loading}
               >
-                {processing ? (
+                {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     Processing...
@@ -127,13 +127,13 @@ export default function SubscriptionPage() {
                 ) : (
                   'Proceed to Payment'
                 )}
-              </FlutterwavePayment>
-              
-              <Button 
-                variant="outline" 
-                className="w-full" 
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full"
                 onClick={() => setSelectedPlan(null)}
-                disabled={processing}
+                disabled={loading}
               >
                 Cancel
               </Button>
@@ -153,34 +153,34 @@ export default function SubscriptionPage() {
                 {hasSubscription ? 'Your Current Plan' : 'Current Plan'}
               </CardTitle>
               <CardDescription>
-                {hasSubscription 
-                  ? 'Your active subscription details' 
+                {hasSubscription
+                  ? 'Your active subscription details'
                   : 'You are currently on the free plan'
                 }
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
-              {hasSubscription && currentPlan ? (
+              {hasSubscription && currentSubscription ? (
                 <>
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-lg">{currentPlan.name}</span>
+                    <span className="font-semibold text-lg">{currentSubscription.plan.name}</span>
                     <Badge variant="default" className="bg-green-500">
                       Active
                     </Badge>
                   </div>
-                  
+
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-gray-500" />
-                      <span>Renews: {new Date(currentPlan.dates.end_date).toLocaleDateString()}</span>
+                      <span>Renews: {new Date(currentSubscription.dates.end_date).toLocaleDateString()}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Zap className="h-4 w-4 text-yellow-500" />
-                      <span>{currentPlan.days_remaining} days remaining</span>
+                      <span>{currentSubscription.days_remaining} days remaining</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-gray-500">Billing:</span>
-                      <span className="capitalize">{currentPlan.billing_cycle}</span>
+                      <span className="capitalize">{currentSubscription.billing_cycle}</span>
                     </div>
                   </div>
                 </>
@@ -199,7 +199,7 @@ export default function SubscriptionPage() {
           </Card>
 
           {/* Usage Statistics */}
-          {usage && (
+          {usageStats && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -207,7 +207,7 @@ export default function SubscriptionPage() {
                   Your Usage
                 </CardTitle>
                 <CardDescription>
-                  Usage reset in {currentPlan?.days_remaining || 30} days
+                  Usage reset in {currentSubscription?.days_remaining || 30} days
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -219,11 +219,11 @@ export default function SubscriptionPage() {
                       <span className="font-medium">Messages</span>
                     </div>
                     <span className="text-sm text-gray-600">
-                      {usage.messages.used} / {usage.messages.limit === -1 ? '∞' : usage.messages.limit}
+                      {usageStats.messages.used} / {usageStats.messages.limit === -1 ? '∞' : usageStats.messages.limit}
                     </span>
                   </div>
-                  <Progress 
-                    value={(usage.messages.used / (usage.messages.limit === -1 ? 100 : usage.messages.limit)) * 100} 
+                  <Progress
+                    value={(usageStats.messages.used / (usageStats.messages.limit === -1 ? 100 : usageStats.messages.limit)) * 100}
                     className="h-2"
                   />
                 </div>
@@ -236,11 +236,11 @@ export default function SubscriptionPage() {
                       <span className="font-medium">Likes</span>
                     </div>
                     <span className="text-sm text-gray-600">
-                      {usage.likes.used} / {usage.likes.limit === -1 ? '∞' : usage.likes.limit}
+                      {usageStats.likes.used} / {usageStats.likes.limit === -1 ? '∞' : usageStats.likes.limit}
                     </span>
                   </div>
-                  <Progress 
-                    value={(usage.likes.used / (usage.likes.limit === -1 ? 100 : usage.likes.limit)) * 100} 
+                  <Progress
+                    value={(usageStats.likes.used / (usageStats.likes.limit === -1 ? 100 : usageStats.likes.limit)) * 100}
                     className="h-2"
                   />
                 </div>
@@ -253,11 +253,11 @@ export default function SubscriptionPage() {
                       <span className="font-medium">Swipes</span>
                     </div>
                     <span className="text-sm text-gray-600">
-                      {usage.swipes.used} / {usage.swipes.limit === -1 ? '∞' : usage.swipes.limit}
+                      {usageStats.swipes.used} / {usageStats.swipes.limit === -1 ? '∞' : usageStats.swipes.limit}
                     </span>
                   </div>
-                  <Progress 
-                    value={(usage.swipes.used / (usage.swipes.limit === -1 ? 100 : usage.swipes.limit)) * 100} 
+                  <Progress
+                    value={(usageStats.swipes.used / (usageStats.swipes.limit === -1 ? 100 : usageStats.swipes.limit)) * 100}
                     className="h-2"
                   />
                 </div>
@@ -304,9 +304,9 @@ export default function SubscriptionPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {plans.map((plan) => {
-                const isCurrentPlan = currentPlan?.tier === plan.tier;
+                const isCurrentPlan = currentSubscription?.plan?.id === plan.id;
                 const isFreePlan = plan.tier === 'free';
-                
+
                 return (
                   <PlanCard
                     key={plan.id}
@@ -318,7 +318,7 @@ export default function SubscriptionPage() {
                         setSelectedPlan({ id: planId, cycle });
                       }
                     }}
-                    loading={processing && selectedPlan?.id === plan.id}
+                    loading={loading && selectedPlan?.id === plan.id}
                     disabled={isCurrentPlan || isFreePlan}
                   />
                 );

@@ -140,7 +140,7 @@ def create_app(config_name=None):
     
 
     # ✅ FIXED: Better health check endpoint
-    @app.route("/health")
+    @app.route("/health", methods=["GET", "POST"])
     def health_check():
         db_status = "connected"
         try:

@@ -34,8 +34,6 @@ class PaymentStatus(str, Enum):
 class PaymentProvider(str, Enum):
     """Supported payment providers"""
     FLUTTERWAVE = "flutterwave"
-    PAYSTACK = "paystack"
-    STRIPE = "stripe"
 
 
 class SubscriptionPlan(db.Model):

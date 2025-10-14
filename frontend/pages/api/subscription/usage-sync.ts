@@ -1,10 +1,6 @@
-// pages/api/subscription/reactivate.ts
+// pages/api/subscription/usage-sync.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import { apiHandler } from "@/lib/api/config";
-
-interface ReactivateRequest {
-  billing_cycle?: "monthly" | "yearly";
-}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -12,11 +8,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { billing_cycle = "monthly" }: ReactivateRequest = req.body;
-
-    const result = await apiHandler("/reactivate", {
+    const result = await apiHandler("/usage/sync", {
       method: "POST",
-      body: JSON.stringify({ billing_cycle }),
     });
 
     if (!result.success) {
@@ -25,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json(result.data);
   } catch (err) {
-    console.error("Subscription reactivation error:", err);
-    return res.status(500).json({ success: false, message: "Cannot reactivate subscription" });
+    console.error("Usage sync error:", err);
+    return res.status(500).json({ success: false, message: "Cannot sync usage" });
   }
 }

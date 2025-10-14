@@ -32,6 +32,16 @@ class Config:
     JWT_COOKIE_CSRF_PROTECT = False
     JWT_SESSION_COOKIE = False
 
+    # Flutterwave Configuration
+    FLW_PUBLIC_KEY = os.getenv('FLW_PUBLIC_KEY')
+    FLW_SECRET_KEY = os.getenv('FLW_SECRET_KEY')
+    FLW_WEBHOOK_SECRET = os.getenv('FLW_WEBHOOK_SECRET')
+
+    # Payment redirect URLs
+    PAYMENT_SUCCESS_URL = os.getenv('PAYMENT_SUCCESS_URL', 'https://yourapp.com/payment/success')
+    PAYMENT_FAILURE_URL = os.getenv('PAYMENT_FAILURE_URL', 'https://yourapp.com/payment/failed')
+
+
     # CORS origins
     CORS_ORIGINS = [
         "https://laumeet.vercel.app",

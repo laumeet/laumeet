@@ -1,11 +1,17 @@
+from dotenv import load_dotenv
+import os
+import hmac
+import hashlib
+import requests
+from urllib.parse import urljoin
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from datetime import datetime, timedelta
 from sqlalchemy import and_, or_
 from utils.security import get_current_user_from_jwt
 from models.subscription import (
-    SubscriptionPlan, 
-    UserSubscription, 
+    SubscriptionPlan,
+    UserSubscription,
     Payment,
     SubscriptionTier,
     SubscriptionStatus,
@@ -17,7 +23,92 @@ from models.chat import Message
 from models.core import db
 
 subscription_bp = Blueprint('subscription', __name__)
+load_dotenv()
 
+# =============================================================================
+# FLUTTERWAVE HELPER FUNCTIONS
+# =============================================================================
+
+def init_flutterwave_payment(payment, customer_email, redirect_url):
+    """
+    Initializes a Flutterwave payment and returns checkout link + provider IDs.
+    """
+    FLW_SECRET_KEY = os.getenv("FLW_SECRET_KEY")
+    FLW_BASE = os.getenv("FLW_BASE_URL", "https://api.flutterwave.com/v3/")
+    print("FLW_SECRET_KEY:", os.getenv("FLW_SECRET_KEY"))
+
+    endpoint = urljoin(FLW_BASE, "payments")
+    tx_ref = f"payment_{payment.public_id}"
+
+    payload = {
+        "tx_ref": tx_ref,
+        "amount": float(payment.amount),
+        "currency": "NGN",
+        "redirect_url": redirect_url,
+        "customer": {
+            "email": customer_email,
+            "name": getattr(payment.user, "name", "") if getattr(payment, "user", None) else ""
+        },
+        "customizations": {
+            "title": "Matchmaking Subscription",
+            "description": f"{payment.billing_cycle} subscription"
+        }
+    }
+
+    headers = {
+        "Authorization": f"Bearer {FLW_SECRET_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    response = requests.post(endpoint, json=payload, headers=headers, timeout=30)
+    response.raise_for_status()
+
+    return response.json()
+
+
+def verify_flutterwave_signature(request):
+    """
+    Verifies webhook authenticity using the 'verif-hash' header.
+    """
+    secret = os.getenv("FLW_WEBHOOK_SECRET")
+    if not secret:
+        return False
+
+    signature = request.headers.get("verif-hash")
+    if not signature:
+        return False
+
+    raw_body = request.get_data()
+    computed = hmac.new(secret.encode('utf-8'), raw_body, hashlib.sha256).hexdigest()
+
+    return hmac.compare_digest(computed, signature)
+
+
+def verify_transaction_with_flutterwave(transaction_id=None, tx_ref=None):
+    """
+    Calls Flutterwave API to verify transaction by ID or tx_ref.
+    """
+    FLW_SECRET_KEY = os.getenv("FLW_SECRET_KEY")
+    FLW_BASE = os.getenv("FLW_BASE_URL", "https://api.flutterwave.com/v3/")
+
+    headers = {"Authorization": f"Bearer {FLW_SECRET_KEY}"}
+
+    if transaction_id:
+        url = urljoin(FLW_BASE, f"transactions/{transaction_id}/verify")
+        resp = requests.get(url, headers=headers, timeout=20)
+    elif tx_ref:
+        url = urljoin(FLW_BASE, "transactions/verify_by_reference")
+        resp = requests.get(url, headers=headers, params={"tx_ref": tx_ref}, timeout=20)
+    else:
+        return None
+
+    resp.raise_for_status()
+    return resp.json()
+
+
+# =============================================================================
+# EXISTING ROUTES (UPDATED WITH FLUTTERWAVE INTEGRATION)
+# =============================================================================
 
 @subscription_bp.route("/plans", methods=["GET"])
 @jwt_required()
@@ -70,7 +161,7 @@ def get_subscription_plan(plan_id):
 
     try:
         plan = SubscriptionPlan.query.filter_by(public_id=plan_id, is_active=True).first()
-        
+
         if not plan:
             return jsonify({
                 "success": False,
@@ -108,7 +199,7 @@ def create_subscription_plan():
         }), 403
 
     data = request.json or {}
-    
+
     # Validate required fields
     required_fields = ['name', 'tier', 'monthly_price', 'yearly_price']
     for field in required_fields:
@@ -188,7 +279,7 @@ def update_subscription_plan(plan_id):
 
     try:
         plan = SubscriptionPlan.query.filter_by(public_id=plan_id).first()
-        
+
         if not plan:
             return jsonify({
                 "success": False,
@@ -196,7 +287,7 @@ def update_subscription_plan(plan_id):
             }), 404
 
         data = request.json or {}
-        
+
         # Update fields if provided
         updatable_fields = [
             'name', 'description', 'monthly_price', 'yearly_price', 'currency',
@@ -205,7 +296,7 @@ def update_subscription_plan(plan_id):
             'has_verified_badge', 'can_see_who_liked_you', 'can_rewind_swipes',
             'has_incognito_mode', 'is_active', 'is_popular'
         ]
-        
+
         for field in updatable_fields:
             if field in data:
                 setattr(plan, field, data[field])
@@ -256,7 +347,7 @@ def delete_subscription_plan(plan_id):
 
     try:
         plan = SubscriptionPlan.query.filter_by(public_id=plan_id).first()
-        
+
         if not plan:
             return jsonify({
                 "success": False,
@@ -269,7 +360,7 @@ def delete_subscription_plan(plan_id):
         ).filter(
             UserSubscription.status.in_([SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL])
         ).count()
-        
+
         if active_subscriptions > 0:
             return jsonify({
                 "success": False,
@@ -313,7 +404,7 @@ def activate_subscription_plan(plan_id):
 
     try:
         plan = SubscriptionPlan.query.filter_by(public_id=plan_id).first()
-        
+
         if not plan:
             return jsonify({
                 "success": False,
@@ -465,17 +556,32 @@ def create_subscription():
                 "payment_id": payment.public_id,
                 "subscription": current_user.current_subscription.to_dict() if current_user.current_subscription else None
             }), 201
+        mail = "test@gmail.com"
+        # FLUTTERWAVE PAYMENT INTEGRATION
+        try:
+            redirect_url = os.getenv("FRONTEND_PAYMENT_REDIRECT", "https://your-app-domain.com/payment-success")
+            flw_response = init_flutterwave_payment(payment, mail, redirect_url)
+            flw_data = flw_response.get("data", {})
+            checkout_link = flw_data.get("link")
+            provider_id = flw_data.get("id")
 
-        # Return payment initiation data
-        return jsonify({
-            "success": True,
-            "message": "Payment initiated",
-            "payment_id": payment.public_id,
-            "amount": price,
-            "currency": plan.currency,
-            "billing_cycle": billing_cycle,
-            "next_step": "redirect_to_payment_gateway"
-        }), 200
+            if provider_id:
+                payment.provider_payment_id = str(provider_id)
+                payment.provider_reference = f"payment_{payment.public_id}"
+
+            db.session.commit()
+
+            return jsonify({
+                "success": True,
+                "message": "Payment initiated successfully",
+                "payment_id": payment.public_id,
+                "checkout_url": checkout_link
+            }), 200
+
+        except Exception as e:
+            db.session.rollback()
+            print("Error initiating Flutterwave payment:", e)
+            return jsonify({"success": False, "message": "Payment initialization failed"}), 500
 
     except Exception as e:
         db.session.rollback()
@@ -504,7 +610,7 @@ def cancel_subscription():
             }), 404
 
         subscription = current_user.current_subscription
-        
+
         if subscription.status == SubscriptionStatus.CANCELED:
             return jsonify({
                 "success": True,
@@ -539,7 +645,6 @@ def get_user_subscription_by_id(user_id):
     if error_response:
         return error_response, status_code
 
-    
     try:
         # Find the user by public_id
         user = User.query.filter_by(public_id=user_id).first()
@@ -551,7 +656,7 @@ def get_user_subscription_by_id(user_id):
 
         # Get user's current subscription
         subscription = user.current_subscription
-        
+
         if not subscription:
             # Return free plan details if no subscription
             free_plan = SubscriptionPlan.query.filter_by(tier=SubscriptionTier.FREE).first()
@@ -734,7 +839,7 @@ def sync_usage():
 
         subscription = current_user.current_subscription
         real_usage = subscription.sync_usage_from_backend()
-        
+
         db.session.commit()
 
         return jsonify({
@@ -771,11 +876,11 @@ def get_usage_summary():
         if not current_user.current_subscription:
             # Return free plan summary
             free_plan = SubscriptionPlan.query.filter_by(tier=SubscriptionTier.FREE).first()
-            
+
             # Calculate real usage for free plan
             period_start = datetime.utcnow() - timedelta(days=30)
             period_end = datetime.utcnow()
-            
+
             real_messages_sent = Message.query.filter(
                 Message.sender_id == current_user.id,
                 Message.timestamp >= period_start,
@@ -965,7 +1070,7 @@ def reactivate_subscription():
         subscription.status = SubscriptionStatus.ACTIVE
         subscription.auto_renew = True
         subscription.renew(billing_cycle)
-        
+
         db.session.commit()
 
         return jsonify({
@@ -994,29 +1099,27 @@ def get_payment_history():
         return error_response, status_code
 
     try:
-        # Pagination parameters
-        page = int(request.args.get("page", 1))
-        limit = int(request.args.get("limit", 10))
-        offset = (page - 1) * limit
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 10, type=int)
 
-        payments_query = Payment.query.filter_by(user_id=current_user.id)
-        total_payments = payments_query.count()
-
-        payments = payments_query.order_by(
+        payments = Payment.query.filter_by(user_id=current_user.id).order_by(
             Payment.created_at.desc()
-        ).offset(offset).limit(limit).all()
+        ).paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
 
-        payments_data = [payment.to_dict() for payment in payments]
+        payments_data = [payment.to_dict() for payment in payments.items]
 
         return jsonify({
             "success": True,
             "payments": payments_data,
             "pagination": {
                 "page": page,
-                "limit": limit,
-                "total": total_payments,
-                "has_next": (page * limit) < total_payments,
-                "has_prev": page > 1
+                "per_page": per_page,
+                "total": payments.total,
+                "pages": payments.pages
             }
         }), 200
 
@@ -1028,47 +1131,370 @@ def get_payment_history():
         }), 500
 
 
+@subscription_bp.route("/admin/subscriptions", methods=["GET"])
+@jwt_required()
+def get_all_subscriptions():
+    """
+    Get all subscriptions across all users (Admin only)
+    """
+    current_user, error_response, status_code = get_current_user_from_jwt()
+    if error_response:
+        return error_response, status_code
+
+    # Check if user is admin
+    if not current_user.is_admin:
+        return jsonify({
+            "success": False,
+            "message": "Admin access required"
+        }), 403
+
+    try:
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 20, type=int)
+        status_filter = request.args.get("status")
+        tier_filter = request.args.get("tier")
+
+        query = UserSubscription.query.join(SubscriptionPlan)
+
+        if status_filter:
+            try:
+                status = SubscriptionStatus(status_filter)
+                query = query.filter(UserSubscription.status == status)
+            except ValueError:
+                return jsonify({
+                    "success": False,
+                    "message": f"Invalid status filter. Must be one of: {[s.value for s in SubscriptionStatus]}"
+                }), 400
+
+        if tier_filter:
+            try:
+                tier = SubscriptionTier(tier_filter)
+                query = query.filter(SubscriptionPlan.tier == tier)
+            except ValueError:
+                return jsonify({
+                    "success": False,
+                    "message": f"Invalid tier filter. Must be one of: {[t.value for t in SubscriptionTier]}"
+                }), 400
+
+        subscriptions = query.order_by(UserSubscription.created_at.desc()).paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
+
+        subscriptions_data = []
+        for subscription in subscriptions.items:
+            sub_data = subscription.to_dict()
+            sub_data["user_info"] = {
+                "user_id": subscription.user.public_id,
+                "username": subscription.user.username,
+                "name": subscription.user.name,
+                "email": subscription.user.email
+            }
+            subscriptions_data.append(sub_data)
+
+        return jsonify({
+            "success": True,
+            "subscriptions": subscriptions_data,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": subscriptions.total,
+                "pages": subscriptions.pages
+            }
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching all subscriptions: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": "Failed to fetch subscriptions"
+        }), 500
+
+
+@subscription_bp.route("/admin/payments", methods=["GET"])
+@jwt_required()
+def get_all_payments():
+    """
+    Get all payments across all users (Admin only)
+    """
+    current_user, error_response, status_code = get_current_user_from_jwt()
+    if error_response:
+        return error_response, status_code
+
+    # Check if user is admin
+    if not current_user.is_admin:
+        return jsonify({
+            "success": False,
+            "message": "Admin access required"
+        }), 403
+
+    try:
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 20, type=int)
+        status_filter = request.args.get("status")
+
+        query = Payment.query
+
+        if status_filter:
+            try:
+                status = PaymentStatus(status_filter)
+                query = query.filter(Payment.status == status)
+            except ValueError:
+                return jsonify({
+                    "success": False,
+                    "message": f"Invalid status filter. Must be one of: {[s.value for s in PaymentStatus]}"
+                }), 400
+
+        payments = query.order_by(Payment.created_at.desc()).paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
+
+        payments_data = []
+        for payment in payments.items:
+            payment_data = payment.to_dict()
+            payment_data["user_info"] = {
+                "user_id": payment.user.public_id,
+                "username": payment.user.username,
+                "name": payment.user.name,
+                "email": payment.user.email
+            }
+            payments_data.append(payment_data)
+
+        return jsonify({
+            "success": True,
+            "payments": payments_data,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": payments.total,
+                "pages": payments.pages
+            }
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching all payments: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": "Failed to fetch payments"
+        }), 500
+
+
+@subscription_bp.route("/admin/metrics", methods=["GET"])
+@jwt_required()
+def get_subscription_metrics():
+    """
+    Get subscription metrics for admin dashboard
+    """
+    current_user, error_response, status_code = get_current_user_from_jwt()
+    if error_response:
+        return error_response, status_code
+
+    # Check if user is admin
+    if not current_user.is_admin:
+        return jsonify({
+            "success": False,
+            "message": "Admin access required"
+        }), 403
+
+    try:
+        # Total active subscriptions
+        total_active = UserSubscription.query.filter_by(status=SubscriptionStatus.ACTIVE).count()
+
+        # Total canceled subscriptions
+        total_canceled = UserSubscription.query.filter_by(status=SubscriptionStatus.CANCELED).count()
+
+        # Total expired subscriptions
+        total_expired = UserSubscription.query.filter_by(status=SubscriptionStatus.EXPIRED).count()
+
+        # Total revenue (sum of completed payments)
+        total_revenue = db.session.query(db.func.sum(Payment.amount)).filter(
+            Payment.status == PaymentStatus.COMPLETED
+        ).scalar() or 0
+
+        # Monthly recurring revenue (MRR)
+        current_month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        mrr = db.session.query(db.func.sum(Payment.amount)).filter(
+            Payment.status == PaymentStatus.COMPLETED,
+            Payment.created_at >= current_month_start
+        ).scalar() or 0
+
+        # Subscription distribution by tier
+        tier_distribution = db.session.query(
+            SubscriptionPlan.tier,
+            db.func.count(UserSubscription.id)
+        ).join(
+            UserSubscription, UserSubscription.plan_id == SubscriptionPlan.id
+        ).filter(
+            UserSubscription.status == SubscriptionStatus.ACTIVE
+        ).group_by(SubscriptionPlan.tier).all()
+
+        tier_data = {tier.value: count for tier, count in tier_distribution}
+
+        # Recent payments (last 30 days)
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        recent_payments_count = Payment.query.filter(
+            Payment.created_at >= thirty_days_ago,
+            Payment.status == PaymentStatus.COMPLETED
+        ).count()
+
+        return jsonify({
+            "success": True,
+            "metrics": {
+                "total_active_subscriptions": total_active,
+                "total_canceled_subscriptions": total_canceled,
+                "total_expired_subscriptions": total_expired,
+                "total_revenue": float(total_revenue),
+                "monthly_recurring_revenue": float(mrr),
+                "recent_payments_count": recent_payments_count,
+                "tier_distribution": tier_data
+            }
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching subscription metrics: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": "Failed to fetch subscription metrics"
+        }), 500
+
+
 @subscription_bp.route("/webhook/flutterwave", methods=["POST"])
 def flutterwave_webhook():
     """
-    Webhook endpoint for Flutterwave payment notifications
-    This should not require JWT authentication
+    Handle Flutterwave payment webhook notifications
     """
     try:
-        data = request.json or {}
-        
-        # Verify webhook signature (implement based on Flutterwave docs)
-        # signature = request.headers.get('verif-hash')
-        # if not verify_flutterwave_signature(signature, data):
-        #     return jsonify({"success": False, "message": "Invalid signature"}), 401
+        # Verify webhook signature
+        if not verify_flutterwave_signature(request):
+            print("Invalid Flutterwave webhook signature")
+            return jsonify({"status": "error", "message": "Invalid signature"}), 401
 
-        event = data.get("event")
-        tx_ref = data.get("tx_ref", "")
-        transaction_id = data.get("id")
-        status = data.get("status")
+        payload = request.get_json()
+        event_type = payload.get("event")
+        data = payload.get("data", {})
 
-        # Extract payment ID from transaction reference
-        # Assuming tx_ref format: "payment_{payment_public_id}"
-        if not tx_ref.startswith("payment_"):
-            return jsonify({"success": False, "message": "Invalid transaction reference"}), 400
+        print(f"Flutterwave webhook received: {event_type}")
 
-        payment_public_id = tx_ref.replace("payment_", "")
-        payment = Payment.query.filter_by(public_id=payment_public_id).first()
+        if event_type == "charge.completed":
+            # Payment was successful
+            tx_ref = data.get("tx_ref")
+            transaction_id = data.get("id")
+            status = data.get("status")
+            amount = data.get("amount")
+            currency = data.get("currency")
 
+            if status == "successful":
+                # Verify transaction with Flutterwave
+                verification = verify_transaction_with_flutterwave(transaction_id=transaction_id)
+                if not verification or verification.get("data", {}).get("status") != "successful":
+                    print(f"Transaction verification failed for {transaction_id}")
+                    return jsonify({"status": "error", "message": "Verification failed"}), 400
+
+                # Find payment by tx_ref
+                payment = Payment.query.filter_by(provider_reference=tx_ref).first()
+                if not payment:
+                    print(f"Payment not found for tx_ref: {tx_ref}")
+                    return jsonify({"status": "error", "message": "Payment not found"}), 404
+
+                if payment.status == PaymentStatus.COMPLETED:
+                    print(f"Payment already completed: {payment.public_id}")
+                    return jsonify({"status": "success", "message": "Already processed"}), 200
+
+                # Mark payment as completed
+                payment.mark_completed(
+                    provider_payment_id=str(transaction_id),
+                    provider_reference=tx_ref
+                )
+
+                # Create or update subscription
+                user = payment.user
+                plan = payment.plan
+                current_sub = user.current_subscription
+
+                if current_sub:
+                    # Upgrade existing subscription
+                    current_sub.plan_id = plan.id
+                    current_sub.billing_cycle = payment.billing_cycle
+                    current_sub.status = SubscriptionStatus.ACTIVE
+                    current_sub.auto_renew = True
+                    current_sub.renew(payment.billing_cycle)
+                else:
+                    # Create new subscription
+                    cycle_days = 365 if payment.billing_cycle == "yearly" else plan.billing_cycle_days
+                    new_subscription = UserSubscription(
+                        user_id=user.id,
+                        plan_id=plan.id,
+                        status=SubscriptionStatus.ACTIVE,
+                        billing_cycle=payment.billing_cycle,
+                        start_date=datetime.utcnow(),
+                        end_date=datetime.utcnow() + timedelta(days=cycle_days),
+                        auto_renew=True
+                    )
+                    db.session.add(new_subscription)
+
+                db.session.commit()
+                print(f"Payment completed and subscription activated: {payment.public_id}")
+
+        elif event_type in ["charge.failed", "transfer.failed"]:
+            # Payment failed
+            tx_ref = data.get("tx_ref")
+            payment = Payment.query.filter_by(provider_reference=tx_ref).first()
+            if payment and payment.status == PaymentStatus.PENDING:
+                payment.status = PaymentStatus.FAILED
+                db.session.commit()
+                print(f"Payment marked as failed: {payment.public_id}")
+
+        return jsonify({"status": "success"}), 200
+
+    except Exception as e:
+        print(f"Error processing Flutterwave webhook: {str(e)}")
+        db.session.rollback()
+        return jsonify({"status": "error", "message": "Webhook processing failed"}), 500
+
+
+@subscription_bp.route("/payments/<string:payment_id>/verify", methods=["POST"])
+@jwt_required()
+def verify_payment(payment_id):
+    """
+    Manually verify payment status with Flutterwave
+    """
+    current_user, error_response, status_code = get_current_user_from_jwt()
+    if error_response:
+        return error_response, status_code
+
+    try:
+        payment = Payment.query.filter_by(public_id=payment_id, user_id=current_user.id).first()
         if not payment:
             return jsonify({"success": False, "message": "Payment not found"}), 404
 
-        if event == "charge.completed" and status == "successful":
+        if payment.status == PaymentStatus.COMPLETED:
+            return jsonify({"success": True, "message": "Payment already completed"}), 200
+
+        # Verify with Flutterwave
+        if payment.provider_payment_id:
+            verification = verify_transaction_with_flutterwave(transaction_id=payment.provider_payment_id)
+        elif payment.provider_reference:
+            verification = verify_transaction_with_flutterwave(tx_ref=payment.provider_reference)
+        else:
+            return jsonify({"success": False, "message": "No provider reference found"}), 400
+
+        if not verification:
+            return jsonify({"success": False, "message": "Verification failed"}), 400
+
+        data = verification.get("data", {})
+        if data.get("status") == "successful":
             # Mark payment as completed
             payment.mark_completed(
-                provider_payment_id=str(transaction_id),
-                provider_reference=tx_ref
+                provider_payment_id=str(data.get("id")),
+                provider_reference=data.get("tx_ref")
             )
 
             # Create or update subscription
-            user = payment.user
-            current_sub = user.current_subscription
             plan = payment.plan
+            current_sub = current_user.current_subscription
 
             if current_sub:
                 # Upgrade existing subscription
@@ -1081,7 +1507,7 @@ def flutterwave_webhook():
                 # Create new subscription
                 cycle_days = 365 if payment.billing_cycle == "yearly" else plan.billing_cycle_days
                 new_subscription = UserSubscription(
-                    user_id=user.id,
+                    user_id=current_user.id,
                     plan_id=plan.id,
                     status=SubscriptionStatus.ACTIVE,
                     billing_cycle=payment.billing_cycle,
@@ -1093,80 +1519,19 @@ def flutterwave_webhook():
 
             db.session.commit()
 
-            # TODO: Send notification to user about successful subscription
-
-        elif event == "charge.failed":
-            payment.mark_failed()
-            db.session.commit()
-
-        return jsonify({"success": True, "message": "Webhook processed"}), 200
+            return jsonify({
+                "success": True,
+                "message": "Payment verified and subscription activated",
+                "payment_id": payment.public_id
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "message": f"Payment status: {data.get('status')}",
+                "status": data.get("status")
+            }), 400
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error processing webhook: {str(e)}")
-        return jsonify({"success": False, "message": "Webhook processing failed"}), 500
-
-
-@subscription_bp.route("/features", methods=["GET"])
-@jwt_required()
-def get_available_features():
-    """
-    Get all features available to current user based on subscription
-    """
-    current_user, error_response, status_code = get_current_user_from_jwt()
-    if error_response:
-        return error_response, status_code
-
-    try:
-        plan = current_user.get_subscription_plan()
-        
-        features = {
-            "messaging": {
-                "can_send_messages": current_user.can_send_message(),
-                "max_messages": plan.max_messages,
-                "is_unlimited": plan.is_unlimited_messages()
-            },
-            "likes": {
-                "can_like_profiles": current_user.can_like_profile(),
-                "max_likes": plan.max_likes,
-                "is_unlimited": plan.is_unlimited_likes()
-            },
-            "swipes": {
-                "can_swipe": current_user.can_swipe(),
-                "max_swipes": plan.max_swipes,
-                "is_unlimited": plan.is_unlimited_swipes()
-            },
-            "premium_features": {
-                "advanced_filters": plan.has_advanced_filters,
-                "priority_matching": plan.has_priority_matching,
-                "read_receipts": plan.has_read_receipts,
-                "verified_badge": plan.has_verified_badge,
-                "see_who_liked_you": plan.can_see_who_liked_you,
-                "rewind_swipes": plan.can_rewind_swipes,
-                "incognito_mode": plan.has_incognito_mode
-            }
-        }
-
-        return jsonify({
-            "success": True,
-            "features": features,
-            "plan_tier": plan.tier,
-            "plan_name": plan.name
-        }), 200
-
-    except Exception as e:
-        print(f"Error fetching features: {str(e)}")
-        return jsonify({
-            "success": False,
-            "message": "Failed to fetch features"
-        }), 500
-
-
-def verify_flutterwave_signature(signature, payload):
-    """
-    Verify Flutterwave webhook signature
-    Implement based on Flutterwave documentation
-    """
-    # TODO: Implement proper signature verification
-    # This is a placeholder implementation
-    return True  # In production, implement proper verification
+        print(f"Error verifying payment: {str(e)}")
+        return jsonify({"success": False, "message": "Payment verification failed"}), 500

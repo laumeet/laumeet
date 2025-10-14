@@ -156,7 +156,7 @@ def signup():
 
 
 @auth_bp.route("/login", methods=["POST"])
-@rate_limit(max_attempts=5, window_seconds=900)
+@rate_limit(max_attempts=100, window_seconds=60)
 def login():
     """
     User authentication endpoint

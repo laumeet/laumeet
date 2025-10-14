@@ -1,9 +1,9 @@
-// pages/api/subscription/reactivate.ts
+// pages/api/subscription/verify-payment.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import { apiHandler } from "@/lib/api/config";
 
-interface ReactivateRequest {
-  billing_cycle?: "monthly" | "yearly";
+interface VerifyPaymentRequest {
+  payment_id: string;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -12,11 +12,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { billing_cycle = "monthly" }: ReactivateRequest = req.body;
+    const { payment_id }: VerifyPaymentRequest = req.body;
 
-    const result = await apiHandler("/reactivate", {
+    if (!payment_id) {
+      return res.status(400).json({ success: false, message: "Payment ID is required" });
+    }
+
+    const result = await apiHandler(`/payments/${payment_id}/verify`, {
       method: "POST",
-      body: JSON.stringify({ billing_cycle }),
     });
 
     if (!result.success) {
@@ -25,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json(result.data);
   } catch (err) {
-    console.error("Subscription reactivation error:", err);
-    return res.status(500).json({ success: false, message: "Cannot reactivate subscription" });
+    console.error("Payment verification error:", err);
+    return res.status(500).json({ success: false, message: "Cannot verify payment" });
   }
 }

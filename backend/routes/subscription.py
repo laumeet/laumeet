@@ -561,8 +561,10 @@ def create_subscription():
             # Define success and failure redirect URLs
             base_redirect_url = os.getenv("FRONTEND_BASE_URL", "https://laumeet.vercel.app")
             success_redirect = f"{base_redirect_url}/payment-success?payment_id={payment.public_id}"
+
+            mail = "laumeet@gmail.com"
             
-            flw_response = init_flutterwave_payment(payment, current_user.email, success_redirect)
+            flw_response = init_flutterwave_payment(payment,mail, success_redirect)
             flw_data = flw_response.get("data", {})
             checkout_link = flw_data.get("link")
             provider_id = flw_data.get("id")

@@ -26,6 +26,7 @@ export const useUserSubscription = (userId?: string) => {
       setLoading(true);
       setError(null);
       const { data } = await api.get<UserSubscriptionResponse>(`/subscription/current`);
+      console.log('use hook sub',data)
       if (data.success) {
         setSubscription(data);
       } else {

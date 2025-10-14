@@ -156,7 +156,7 @@ const useUpgradePrompts = (hasSubscription: boolean, showUpgradeModal: boolean, 
 // -----------------------------
 export default function ChatDetailPage() {
   const { profile } = useProfile();
-  const { subscription } = useUserSubscription();
+  const { subscription } = useUserSubscription(profile?.id);
   const { usage, fetchUsageStats } = useUsageStats();
   const { socket, isConnected: socketConnected, onlineUsers } = useSocketContext();
   const params = useParams();
@@ -198,7 +198,6 @@ export default function ChatDetailPage() {
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const autoScrollEnabledRef = useRef(true);
-  const lastMessageCountRef = useRef(0);
   const initialMessagesLoadedRef = useRef(false);
 
   // Swipe states
@@ -824,7 +823,7 @@ export default function ChatDetailPage() {
     if (e) {
       e.preventDefault();
     }
-    
+    console.log('Can Send message', canSendMessage())
     if (!message.trim() || !conversation || sending) return;
     
     if (!canSendMessage()) {

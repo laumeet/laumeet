@@ -38,15 +38,16 @@ class Config:
     FLW_WEBHOOK_SECRET = os.getenv('FLW_WEBHOOK_SECRET')
 
     # Payment redirect URLs
-    PAYMENT_SUCCESS_URL = os.getenv('PAYMENT_SUCCESS_URL', 'https://yourapp.com/payment/success')
-    PAYMENT_FAILURE_URL = os.getenv('PAYMENT_FAILURE_URL', 'https://yourapp.com/payment/failed')
+    PAYMENT_SUCCESS_URL = os.getenv('PAYMENT_SUCCESS_URL', 'https://laumeet.com/payment/success')
+    PAYMENT_FAILURE_URL = os.getenv('PAYMENT_FAILURE_URL', 'https://laumeet.com/payment/failed')
 
 
     # CORS origins
     CORS_ORIGINS = [
         "https://laumeet.vercel.app",
         "http://localhost:3000",
-        "http://127.0.0.1:3000"
+        "http://127.0.0.1:3000",
+        "https://api.flutterwave.com/v3/"
     ]
 
 class DevelopmentConfig(Config):

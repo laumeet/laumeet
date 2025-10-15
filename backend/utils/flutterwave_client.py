@@ -1,119 +1,127 @@
-# utils/flutterwave_client.py
 import os
 import requests
-from urllib.parse import urljoin
-import json
+import logging
+from typing import Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
 
 class FlutterwaveClient:
     def __init__(self):
         self.secret_key = os.getenv("FLW_SECRET_KEY")
+        self.public_key = os.getenv("FLW_PUBLIC_KEY")
+        self.base_url = "https://api.flutterwave.com/v3"
+        self.timeout = 30  # Increased timeout for Render
         
-        if not self.secret_key:
-            raise ValueError("FLW_SECRET_KEY environment variable is required")
-        
-        # Use official domain instead of IP
-        self.base_url = "https://api.flutterwave.com/v3/"
-        
-        # Proper headers for domain connection
-        self.headers = {
-            'Authorization': f'Bearer {self.secret_key}',
-            'Content-Type': 'application/json',
-            'User-Agent': 'Laumeet/1.0'
+        if not self.secret_key or not self.public_key:
+            logger.error("Flutterwave keys not configured")
+            raise ValueError("Flutterwave keys not configured")
+
+    def _get_headers(self) -> Dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self.secret_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "Laumeet/1.0"
         }
 
-    def init_payment(self, payment_data):
-        """
-        Initialize Flutterwave payment using official domain
-        """
-        endpoint = urljoin(self.base_url, "payments")
-        
-        print(f"Initializing payment via Flutterwave API")
-        print(f"Payload: {json.dumps(payment_data, indent=2)}")
-        
+    def init_payment(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Initialize payment with Flutterwave"""
         try:
+            url = f"{self.base_url}/payments"
+            
+            # Log request (without sensitive data)
+            safe_payload = payload.copy()
+            if 'customer' in safe_payload:
+                safe_payload['customer'] = {**safe_payload['customer'], 'email': '***'}
+            logger.info(f"Initializing Flutterwave payment: {safe_payload}")
+            
             response = requests.post(
-                endpoint,
-                json=payment_data,
-                headers=self.headers,
-                timeout=30,
+                url, 
+                json=payload, 
+                headers=self._get_headers(),
+                timeout=self.timeout,
+                verify=True  # Ensure SSL verification
+            )
+            
+            logger.info(f"Flutterwave response status: {response.status_code}")
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "success":
+                    return data
+                else:
+                    logger.error(f"Flutterwave API error: {data.get('message')}")
+                    raise Exception(f"Flutterwave API error: {data.get('message', 'Unknown error')}")
+            else:
+                logger.error(f"Flutterwave HTTP error: {response.status_code} - {response.text}")
+                # Try to get error message from response
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get('message', response.text)
+                except:
+                    error_msg = response.text
+                
+                raise Exception(f"Flutterwave HTTP error {response.status_code}: {error_msg}")
+                
+        except requests.exceptions.Timeout:
+            logger.error("Flutterwave API timeout")
+            raise Exception("Payment service timeout. Please try again.")
+        except requests.exceptions.ConnectionError:
+            logger.error("Flutterwave connection error")
+            raise Exception("Unable to connect to payment service. Please check your internet connection and try again.")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Flutterwave request exception: {str(e)}")
+            raise Exception(f"Payment service error: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error in init_payment: {str(e)}")
+            raise
+
+    def verify_transaction(self, transaction_id: Optional[str] = None, tx_ref: Optional[str] = None) -> Dict[str, Any]:
+        """Verify transaction with Flutterwave"""
+        try:
+            if transaction_id:
+                url = f"{self.base_url}/transactions/{transaction_id}/verify"
+            elif tx_ref:
+                url = f"{self.base_url}/transactions/verify_by_reference?tx_ref={tx_ref}"
+            else:
+                raise ValueError("Either transaction_id or tx_ref is required")
+
+            logger.info(f"Verifying transaction: {transaction_id or tx_ref}")
+            
+            response = requests.get(
+                url,
+                headers=self._get_headers(),
+                timeout=self.timeout,
                 verify=True
             )
             
-            print(f"Response status: {response.status_code}")
+            logger.info(f"Flutterwave verification response status: {response.status_code}")
             
             if response.status_code == 200:
-                result = response.json()
-                print(f"Payment initialization successful: {result.get('status')}")
-                return result
-            else:
-                print(f"Flutterwave API error: {response.status_code} - {response.text}")
-                
-                # Provide more specific error messages
-                if response.status_code == 401:
-                    raise Exception("Invalid Flutterwave secret key")
-                elif response.status_code == 400:
-                    error_msg = response.json().get('message', 'Bad request')
-                    raise Exception(f"Payment request error: {error_msg}")
-                elif response.status_code == 403:
-                    raise Exception("Access forbidden - check your API key permissions")
+                data = response.json()
+                if data.get("status") == "success":
+                    return data
                 else:
-                    response.raise_for_status()
-                
-        except requests.exceptions.ConnectTimeout:
-            print("Flutterwave API connection timeout")
-            raise Exception("Payment service temporarily unavailable. Please try again.")
-            
-        except requests.exceptions.ConnectionError:
-            print("Flutterwave API connection error")
-            raise Exception("Unable to connect to payment service. Check your internet connection.")
-            
-        except requests.exceptions.Timeout:
-            print("Flutterwave API request timeout")
-            raise Exception("Payment service response timeout. Please try again.")
-            
-        except requests.exceptions.RequestException as e:
-            print(f"Flutterwave API request exception: {e}")
-            raise Exception(f"Payment service error: {str(e)}")
-            
-        except Exception as e:
-            print(f"Unexpected error during payment initialization: {e}")
-            raise Exception(f"Payment initialization failed: {str(e)}")
-
-    def verify_transaction(self, transaction_id=None, tx_ref=None):
-        """
-        Verify transaction with Flutterwave
-        """
-        try:
-            if transaction_id:
-                endpoint = urljoin(self.base_url, f"transactions/{transaction_id}/verify")
-                response = requests.get(endpoint, headers=self.headers, timeout=25)
-            elif tx_ref:
-                endpoint = urljoin(self.base_url, "transactions/verify_by_reference")
-                response = requests.get(endpoint, params={"tx_ref": tx_ref}, headers=self.headers, timeout=25)
+                    logger.error(f"Flutterwave verification error: {data.get('message')}")
+                    raise Exception(f"Verification failed: {data.get('message', 'Unknown error')}")
             else:
-                return None
-            
-            response.raise_for_status()
-            return response.json()
-            
-        except requests.exceptions.RequestException as e:
-            print(f"Flutterwave verification request failed: {e}")
-            raise Exception(f"Transaction verification failed: {str(e)}")
+                logger.error(f"Flutterwave verification HTTP error: {response.status_code} - {response.text}")
+                raise Exception(f"Verification HTTP error {response.status_code}")
+                
+        except requests.exceptions.Timeout:
+            logger.error("Flutterwave verification timeout")
+            raise Exception("Verification timeout. Please try again.")
+        except requests.exceptions.ConnectionError:
+            logger.error("Flutterwave verification connection error")
+            raise Exception("Unable to connect to verification service.")
         except Exception as e:
-            print(f"Flutterwave verification failed: {e}")
+            logger.error(f"Error in verify_transaction: {str(e)}")
             raise
 
-# Global instance - lazy initialization
-_flutterwave_client_instance = None
+# Singleton instance
+_flutterwave_client = None
 
 def get_flutterwave_client():
-    """Lazy initialization of Flutterwave client"""
-    global _flutterwave_client_instance
-    if _flutterwave_client_instance is None:
-        try:
-            _flutterwave_client_instance = FlutterwaveClient()
-            print("Flutterwave client initialized successfully")
-        except Exception as e:
-            print(f"Failed to initialize Flutterwave client: {e}")
-            raise
-    return _flutterwave_client_instance
+    global _flutterwave_client
+    if _flutterwave_client is None:
+        _flutterwave_client = FlutterwaveClient()
+    return _flutterwave_client

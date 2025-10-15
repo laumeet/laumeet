@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import {
   Edit3, Shield, Eye, Heart, MessageCircle,
   MapPin, Calendar, Book, Cross, Droplets, GraduationCap,
-  Save, X, Loader2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCcw
+  Save, X, Loader2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCcw, BadgeCheck
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,24 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import api from '@/lib/axio';
 import { toast } from 'sonner';
 import { useProfile } from '@/hooks/get-profile';
-
-interface UserProfile {
-  id: string;
-  username: string;
-  name: string;
-  age: string;
-  gender: string;
-  department: string;
-  genotype: string;
-  level: string;
-  interestedIn: string;
-  religious: string;
-  isAnonymous: boolean;
-  category: string;
-  bio: string;
-  pictures: string[];
-  timestamp: string;
-}
+import { useUserSubscription } from '@/hooks/useUserSubscription';
 
 // Lightbox Component
 function LightboxModal({ 
@@ -275,6 +258,21 @@ function LightboxModal({
   );
 }
 
+// Verified Badge Component
+function VerifiedBadge({ size = "sm", className = "" }: { size?: "sm" | "md" | "lg"; className?: string }) {
+  const sizeClasses = {
+    sm: "h-4 w-4",
+    md: "h-5 w-5", 
+    lg: "h-6 w-6"
+  };
+
+  return (
+    <div className={`inline-flex items-center justify-center rounded-full bg-blue-500 text-white ${className}`}>
+      <BadgeCheck className={sizeClasses[size]} />
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const { profile, loading, error, refetch } = useProfile();
   const [isEditing, setIsEditing] = useState(false);
@@ -290,6 +288,12 @@ export default function ProfilePage() {
   const [gender, setGender] = useState('');
   const [interestedIn, setInterestedIn] = useState('');
   const [level, setLevel] = useState('');
+  const { subscription: userSubscription } = useUserSubscription(profile?.id);
+
+  // Check if user has an active subscription
+  const hasActiveSubscription = userSubscription?.has_subscription && 
+                               userSubscription.subscription?.is_active && 
+                               userSubscription.subscription?.status === 'active';
 
   // Initialize form fields when profile data is available
   useEffect(() => {
@@ -446,7 +450,7 @@ export default function ProfilePage() {
       {/* Profile Header */}
       <div className="text-center">
         <div className="relative inline-block mb-4">
-          <div className="w-24 h-24 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 p-1 cursor-pointer hover:scale-105 transition-transform duration-200">
+          <div className="relative w-24 h-24 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 p-1 cursor-pointer hover:scale-105 transition-transform duration-200">
             <div 
               className="w-full h-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center overflow-hidden"
               onClick={() => profile.pictures && profile.pictures.length > 0 && openLightbox(0)}
@@ -463,12 +467,20 @@ export default function ProfilePage() {
                 </span>
               )}
             </div>
+            
+            {/* Verified Badge */}
+            {hasActiveSubscription && (
+              <div className="absolute -bottom-1 -right-1 z-10">
+                <VerifiedBadge size="md" className="p-0.5" />
+              </div>
+            )}
+            
+            {profile.isAnonymous && (
+              <div className="absolute bottom-0 right-0 bg-purple-500 rounded-full p-1">
+                <Shield className="h-4 w-4 text-white" />
+              </div>
+            )}
           </div>
-          {profile.isAnonymous && (
-            <div className="absolute bottom-0 right-0 bg-purple-500 rounded-full p-1">
-              <Shield className="h-4 w-4 text-white" />
-            </div>
-          )}
         </div>
 
         {isEditing ? (
@@ -483,9 +495,12 @@ export default function ProfilePage() {
           </div>
         ) : (
           <>
-            <h2 className="text-2xl font-bold text-gray-800 capitalize dark:text-white">
-              {profile.name || profile.username}, {profile.age}
-            </h2>
+            <div className="flex items-center justify-center gap-2">
+              <h2 className="text-2xl font-bold text-gray-800 capitalize dark:text-white">
+                {profile.name || profile.username}, {profile.age}
+              </h2>
+              {hasActiveSubscription && <VerifiedBadge size="md" />}
+            </div>
             <p className="text-gray-600 dark:text-gray-400 capitalize">
               @{profile.username} • {profile.age} years old
             </p>
@@ -546,7 +561,10 @@ export default function ProfilePage() {
       {/* Personal Information Grid */}
       <Card>
         <CardContent className="p-4">
-          <h3 className="font-semibold text-gray-800 dark:text-white mb-3">Personal Information</h3>
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="font-semibold text-gray-800 dark:text-white">Personal Information</h3>
+            {hasActiveSubscription && <VerifiedBadge size="sm" />}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Gender */}
             <div className="space-y-2">
@@ -674,7 +692,10 @@ export default function ProfilePage() {
       {/* Bio Section */}
       <Card>
         <CardContent className="p-4">
-          <h3 className="font-semibold text-gray-800 dark:text-white mb-2">About Me</h3>
+          <div className="flex items-center gap-2 mb-2">
+            <h3 className="font-semibold text-gray-800 dark:text-white">About Me</h3>
+            {hasActiveSubscription && <VerifiedBadge size="sm" />}
+          </div>
           {isEditing ? (
             <Textarea
               value={bio}
@@ -732,9 +753,12 @@ export default function ProfilePage() {
           {profile.pictures && profile.pictures.length > 0 && (
             <Card>
               <CardContent className="p-4">
-                <h3 className="font-semibold text-gray-800 dark:text-white mb-3">
-                  Photos ({profile.pictures.length})
-                </h3>
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="font-semibold text-gray-800 dark:text-white">
+                    Photos ({profile.pictures.length})
+                  </h3>
+                  {hasActiveSubscription && <VerifiedBadge size="sm" />}
+                </div>
                 <div className="grid grid-cols-3 gap-2">
                   {profile.pictures.map((image, index) => (
                     <div 

@@ -6,7 +6,7 @@ import { useState, useRef, useCallback } from 'react';
 import { 
   Heart, X, Filter,Users, 
   Loader2, AlertCircle, ChevronLeft, ChevronRight,
-  Book, GraduationCap, Droplets, Cross, Eye, MessageCircle
+  Book, GraduationCap, Droplets, Cross, Eye, MessageCircle, BadgeCheck
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,22 @@ import { toast } from 'sonner';
 import TinderCard from 'react-tinder-card';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/axio';
+import { useUserSubscription } from '@/hooks/useUserSubscription';
+
+// Verified Badge Component
+function VerifiedBadge({ size = "sm", className = "" }: { size?: "sm" | "md" | "lg"; className?: string }) {
+  const sizeClasses = {
+    sm: "h-4 w-4",
+    md: "h-5 w-5", 
+    lg: "h-6 w-6"
+  };
+
+  return (
+    <div className={`inline-flex items-center justify-center rounded-full bg-blue-500 text-white ${className}`}>
+      <BadgeCheck className={sizeClasses[size]} />
+    </div>
+  );
+}
 
 export default function ExplorePage() {
   const router = useRouter();
@@ -36,13 +52,19 @@ export default function ExplorePage() {
   const [currentImageIndexes, setCurrentImageIndexes] = useState<{ [key: string]: number }>({});
   const [showDetails, setShowDetails] = useState<{ [key: string]: boolean }>({});
   const currentIndexRef = useRef(currentIndex);
- const [copied, setCopied] = useState(false);
-
+  const [copied, setCopied] = useState(false);
+    const { subscription: userSubscription } = useUserSubscription(
+      profiles[currentIndex]?.id || ""
+    );
+  
+   
+  
   const handleCopy = () => {
     navigator.clipboard.writeText("https://laumeet.vercel.app");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
   // Update current index ref
   const updateCurrentIndex = (val: number) => {
     setCurrentIndex(val);
@@ -262,6 +284,8 @@ export default function ExplorePage() {
     );
   }
 
+
+
   return (
     <div className="space-y-6 px-4 pb-28">
       {/* Header with Filters */}
@@ -284,6 +308,10 @@ export default function ExplorePage() {
           const displayName = profile.name || profile.username;
           const isShowingDetails = showDetails[profile.id];
           const isProcessing = processingMatch === profile.id;
+ // Check if user has an active subscription
+    const hasActiveSubscription = userSubscription?.has_subscription && 
+                                 userSubscription.subscription?.is_active && 
+                                 userSubscription.subscription?.status === 'active';
 
           return (
             <TinderCard
@@ -322,6 +350,13 @@ export default function ExplorePage() {
                               e.currentTarget.src = '/api/placeholder/400/500';
                             }}
                           />
+
+                          {/* Verified Badge on Image */}
+                          {hasActiveSubscription && (
+                            <div className="absolute top-4 right-12 z-20">
+                              <VerifiedBadge size="sm" className="p-1" />
+                            </div>
+                          )}
 
                           {/* Image Navigation Arrows */}
                           {hasMultipleImages && (
@@ -368,8 +403,14 @@ export default function ExplorePage() {
                       ) : (
                         // Fallback when no images
                         <div className="w-full flex-col h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                        <MessageCircle className="h-12 w-12 text-gray-400" />
-                        <p>No Pictures</p>
+                          <MessageCircle className="h-12 w-12 text-gray-400" />
+                          <p>No Pictures</p>
+                          {/* Verified Badge on empty image state */}
+                          {hasActiveSubscription && (
+                            <div className="absolute top-4 right-4 z-20">
+                              <VerifiedBadge size="sm" className="p-1" />
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -389,10 +430,13 @@ export default function ExplorePage() {
                     <div className="absolute bottom-4 left-4 right-4 z-10">
                       <div className="flex items-end justify-between">
                         <div className="flex-1">
-                          <h2 className="text-2xl font-bold capitalize text-white mb-1 drop-shadow-lg">
-                            {displayName}
-                            {profile.age > 0 && `, ${profile.age}`}
-                          </h2>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h2 className="text-2xl font-bold capitalize text-white drop-shadow-lg">
+                              {displayName}
+                              {profile.age > 0 && `, ${profile.age}`}
+                            </h2>
+                            {hasActiveSubscription && <VerifiedBadge size="sm" />}
+                          </div>
                           <p className="text-gray-200 text-sm capitalize drop-shadow-md">
                             {profile.category}
                           </p>
@@ -426,7 +470,10 @@ export default function ExplorePage() {
                       <div className="p-4 space-y-4">
                         {/* Bio */}
                         <div>
-                          <h3 className="font-semibold text-gray-800 dark:text-white mb-2">About</h3>
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="font-semibold text-gray-800 dark:text-white">About</h3>
+                            {hasActiveSubscription && <VerifiedBadge size="sm" />}
+                          </div>
                           <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed">
                             {profile.bio || 'No bio available'}
                           </p>
@@ -494,7 +541,10 @@ export default function ExplorePage() {
                         {/* Interests */}
                         {profile.interests && profile.interests.length > 0 && (
                           <div>
-                            <h3 className="font-semibold text-gray-800 dark:text-white mb-2">Interests</h3>
+                            <div className="flex items-center gap-2 mb-2">
+                              <h3 className="font-semibold text-gray-800 dark:text-white">Interests</h3>
+                              {hasActiveSubscription && <VerifiedBadge size="sm" />}
+                            </div>
                             <div className="flex flex-wrap gap-2">
                               {profile.interests.slice(0, 8).map((interest, i) => (
                                 <span 

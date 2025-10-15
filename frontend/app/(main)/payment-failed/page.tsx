@@ -54,7 +54,7 @@ function PaymentFailedContent() {
     if (!paymentId) return;
 
     try {
-      const response = await api.get(`/subscription/payments/${paymentId}/status`);
+      const response = await api.get(`/subscribe/status`, { params: { paymentId } });
       if (response.data.success) {
         setPayment(response.data.payment);
       }
@@ -162,9 +162,12 @@ function PaymentFailedContent() {
   }
 
   const errorDetails = getErrorDetails();
-
+  if(!paymentId) {
+    router.push('/subscription');
+    return null;
+  }
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-100 dark:from-red-900/20 dark:to-orange-900/20">
+    <div className="min-h-screen bg-gradient-to-br pb-32 from-red-50 to-orange-100 dark:from-red-900/20 dark:to-orange-900/20">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
           {/* Header */}

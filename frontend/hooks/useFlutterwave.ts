@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 // hooks/useFlutterwave.ts
 import { useState } from 'react';
 import api from '@/lib/axio';
@@ -17,7 +17,9 @@ export const useFlutterwaveHook = () => {
       const subscriptionResponse = await api.post('/subscription/subscribe', {
         plan_id: planId,
         billing_cycle: billingCycle,
-        payment_provider: 'flutterwave'
+        payment_provider: 'flutterwave',
+        success_url: 'http://localhost:3000/payment-success',
+        failure_url: 'http://localhost:3000/payment-failed'
       });
 
       const data = subscriptionResponse.data;

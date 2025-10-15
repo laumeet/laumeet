@@ -8,6 +8,8 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { useUsageStats } from '@/hooks/useUsageStats';
 import { useCurrentPlan } from '@/hooks/useCurrentPlan';
 import { useFlutterwaveHook } from '@/hooks/useFlutterwave';
+import { useProfile } from '@/hooks/get-profile';
+import { useUserSubscription } from '@/hooks/useUserSubscription';
 import { FlutterwavePayment } from '@/components/FlutterwavePayment';
 import { PlanCard } from '@/components/subscription/PlanCard';
 import { BillingCycleToggle } from '@/components/subscription/BillingCycleToggle';
@@ -24,7 +26,13 @@ export default function SubscriptionPage() {
   const { usage, fetchUsageStats } = useUsageStats();
   const { currentPlan, hasSubscription, loading: planLoading } = useCurrentPlan();
   const { processing, processSubscriptionPayment } = useFlutterwaveHook();
+  const { profile } = useProfile();
+  const { subscription: userSubscription } = useUserSubscription(profile?.id);
 
+  // Check if user has an active subscription
+  const hasActiveSubscription = userSubscription?.has_subscription && 
+                               userSubscription.subscription?.is_active && 
+                               userSubscription.subscription?.status === 'active';
 
   const handleSubscribe = async (planId: string, cycle: 'monthly' | 'yearly') => {
     console.log('Subscribing')
@@ -66,16 +74,22 @@ export default function SubscriptionPage() {
       {/* Header */}
       <div className="text-center space-y-4">
         <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-          Upgrade Your Experience
+          {hasActiveSubscription ? 'Your Subscription' : 'Upgrade Your Experience'}
         </h1>
         <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-          Get more matches, unlimited likes, and premium features to enhance your dating experience.
+          {hasActiveSubscription 
+            ? 'Manage your subscription and track your usage.' 
+            : 'Get more matches, unlimited likes, and premium features to enhance your dating experience.'
+          }
         </p>
         
-        <BillingCycleToggle 
-          billingCycle={billingCycle} 
-          onBillingCycleChange={setBillingCycle} 
-        />
+        {/* Only show billing toggle if user doesn't have active subscription */}
+        {!hasActiveSubscription && (
+          <BillingCycleToggle 
+            billingCycle={billingCycle} 
+            onBillingCycleChange={setBillingCycle} 
+          />
+        )}
       </div>
 
       {/* Payment Modal Overlay */}
@@ -135,59 +149,184 @@ export default function SubscriptionPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Current Plan & Usage Section */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Current Plan Card */}
-          <Card className="border-2 pt-0 border-blue-200 dark:border-blue-800">
-            <CardHeader className="bg-gradient-to-r p-2 from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
-              <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-                <CheckCircle className="h-5 w-5" />
-                {hasSubscription ? 'Your Current Plan' : 'Current Plan'}
-              </CardTitle>
-              <CardDescription>
-                {hasSubscription 
-                  ? 'Your active subscription details' 
-                  : 'You are currently on the free plan'
-                }
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              {hasSubscription && currentPlan ? (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-lg">{currentPlan.name}</span>
-                    <Badge variant="default" className="bg-green-500">
-                      Active
-                    </Badge>
+        <div className={`${hasActiveSubscription ? 'lg:col-span-3' : 'lg:col-span-1'} space-y-6`}>
+          {/* Enhanced Current Plan Card for Active Subscribers */}
+          {hasActiveSubscription && userSubscription?.subscription ? (
+            <Card className="border-2 border-green-200 dark:border-green-800">
+              <CardHeader className="bg-gradient-to-r p-6 from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-300 text-2xl">
+                      <Crown className="h-7 w-7" />
+                      {userSubscription.subscription.plan.name}
+                    </CardTitle>
+                    <CardDescription className="text-lg mt-2">
+                      Your active subscription details
+                    </CardDescription>
+                  </div>
+                  <Badge variant="default" className="bg-green-500 text-white px-3 py-1 text-sm">
+                    Active
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                {/* Plan Details Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                      <Calendar className="h-5 w-5" />
+                      <span className="font-medium">Start Date</span>
+                    </div>
+                    <p className="text-lg font-semibold">
+                      {new Date(userSubscription.subscription.dates.start_date).toLocaleDateString()}
+                    </p>
                   </div>
                   
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-gray-500" />
-                      <span>Renews: {new Date(currentPlan.dates.end_date).toLocaleDateString()}</span>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                      <Calendar className="h-5 w-5" />
+                      <span className="font-medium">Renewal Date</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-yellow-500" />
-                      <span>{currentPlan.days_remaining} days remaining</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-500">Billing:</span>
-                      <span className="capitalize">{currentPlan.billing_cycle}</span>
-                    </div>
+                    <p className="text-lg font-semibold">
+                      {new Date(userSubscription.subscription.dates.end_date).toLocaleDateString()}
+                    </p>
                   </div>
-                </>
-              ) : (
-                <div className="text-center py-4">
-                  <div className="bg-gray-100 dark:bg-gray-800 rounded-full p-3 w-12 h-12 mx-auto mb-3">
-                    <Crown className="h-6 w-6 text-gray-500 mx-auto" />
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                      <Zap className="h-5 w-5 text-yellow-500" />
+                      <span className="font-medium">Days Remaining</span>
+                    </div>
+                    <p className="text-lg font-semibold">{userSubscription.subscription.days_remaining} days</p>
                   </div>
-                  <h3 className="font-semibold text-lg mb-2">Free Plan</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Basic features to get you started
-                  </p>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                      <span className="font-medium">Billing Cycle</span>
+                    </div>
+                    <p className="text-lg font-semibold capitalize">{userSubscription.subscription.billing_cycle}</p>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+
+                {/* Auto-renewal Status */}
+                {/* <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-blue-800 dark:text-blue-300">
+                        Auto-renewal: {userSubscription.subscription.auto_renew ? 'Enabled' : 'Disabled'}
+                      </p>
+                      <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                        {userSubscription.subscription.auto_renew 
+                          ? 'Your subscription will automatically renew on the renewal date.'
+                          : 'Your subscription will expire on the renewal date.'
+                        }
+                      </p>
+                    </div>
+                    <Badge variant={userSubscription.subscription.auto_renew ? "default" : "secondary"} 
+                           className={userSubscription.subscription.auto_renew ? "bg-green-500" : "bg-gray-500"}>
+                      {userSubscription.subscription.auto_renew ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </div>
+                </div> */}
+
+                {/* Plan Features */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Plan Features</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {userSubscription.subscription.plan.features.can_see_who_liked_you && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <Eye className="h-5 w-5 text-green-500" />
+                        <span>See Who Liked You</span>
+                      </div>
+                    )}
+                    {/* {userSubscription.subscription.plan.features.can_rewind_swipes && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <Rewind className="h-5 w-5 text-green-500" />
+                        <span>Rewind Swipes</span>
+                      </div>
+                    )} */}
+                    {/* {userSubscription.subscription.plan.features.has_incognito_mode && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <UserCheck className="h-5 w-5 text-green-500" />
+                        <span>Incognito Mode</span>
+                      </div>
+                    )} */}
+                    {userSubscription.subscription.plan.features.has_priority_matching && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <Zap className="h-5 w-5 text-green-500" />
+                        <span>Priority Matching</span>
+                      </div>
+                    )}
+                    {userSubscription.subscription.plan.features.has_read_receipts && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <CheckCircle className="h-5 w-5 text-green-500" />
+                        <span>Read Receipts</span>
+                      </div>
+                    )}
+                    {userSubscription.subscription.plan.features.has_verified_badge && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <BadgeCheck className="h-5 w-5 text-green-500" />
+                        <span>Verified Badge</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            /* Original Current Plan Card for non-subscribers */
+            <Card className="border-2 pt-0 border-blue-200 dark:border-blue-800">
+              <CardHeader className="bg-gradient-to-r p-2 from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
+                <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                  <CheckCircle className="h-5 w-5" />
+                  {hasSubscription ? 'Your Current Plan' : 'Current Plan'}
+                </CardTitle>
+                <CardDescription>
+                  {hasSubscription 
+                    ? 'Your active subscription details' 
+                    : 'You are currently on the free plan'
+                  }
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-4">
+                {hasSubscription && currentPlan ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-lg">{currentPlan.name}</span>
+                      <Badge variant="default" className="bg-green-500">
+                        Active
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-gray-500" />
+                        <span>Renews: {new Date(currentPlan.dates.end_date).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-yellow-500" />
+                        <span>{currentPlan.days_remaining} days remaining</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500">Billing:</span>
+                        <span className="capitalize">{currentPlan.billing_cycle}</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-4">
+                    <div className="bg-gray-100 dark:bg-gray-800 rounded-full p-3 w-12 h-12 mx-auto mb-3">
+                      <Crown className="h-6 w-6 text-gray-500 mx-auto" />
+                    </div>
+                    <h3 className="font-semibold text-lg mb-2">Free Plan</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Basic features to get you started
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Usage Statistics */}
           {usage && (
@@ -256,73 +395,77 @@ export default function SubscriptionPage() {
             </Card>
           )}
 
-          {/* Benefits Card */}
-          <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-300">
-                <Star className="h-5 w-5" />
-                Premium Benefits
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-3">
-                <Infinity className="h-4 w-4 text-green-500" />
-                <span className="text-sm">Unlimited Likes & Swipes</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <MessageCircle className="h-4 w-4 text-green-500" />
-                <span className="text-sm">Priority Message Delivery</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Zap className="h-4 w-4 text-green-500" />
-                <span className="text-sm">Advanced Matching Filters</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Eye className="h-4 w-4 text-green-500" />
-                <span className="text-sm">See Who Liked You</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Subscription Plans */}
-        <div className="lg:col-span-2">
-          {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-              <span className="ml-2 text-gray-600">Loading plans...</span>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {plans.map((plan) => {
-                const isCurrentPlan = currentPlan?.tier === plan.tier;
-                const isFreePlan = plan.tier === 'free';
-                
-                return (
-                  <PlanCard
-                    key={plan.id}
-                    plan={plan}
-                    currentPlan={isCurrentPlan}
-                    billingCycle={billingCycle}
-                    onSubscribe={(planId, cycle) => {
-                      if (!isCurrentPlan && !isFreePlan) {
-                        setSelectedPlan({ id: planId, cycle });
-                      }
-                    }}
-                    loading={processing && selectedPlan?.id === plan.id}
-                    disabled={isCurrentPlan || isFreePlan}
-                  />
-                );
-              })}
-            </div>
+          {/* Benefits Card - Only show for non-subscribers */}
+          {!hasActiveSubscription && (
+            <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                  <Star className="h-5 w-5" />
+                  Premium Benefits
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Infinity className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Unlimited Likes & Swipes</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <MessageCircle className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Priority Message Delivery</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Zap className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Advanced Matching Filters</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Eye className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">See Who Liked You</span>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
+
+        {/* Subscription Plans - Only show if user doesn't have active subscription */}
+        {!hasActiveSubscription && (
+          <div className="lg:col-span-2">
+            {loading ? (
+              <div className="flex items-center justify-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                <span className="ml-2 text-gray-600">Loading plans...</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {plans.map((plan) => {
+                  const isCurrentPlan = currentPlan?.tier === plan.tier;
+                  const isFreePlan = plan.tier === 'free';
+                  
+                  return (
+                    <PlanCard
+                      key={plan.id}
+                      plan={plan}
+                      currentPlan={isCurrentPlan}
+                      billingCycle={billingCycle}
+                      onSubscribe={(planId, cycle) => {
+                        if (!isCurrentPlan && !isFreePlan) {
+                          setSelectedPlan({ id: planId, cycle });
+                        }
+                      }}
+                      loading={processing && selectedPlan?.id === plan.id}
+                      disabled={isCurrentPlan || isFreePlan}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// Add the missing Eye icon component
+// Add the missing icon components
 function Eye(props: any) {
   return (
     <svg
@@ -339,6 +482,67 @@ function Eye(props: any) {
     >
       <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
       <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function Rewind(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polygon points="11 19 2 12 11 5 11 19" />
+      <polygon points="22 19 13 12 22 5 22 19" />
+    </svg>
+  );
+}
+
+function UserCheck(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <polyline points="16 11 18 13 22 9" />
+    </svg>
+  );
+}
+
+function BadgeCheck(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z" />
+      <path d="m9 12 2 2 4-4" />
     </svg>
   );
 }

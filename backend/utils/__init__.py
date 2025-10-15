@@ -8,7 +8,7 @@ from .validation import (
 )
 from .security import rate_limit, validate_conversation_access, get_current_user_from_jwt
 from .helpers import build_image_url
-from .flutterwave_client import FlutterwaveClient, flutterwave_client  # 👈 Add this import
+from .flutterwave_client import FlutterwaveClient, get_flutterwave_client  # 👈 Change this import
 
 __all__ = [
     'is_valid_username',
@@ -21,6 +21,6 @@ __all__ = [
     'validate_conversation_access',
     'get_current_user_from_jwt',
     'build_image_url',
-    'FlutterwaveClient',           # 👈 Add to exports
-    'flutterwave_client'           # 👈 Add to exports
+    'FlutterwaveClient',           # 👈 Keep class export
+    'get_flutterwave_client'       # 👈 Change to function export
 ]

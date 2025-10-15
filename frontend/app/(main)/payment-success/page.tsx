@@ -49,7 +49,7 @@ function PaymentSuccessContent() {
     try {
       setVerifying(true);
 
-      const paymentResponse = await api.get(`/subscription/payments/${paymentId}/status`);
+      const paymentResponse = await api.get(`/subscribe/status`, { params: { paymentId } });
 
       if (paymentResponse.data.success) {
         const paymentData = paymentResponse.data.payment;
@@ -83,7 +83,7 @@ function PaymentSuccessContent() {
     if (!paymentId) return;
 
     try {
-      const verifyResponse = await api.post(`/subscription/payments/${paymentId}/verify`);
+      const verifyResponse = await api.post(`/subscribe/status`, { params: { paymentId } });
 
       if (verifyResponse.data.success) {
         toast.success('Payment verified successfully!');
@@ -134,9 +134,13 @@ function PaymentSuccessContent() {
       </div>
     );
   }
+    if(!paymentId) {
+    router.push('/subscription');
+    return null;
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/20">
+    <div className="min-h-screen bg-gradient-to-br pb-32 from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/20">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
@@ -278,7 +282,7 @@ function PaymentSuccessContent() {
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
 
-                  <Button onClick={() => router.push('/discover')} variant="outline" className="w-full">
+                  <Button onClick={() => router.push('/explore')} variant="outline" className="w-full">
                     Start Matching
                     <Zap className="h-4 w-4 ml-2" />
                   </Button>

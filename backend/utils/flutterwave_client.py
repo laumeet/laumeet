@@ -25,6 +25,7 @@ class FlutterwaveClient:
 
     def init_payment(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize payment with Flutterwave"""
+        print(f"Initializing payment with payload:", payload)  # Debug statement
         try:
             url = f"{self.base_url}/payments"
             
@@ -41,6 +42,7 @@ class FlutterwaveClient:
                 timeout=self.timeout,
                 verify=True  # Ensure SSL verification
             )
+            print(f"Flutterwave response status:", response.status_code)  # Debug statement
             
             logger.info(f"Flutterwave response status: {response.status_code}")
             

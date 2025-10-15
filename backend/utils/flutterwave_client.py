@@ -34,7 +34,9 @@ class FlutterwaveClient:
             if 'customer' in safe_payload:
                 safe_payload['customer'] = {**safe_payload['customer'], 'email': '***'}
             logger.info(f"Initializing Flutterwave payment: {safe_payload}")
-            
+            print(f"Flutterwave request URL:", url)  # Debug statement
+            print(f"Flutterwave request headers:", self._get_headers())  # Debug statement
+            print(f"Flutterwave request payload:", safe_payload)  # Debug statement
             response = requests.post(
                 url, 
                 json=payload, 

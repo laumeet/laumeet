@@ -467,7 +467,7 @@ def create_subscription():
             amount=price,
             billing_cycle=billing_cycle,
             provider=PaymentProvider.FLUTTERWAVE,
-            status=PaymentStatus.PENDING
+            status=PaymentStatus.COMPLETED
         )
 
         db.session.add(payment)

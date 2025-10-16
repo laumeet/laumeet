@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { SubscriptionPlan } from '@/hooks/useSubscription';
+import { toast } from 'sonner';
+import { useProfile } from '@/hooks/get-profile';
 
 interface PlanCardProps {
   plan: SubscriptionPlan;
@@ -23,6 +25,7 @@ export function PlanCard({
   loading = false,
   disabled = false 
 }: PlanCardProps) {
+  const { profile: user } = useProfile();
   const price = billingCycle === 'yearly' ? plan.pricing.yearly : plan.pricing.monthly;
   const originalYearlyPrice = plan.pricing.monthly * 12;
   const yearlySavings = originalYearlyPrice - plan.pricing.yearly;
@@ -110,20 +113,45 @@ export function PlanCard({
     },
   ];
 
+  const handleSubscription = async () => {
+    if (!user) {
+      toast.error('Please login to subscribe');
+      return;
+    }
+
+    try {
+      // For free plan, just call the onSubscribe callback
+      if (plan.tier === 'free') {
+        onSubscribe(plan.id, billingCycle);
+        return;
+      }
+
+      // For paid plans, trigger the parent subscription handler
+      onSubscribe(plan.id, billingCycle);
+      
+    } catch (error) {
+      console.error('Subscription error:', error);
+      if (error instanceof Error && !error.message.includes('cancelled')) {
+        toast.error(error.message || 'Subscription failed. Please try again.');
+      }
+    }
+  };
+
   const isFreePlan = plan.tier === 'free';
   const isDisabled = disabled || currentPlan || (isFreePlan && !currentPlan);
+  const isLoading = loading;
 
   return (
     <Card className={cn(
-      "relative overflow-hidden pt-0 transition-all duration-300",
+      "relative overflow-hidden transition-all duration-300",
       plan.is_popular && "border-2 border-blue-500 shadow-lg",
-      !plan.is_popular && "border-2 border-transparent",
+      !plan.is_popular && "border border-gray-200 dark:border-gray-700",
       isDisabled && "opacity-70 cursor-not-allowed",
-      !isDisabled && "hover:scale-105 hover:shadow-xl"
+      !isDisabled && "hover:shadow-xl"
     )}>
       {/* Popular Badge */}
       {plan.is_popular && (
-        <div className="absolute top-18 right-2 z-10">
+        <div className="absolute top-4 right-4 z-10">
           <Badge className="bg-blue-500 text-white px-3 py-1">
             <Star className="h-3 w-3 mr-1" />
             Most Popular
@@ -133,7 +161,7 @@ export function PlanCard({
       
       {/* Current Plan Badge */}
       {currentPlan && (
-        <div className="absolute top-18 left-2 z-10">
+        <div className="absolute top-4 left-4 z-10">
           <Badge className="bg-green-500 text-white px-3 py-1">
             <Check className="h-3 w-3 mr-1" />
             Current Plan
@@ -252,14 +280,10 @@ export function PlanCard({
           )}
           variant={plan.tier === 'free' ? 'outline' : 'default'}
           size="lg"
-          disabled={isDisabled || loading}
-          onClick={() => {
-            if (!isDisabled && !loading) {
-              onSubscribe(plan.id, billingCycle);
-            }
-          }}
+          disabled={isDisabled || isLoading}
+          onClick={handleSubscription}
         >
-          {loading ? (
+          {isLoading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
               Processing...
@@ -278,7 +302,7 @@ export function PlanCard({
       </CardFooter>
 
       {/* Loading Overlay */}
-      {loading && (
+      {isLoading && (
         <div className="absolute inset-0 bg-white/50 dark:bg-black/50 flex items-center justify-center rounded-lg">
           <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
         </div>

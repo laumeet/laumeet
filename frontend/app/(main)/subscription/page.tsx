@@ -2,15 +2,14 @@
 // app/subscription/page.tsx
 'use client';
 
-import { useState } from 'react';
-import { Crown, Star, Zap, CheckCircle, Loader2, Calendar, Infinity, MessageCircle, Heart, Hand } from 'lucide-react';
+import { useState} from 'react';
+import { Crown, Star, Zap, CheckCircle, Loader2, Calendar, Infinity, MessageCircle, Heart, Hand, X, Check, Eye, Filter, UserCheck, BadgeCheck } from 'lucide-react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useUsageStats } from '@/hooks/useUsageStats';
 import { useCurrentPlan } from '@/hooks/useCurrentPlan';
 import { useFlutterwaveHook } from '@/hooks/useFlutterwave';
 import { useProfile } from '@/hooks/get-profile';
 import { useUserSubscription } from '@/hooks/useUserSubscription';
-import { FlutterwavePayment } from '@/components/FlutterwavePayment';
 import { PlanCard } from '@/components/subscription/PlanCard';
 import { BillingCycleToggle } from '@/components/subscription/BillingCycleToggle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,11 +20,19 @@ import { toast } from 'sonner';
 
 export default function SubscriptionPage() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
-  const [selectedPlan, setSelectedPlan] = useState<{id: string, cycle: 'monthly' | 'yearly'} | null>(null);
+  
   const { plans, loading: plansLoading } = useSubscription();
-  const { usage, fetchUsageStats } = useUsageStats();
+  const { usage } = useUsageStats();
   const { currentPlan, hasSubscription, loading: planLoading } = useCurrentPlan();
-  const { processing, processSubscriptionPayment } = useFlutterwaveHook();
+  const { 
+    processing, 
+    processSubscriptionPayment, 
+    showSuccessModal,
+    showFailedModal,
+    setShowFailedModal,
+    setShowSuccessModal,
+    paymentResult,
+  } = useFlutterwaveHook();
   const { profile } = useProfile();
   const { subscription: userSubscription } = useUserSubscription(profile?.id);
 
@@ -35,35 +42,41 @@ export default function SubscriptionPage() {
                                userSubscription.subscription?.status === 'active';
 
   const handleSubscribe = async (planId: string, cycle: 'monthly' | 'yearly') => {
-    console.log('Subscribing')
     try {
       const plan = plans.find(p => p.id === planId);
-      if (!plan) return;
+      if (!plan || !profile) return;
 
-      setSelectedPlan({ id: planId, cycle });
-      
-      await processSubscriptionPayment(
-        planId, 
-        cycle, 
-      );
-      
-      // If we get here, payment was successful
-      await fetchUsageStats();
-      
-      toast.success('Subscription activated successfully!');
-      
-      setSelectedPlan(null);
-      
+      // Prepare user data for payment
+      const userData = {
+        email: "user@example.com",
+        name: profile.username || profile.name || 'User',
+      };
+
+      // Prepare plan data
+      const planData = {
+        name: plan.name,
+        amount: cycle === 'yearly' ? plan.pricing.yearly : plan.pricing.monthly,
+        description: plan.description,
+      };
+
+      console.log('🔄 Starting payment process...', { planId, cycle, userData, planData });
+
+      // Process payment using Flutterwave
+      await processSubscriptionPayment({
+        planId,
+        billingCycle: cycle,
+        userData,
+        planData
+      });
+
     } catch (error: any) {
-      console.error('Subscription error:', error);
+      console.error('❌ Subscription error:', error);
       
       if (error.message !== 'Payment cancelled by user') {
         toast.error('Subscription failed', {
           description: error.message || 'Please try again or contact support if the issue persists.',
         });
       }
-      
-      setSelectedPlan(null);
     }
   };
 
@@ -92,56 +105,92 @@ export default function SubscriptionPage() {
         )}
       </div>
 
-      {/* Payment Modal Overlay */}
-      {selectedPlan && (
+      {/* Success Modal */}
+      {showSuccessModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Crown className="h-6 w-6 text-yellow-500" />
-                Complete Your Subscription
-              </CardTitle>
+          <Card className="w-full max-w-md mx-auto">
+            <CardHeader className="text-center">
+              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                <Check className="h-8 w-8 text-green-600" />
+              </div>
+              <CardTitle className="text-green-600">Payment Successful!</CardTitle>
               <CardDescription>
-                You&apos;re about to subscribe to {plans.find(p => p.id === selectedPlan.id)?.name} plan
+                Your subscription has been activated successfully
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  ₦{(() => {
-                    const plan = plans.find(p => p.id === selectedPlan.id);
-                    return selectedPlan.cycle === 'yearly' 
-                      ? plan?.pricing.yearly.toLocaleString() 
-                      : plan?.pricing.monthly.toLocaleString();
-                  })()}
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {selectedPlan.cycle === 'yearly' ? 'Per Year' : 'Per Month'}
-                </p>
-              </div>
-              
-              <FlutterwavePayment
-                onPay={() => handleSubscribe(selectedPlan.id, selectedPlan.cycle)}
-                disabled={processing}
-              >
-                {processing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Processing...
-                  </>
-                ) : (
-                  'Proceed to Payment'
-                )}
-              </FlutterwavePayment>
-              
+            <CardContent className="space-y-4 text-center">
+              {paymentResult?.subscription && (
+                <div className="space-y-2 text-sm">
+                  <p><strong>Plan:</strong> {paymentResult.subscription.plan_id}</p>
+                  <p><strong>Transaction ID:</strong> {paymentResult.subscription.flutterwave_transaction_id}</p>
+                  <p><strong>Reference:</strong> {paymentResult.subscription.transaction_reference}</p>
+                </div>
+              )}
               <Button 
-                variant="outline" 
-                className="w-full" 
-                onClick={() => setSelectedPlan(null)}
-                disabled={processing}
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full bg-green-600 hover:bg-green-700"
               >
-                Cancel
+                Continue
               </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Failed Modal */}
+      {showFailedModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md mx-auto">
+            <CardHeader className="text-center">
+              <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <X className="h-8 w-8 text-red-600" />
+              </div>
+              <CardTitle className="text-red-600">Payment Failed</CardTitle>
+              <CardDescription>
+                {paymentResult?.message || 'Your payment could not be processed'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-center">
+              <div className="text-sm text-gray-600">
+                <p>Please try again or contact support if the issue persists.</p>
+              </div>
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline"
+                  onClick={() => setShowFailedModal(false)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={() => setShowFailedModal(false)}
+                  className="flex-1 bg-red-600 hover:bg-red-700"
+                >
+                  Try Again
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Payment Processing Modal */}
+      {processing && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md mx-auto">
+            <CardHeader className="text-center">
+              <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+              </div>
+              <CardTitle>Processing Payment</CardTitle>
+              <CardDescription>
+                Please wait while we process your payment...
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-sm text-gray-600">
+                You will be redirected to Flutterwave to complete your payment.
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -208,27 +257,6 @@ export default function SubscriptionPage() {
                   </div>
                 </div>
 
-                {/* Auto-renewal Status */}
-                {/* <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-blue-800 dark:text-blue-300">
-                        Auto-renewal: {userSubscription.subscription.auto_renew ? 'Enabled' : 'Disabled'}
-                      </p>
-                      <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                        {userSubscription.subscription.auto_renew 
-                          ? 'Your subscription will automatically renew on the renewal date.'
-                          : 'Your subscription will expire on the renewal date.'
-                        }
-                      </p>
-                    </div>
-                    <Badge variant={userSubscription.subscription.auto_renew ? "default" : "secondary"} 
-                           className={userSubscription.subscription.auto_renew ? "bg-green-500" : "bg-gray-500"}>
-                      {userSubscription.subscription.auto_renew ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </div>
-                </div> */}
-
                 {/* Plan Features */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Plan Features</h3>
@@ -239,18 +267,6 @@ export default function SubscriptionPage() {
                         <span>See Who Liked You</span>
                       </div>
                     )}
-                    {/* {userSubscription.subscription.plan.features.can_rewind_swipes && (
-                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <Rewind className="h-5 w-5 text-green-500" />
-                        <span>Rewind Swipes</span>
-                      </div>
-                    )} */}
-                    {/* {userSubscription.subscription.plan.features.has_incognito_mode && (
-                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <UserCheck className="h-5 w-5 text-green-500" />
-                        <span>Incognito Mode</span>
-                      </div>
-                    )} */}
                     {userSubscription.subscription.plan.features.has_priority_matching && (
                       <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                         <Zap className="h-5 w-5 text-green-500" />
@@ -267,6 +283,18 @@ export default function SubscriptionPage() {
                       <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                         <BadgeCheck className="h-5 w-5 text-green-500" />
                         <span>Verified Badge</span>
+                      </div>
+                    )}
+                    {userSubscription.subscription.plan.features.has_advanced_filters && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <Filter className="h-5 w-5 text-green-500" />
+                        <span>Advanced Filters</span>
+                      </div>
+                    )}
+                    {userSubscription.subscription.plan.features.has_incognito_mode && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <UserCheck className="h-5 w-5 text-green-500" />
+                        <span>Incognito Mode</span>
                       </div>
                     )}
                   </div>
@@ -353,7 +381,7 @@ export default function SubscriptionPage() {
                     </span>
                   </div>
                   <Progress 
-                    value={(usage.messages.used / (usage.messages.limit === -1 ? 100 : usage.messages.limit)) * 100} 
+                    value={(usage.messages.used / (usage.messages.limit === -1 ? 100 : Math.max(usage.messages.limit, 1))) * 100} 
                     className="h-2"
                   />
                 </div>
@@ -370,7 +398,7 @@ export default function SubscriptionPage() {
                     </span>
                   </div>
                   <Progress 
-                    value={(usage.likes.used / (usage.likes.limit === -1 ? 100 : usage.likes.limit)) * 100} 
+                    value={(usage.likes.used / (usage.likes.limit === -1 ? 100 : Math.max(usage.likes.limit, 1))) * 100} 
                     className="h-2"
                   />
                 </div>
@@ -387,7 +415,7 @@ export default function SubscriptionPage() {
                     </span>
                   </div>
                   <Progress 
-                    value={(usage.swipes.used / (usage.swipes.limit === -1 ? 100 : usage.swipes.limit)) * 100} 
+                    value={(usage.swipes.used / (usage.swipes.limit === -1 ? 100 : Math.max(usage.swipes.limit, 1))) * 100} 
                     className="h-2"
                   />
                 </div>
@@ -446,12 +474,8 @@ export default function SubscriptionPage() {
                       plan={plan}
                       currentPlan={isCurrentPlan}
                       billingCycle={billingCycle}
-                      onSubscribe={(planId, cycle) => {
-                        if (!isCurrentPlan && !isFreePlan) {
-                          setSelectedPlan({ id: planId, cycle });
-                        }
-                      }}
-                      loading={processing && selectedPlan?.id === plan.id}
+                      onSubscribe={handleSubscribe}
+                      loading={processing}
                       disabled={isCurrentPlan || isFreePlan}
                     />
                   );
@@ -465,84 +489,9 @@ export default function SubscriptionPage() {
   );
 }
 
-// Add the missing icon components
-function Eye(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function Rewind(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polygon points="11 19 2 12 11 5 11 19" />
-      <polygon points="22 19 13 12 22 5 22 19" />
-    </svg>
-  );
-}
-
-function UserCheck(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <polyline points="16 11 18 13 22 9" />
-    </svg>
-  );
-}
-
-function BadgeCheck(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z" />
-      <path d="m9 12 2 2 4-4" />
-    </svg>
-  );
+// Add global type for Flutterwave
+declare global {
+  interface Window {
+    FlutterwaveCheckout: any;
+  }
 }

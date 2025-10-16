@@ -1,21 +1,63 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // components/FlutterwavePayment.tsx
 'use client';
 
-import { Button } from '@/components/ui/button';
+import { useEffect } from 'react';
+
 interface FlutterwavePaymentProps {
-  onPay: () => void;
-  disabled?: boolean;
-  children: React.ReactNode;
+  isOpen: boolean;
+  onSuccess: (response: any) => void;
+  onClose: () => void;
+  paymentData: {
+    publicKey: string;
+    amount: number;
+    currency: string;
+    paymentOptions: string;
+    customer: {
+      email: string;
+      name: string;
+    };
+    customizations: {
+      title: string;
+      description: string;
+      logo: string;
+    };
+    txRef: string;
+  };
 }
 
 export function FlutterwavePayment({ 
-  onPay, 
-  disabled, 
-  children 
+  isOpen, 
+  onSuccess, 
+  onClose, 
+  paymentData 
 }: FlutterwavePaymentProps) {
-  return (
-    <Button onClick={onPay} disabled={disabled}>
-      {children}
-    </Button>
-  );
+  useEffect(() => {
+    if (isOpen && window.FlutterwaveCheckout) {
+      const config = {
+        public_key: paymentData.publicKey,
+        tx_ref: paymentData.txRef,
+        amount: paymentData.amount,
+        currency: paymentData.currency,
+        payment_options: paymentData.paymentOptions,
+        customer: paymentData.customer,
+        customizations: paymentData.customizations,
+        callback: (response: any) => {
+          console.log('Payment response:', response);
+          if (response.status === 'successful') {
+            onSuccess(response);
+          } else {
+            onClose();
+          }
+        },
+        onclose: () => {
+          onClose();
+        },
+      };
+
+      window.FlutterwaveCheckout(config);
+    }
+  }, [isOpen, paymentData, onSuccess, onClose]);
+
+  return null;
 }

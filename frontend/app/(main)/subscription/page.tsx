@@ -82,7 +82,7 @@ export default function SubscriptionPage() {
 
       // Prepare user data for payment
       const userData = {
-        email: profile.email || "user@example.com",
+        email: "laumeet@gmail.com",
         name: profile.username || profile.name || 'User',
       };
 

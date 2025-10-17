@@ -2,7 +2,7 @@
 // app/subscription/page.tsx
 'use client';
 
-import { useState} from 'react';
+import { useState, useEffect } from 'react';
 import { Crown, Star, Zap, CheckCircle, Loader2, Calendar, Infinity, MessageCircle, Heart, Hand, X, Check, Eye, Filter, UserCheck, BadgeCheck } from 'lucide-react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useUsageStats } from '@/hooks/useUsageStats';
@@ -20,7 +20,8 @@ import { toast } from 'sonner';
 
 export default function SubscriptionPage() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
-  
+  const [isSubscribing, setIsSubscribing] = useState(false);
+
   const { plans, loading: plansLoading } = useSubscription();
   const { usage } = useUsageStats();
   const { currentPlan, hasSubscription, loading: planLoading } = useCurrentPlan();
@@ -34,21 +35,54 @@ export default function SubscriptionPage() {
     paymentResult,
   } = useFlutterwaveHook();
   const { profile } = useProfile();
-  const { subscription: userSubscription } = useUserSubscription(profile?.id);
+  const { subscription: userSubscription, refetch: refetchUserSubscription } = useUserSubscription(profile?.id);
 
   // Check if user has an active subscription
   const hasActiveSubscription = userSubscription?.has_subscription && 
                                userSubscription.subscription?.is_active && 
                                userSubscription.subscription?.status === 'active';
 
+  // Refetch user subscription when payment is successful
+  useEffect(() => {
+    if (showSuccessModal && profile?.id) {
+      refetchUserSubscription();
+    }
+  }, [showSuccessModal, profile?.id, refetchUserSubscription]);
+
   const handleSubscribe = async (planId: string, cycle: 'monthly' | 'yearly') => {
+    if (!profile) {
+      toast.error('Please login to subscribe');
+      return;
+    }
+
+    // For free plan, handle differently
+    const plan = plans.find(p => p.id === planId);
+    if (plan?.tier === 'free') {
+      try {
+        setIsSubscribing(true);
+        // Call your API to switch to free plan
+        await api.post("/subscription/subscribe", {
+          plan_id: planId,
+          billing_cycle: cycle
+        });
+        toast.success('Switched to free plan successfully');
+        refetchUserSubscription();
+      } catch (error) {
+        console.error('Free plan switch error:', error);
+        toast.error('Failed to switch plan');
+      } finally {
+        setIsSubscribing(false);
+      }
+      return;
+    }
+
+    // For paid plans
     try {
-      const plan = plans.find(p => p.id === planId);
-      if (!plan || !profile) return;
+      if (!plan) return;
 
       // Prepare user data for payment
       const userData = {
-        email: "user@example.com",
+        email: profile.email || "user@example.com",
         name: profile.username || profile.name || 'User',
       };
 
@@ -71,7 +105,7 @@ export default function SubscriptionPage() {
 
     } catch (error: any) {
       console.error('❌ Subscription error:', error);
-      
+
       if (error.message !== 'Payment cancelled by user') {
         toast.error('Subscription failed', {
           description: error.message || 'Please try again or contact support if the issue persists.',
@@ -95,7 +129,7 @@ export default function SubscriptionPage() {
             : 'Get more matches, unlimited likes, and premium features to enhance your dating experience.'
           }
         </p>
-        
+
         {/* Only show billing toggle if user doesn't have active subscription */}
         {!hasActiveSubscription && (
           <BillingCycleToggle 
@@ -127,7 +161,10 @@ export default function SubscriptionPage() {
                 </div>
               )}
               <Button 
-                onClick={() => setShowSuccessModal(false)}
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  refetchUserSubscription();
+                }}
                 className="w-full bg-green-600 hover:bg-green-700"
               >
                 Continue
@@ -230,7 +267,7 @@ export default function SubscriptionPage() {
                       {new Date(userSubscription.subscription.dates.start_date).toLocaleDateString()}
                     </p>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                       <Calendar className="h-5 w-5" />
@@ -240,7 +277,7 @@ export default function SubscriptionPage() {
                       {new Date(userSubscription.subscription.dates.end_date).toLocaleDateString()}
                     </p>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                       <Zap className="h-5 w-5 text-yellow-500" />
@@ -248,7 +285,7 @@ export default function SubscriptionPage() {
                     </div>
                     <p className="text-lg font-semibold">{userSubscription.subscription.days_remaining} days</p>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                       <span className="font-medium">Billing Cycle</span>
@@ -325,7 +362,7 @@ export default function SubscriptionPage() {
                         Active
                       </Badge>
                     </div>
-                    
+
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-gray-500" />
@@ -467,7 +504,7 @@ export default function SubscriptionPage() {
                 {plans.map((plan) => {
                   const isCurrentPlan = currentPlan?.tier === plan.tier;
                   const isFreePlan = plan.tier === 'free';
-                  
+
                   return (
                     <PlanCard
                       key={plan.id}
@@ -475,8 +512,8 @@ export default function SubscriptionPage() {
                       currentPlan={isCurrentPlan}
                       billingCycle={billingCycle}
                       onSubscribe={handleSubscribe}
-                      loading={processing}
-                      disabled={isCurrentPlan || isFreePlan}
+                      loading={processing || isSubscribing}
+                      disabled={isCurrentPlan || (isFreePlan && !isCurrentPlan)}
                     />
                   );
                 })}

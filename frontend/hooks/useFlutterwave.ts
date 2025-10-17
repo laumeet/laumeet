@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // hooks/useFlutterwave.ts
 import api from '@/lib/axio';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 interface PaymentData {
   planId: string;
@@ -23,6 +23,16 @@ export const useFlutterwaveHook = () => {
   const [showFailedModal, setShowFailedModal] = useState(false);
   const [paymentResult, setPaymentResult] = useState<any>(null);
 
+  // ✅ Automatically clear modals when component unmounts or page reloads
+  useEffect(() => {
+    return () => {
+      setProcessing(false);
+      setShowSuccessModal(false);
+      setShowFailedModal(false);
+      setPaymentResult(null);
+    };
+  }, []);
+
   const processSubscriptionPayment = useCallback(async (paymentData: PaymentData) => {
     setProcessing(true);
     setShowSuccessModal(false);
@@ -30,7 +40,6 @@ export const useFlutterwaveHook = () => {
 
     return new Promise((resolve, reject) => {
       const publicKey = process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY;
-
       if (!publicKey) {
         setProcessing(false);
         reject(new Error('Flutterwave public key not configured'));
@@ -59,9 +68,10 @@ export const useFlutterwaveHook = () => {
           logo: '/logo.png',
         },
 
-        // ✅ Flutterwave provides "onSuccess" and "onClose" in v3 SDK
+        // ✅ Called automatically when Flutterwave returns success in popup
         onSuccess: async (transaction: any) => {
           console.log('Payment success:', transaction);
+
           try {
             const subscriptionResponse = await api.post('/subscription/subscribe', {
               plan_id: paymentData.planId,
@@ -81,18 +91,23 @@ export const useFlutterwaveHook = () => {
             setShowSuccessModal(true);
             setProcessing(false);
 
-            // ✅ Close Flutterwave modal automatically
-            if (typeof window?.FlutterwaveCheckout?.close === 'function') {
-              window.FlutterwaveCheckout.close();
+            // ✅ Attempt to close the Flutterwave modal automatically
+            try {
+              const fw = (window as any).flutterwaveCheckoutInstance;
+              if (fw && typeof fw.close === 'function') fw.close();
+            } catch (e) {
+              console.warn('Could not close Flutterwave modal:', e);
             }
 
             resolve(successResult);
           } catch (error) {
             console.error('Subscription API error:', error);
+
             const errorResult = {
               success: false,
-              message: 'Payment successful but subscription creation failed',
+              message: 'Payment succeeded but subscription creation failed',
             };
+
             setPaymentResult(errorResult);
             setShowFailedModal(true);
             setProcessing(false);
@@ -100,6 +115,7 @@ export const useFlutterwaveHook = () => {
           }
         },
 
+        // Called when user closes modal manually or payment fails
         onClose: () => {
           console.log('Payment modal closed');
           setProcessing(false);
@@ -107,18 +123,28 @@ export const useFlutterwaveHook = () => {
         },
       };
 
-      // ✅ Initialize Flutterwave Checkout
-      if (window.FlutterwaveCheckout) {
-        window.FlutterwaveCheckout(config);
+      // ✅ Initialize Flutterwave popup
+      const startFlutterwave = () => {
+        try {
+          const instance = (window as any).FlutterwaveCheckout(config);
+          (window as any).flutterwaveCheckoutInstance = instance;
+        } catch (err) {
+          console.error('Error initializing Flutterwave:', err);
+          setProcessing(false);
+          reject(err);
+        }
+      };
+
+      // If Flutterwave script already loaded
+      if ((window as any).FlutterwaveCheckout) {
+        startFlutterwave();
       } else {
         const script = document.createElement('script');
         script.src = 'https://checkout.flutterwave.com/v3.js';
-        script.onload = () => {
-          window.FlutterwaveCheckout(config);
-        };
+        script.onload = startFlutterwave;
         script.onerror = () => {
           setProcessing(false);
-          reject(new Error('Failed to load Flutterwave'));
+          reject(new Error('Failed to load Flutterwave script'));
         };
         document.body.appendChild(script);
       }

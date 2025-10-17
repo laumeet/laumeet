@@ -35,9 +35,11 @@ export const useFlutterwaveHook = () => {
         window.FlutterwaveCheckout({
           ...config,
           callback: (response: any) => {
+            console.log('🎯 Flutterwave callback received:', response);
             resolve(response);
           },
           onclose: () => {
+            console.log('🚪 Flutterwave modal closed by user');
             reject(new Error('Payment cancelled by user'));
           }
         });
@@ -46,17 +48,21 @@ export const useFlutterwaveHook = () => {
         const script = document.createElement('script');
         script.src = 'https://checkout.flutterwave.com/v3.js';
         script.onload = () => {
+          console.log('📜 Flutterwave script loaded');
           window.FlutterwaveCheckout({
             ...config,
             callback: (response: any) => {
+              console.log('🎯 Flutterwave callback received:', response);
               resolve(response);
             },
             onclose: () => {
+              console.log('🚪 Flutterwave modal closed by user');
               reject(new Error('Payment cancelled by user'));
             }
           });
         };
         script.onerror = () => {
+          console.error('❌ Failed to load Flutterwave script');
           reject(new Error('Failed to load Flutterwave'));
         };
         document.body.appendChild(script);
@@ -67,6 +73,9 @@ export const useFlutterwaveHook = () => {
   const processSubscriptionPayment = useCallback(async (paymentData: PaymentData): Promise<SubscriptionResponse> => {
     try {
       setProcessing(true);
+      setShowSuccessModal(false);
+      setShowFailedModal(false);
+      setPaymentResult(null);
 
       // Get Flutterwave public key from environment variables
       const publicKey = process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY;
@@ -94,7 +103,7 @@ export const useFlutterwaveHook = () => {
           description: `${paymentData.planData.name} - ${paymentData.billingCycle === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
           logo: '/logo.png',
         },
-        redirect_url: window.location.href,
+        redirect_url: window.location.href, // Important for redirect back
       };
 
       console.log('🔄 Initializing Flutterwave payment...', config);
@@ -102,9 +111,9 @@ export const useFlutterwaveHook = () => {
       // Initialize Flutterwave payment
       const response: any = await initializeFlutterwave(config);
 
-      console.log('💰 Payment response:', response);
+      console.log('💰 Flutterwave payment response:', response);
 
-      // Directly handle successful payment
+      // Handle payment response
       if (response.status === 'successful') {
         console.log('✅ Payment successful, creating subscription...');
         
@@ -134,6 +143,7 @@ export const useFlutterwaveHook = () => {
             }
           };
 
+          console.log('🎉 Setting success response and showing modal');
           setPaymentResult(successResponse);
           setShowSuccessModal(true);
           return successResponse;
@@ -151,29 +161,38 @@ export const useFlutterwaveHook = () => {
               flutterwave_transaction_id: response.transaction_id,
             }
           };
+          console.log('🎉 Setting success response (with API error) and showing modal');
           setPaymentResult(successResponse);
           setShowSuccessModal(true);
           return successResponse;
         }
       } else {
-        // Payment failed
-        throw new Error(response.message || 'Payment failed');
+        // Payment failed or was cancelled
+        console.log('❌ Payment failed with status:', response.status);
+        const errorMessage = response.message || 'Payment failed or was cancelled';
+        throw new Error(errorMessage);
       }
     } catch (error: any) {
-      console.error('❌ Payment error:', error);
+      console.error('❌ Payment process error:', error);
+      
       const errorResponse = {
         success: false,
         message: error.message || 'Payment failed'
       };
+      
       setPaymentResult(errorResponse);
 
-      // Only show failed modal for actual failures, not cancellations
+      // Show failed modal for all errors except user cancellation
       if (error.message !== 'Payment cancelled by user') {
+        console.log('🚨 Showing failed modal');
         setShowFailedModal(true);
+      } else {
+        console.log('👤 User cancelled payment, not showing failed modal');
       }
 
       throw error;
     } finally {
+      console.log('🏁 Payment process completed, setting processing to false');
       setProcessing(false);
     }
   }, [initializeFlutterwave]);

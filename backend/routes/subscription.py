@@ -432,7 +432,7 @@ def get_current_subscription():
 @jwt_required()
 def create_subscription():
     """
-    Create a subscription payment record - Frontend will handle actual payment
+    Create a subscription directly in UserSubscription table
     """
     current_user, error_response, status_code = get_current_user_from_jwt()
     if error_response:
@@ -441,6 +441,9 @@ def create_subscription():
     data = request.json or {}
     plan_id = data.get("plan_id")
     billing_cycle = data.get("billing_cycle", "monthly")
+    transaction_reference = data.get("transaction_reference")
+    flutterwave_transaction_id = data.get("flutterwave_transaction_id")
+    amount = data.get("amount")
 
     if not plan_id:
         return jsonify({
@@ -457,29 +460,67 @@ def create_subscription():
                 "message": "Subscription plan not found"
             }), 404
 
-        # Calculate price
-        price = float(plan.yearly_price) if billing_cycle == "yearly" else float(plan.monthly_price)
+        # Calculate cycle days
+        cycle_days = 365 if billing_cycle == "yearly" else plan.billing_cycle_days
+        
+        # Check if user already has an active subscription
+        current_subscription = current_user.current_subscription
+        
+        if current_subscription:
+            # Update existing subscription
+            current_subscription.plan_id = plan.id
+            current_subscription.billing_cycle = billing_cycle
+            current_subscription.status = SubscriptionStatus.ACTIVE
+            current_subscription.auto_renew = True
+            current_subscription.start_date = datetime.utcnow()
+            current_subscription.end_date = datetime.utcnow() + timedelta(days=cycle_days)
+            current_subscription.messages_used = 0
+            current_subscription.likes_used = 0
+            current_subscription.swipes_used = 0
+            
+            subscription = current_subscription
+            action = "updated"
+        else:
+            # Create new subscription directly in UserSubscription table
+            subscription = UserSubscription(
+                user_id=current_user.id,
+                plan_id=plan.id,
+                status=SubscriptionStatus.ACTIVE,
+                billing_cycle=billing_cycle,
+                start_date=datetime.utcnow(),
+                end_date=datetime.utcnow() + timedelta(days=cycle_days),
+                auto_renew=True,
+                messages_used=0,
+                likes_used=0,
+                swipes_used=0
+            )
+            db.session.add(subscription)
+            action = "created"
 
-        # Create payment record
-        payment = Payment(
-            user_id=current_user.id,
-            plan_id=plan.id,
-            amount=price,
-            billing_cycle=billing_cycle,
-            provider=PaymentProvider.FLUTTERWAVE,
-            status=PaymentStatus.COMPLETED
-        )
+        # Create a minimal payment record for tracking (optional)
+        if transaction_reference or flutterwave_transaction_id:
+            payment = Payment(
+                user_id=current_user.id,
+                plan_id=plan.id,
+                amount=amount if amount else (float(plan.yearly_price) if billing_cycle == "yearly" else float(plan.monthly_price)),
+                billing_cycle=billing_cycle,
+                provider=PaymentProvider.FLUTTERWAVE,
+                status=PaymentStatus.COMPLETED,
+                provider_payment_id=flutterwave_transaction_id,
+                provider_reference=transaction_reference,
+                paid_at=datetime.utcnow()
+            )
+            db.session.add(payment)
 
-        db.session.add(payment)
         db.session.commit()
 
         return jsonify({
             "success": True,
-            "message": "Payment record created successfully",
-            "payment_id": payment.public_id,
-            "amount": price,
+            "message": f"Subscription {action} successfully",
+            "subscription": subscription.to_dict(),
+            "plan_name": plan.name,
             "billing_cycle": billing_cycle,
-            "plan_name": plan.name
+            "end_date": subscription.end_date.isoformat() + "Z"
         }), 201
 
     except Exception as e:

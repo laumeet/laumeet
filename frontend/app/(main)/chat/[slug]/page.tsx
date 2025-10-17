@@ -305,7 +305,8 @@ export default function ChatDetailPage() {
     console.log('📊 Usage data:', usage);
 
     if (subscription) {
-      setHasSubscription(subscription.has_subscription);
+       
+      setHasSubscription(subscription.has_subscription || usage.messages.limit === -1);
 
       // Only fetch usage stats if subscription status changes
       if (usage) {

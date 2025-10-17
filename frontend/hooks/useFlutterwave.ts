@@ -64,13 +64,26 @@ export const useFlutterwaveHook = () => {
     });
   }, []);
 
+  const verifyPayment = async (transactionId: string, txRef: string) => {
+    try {
+      const response = await api.post('/subscription/verify-payment', {
+        transaction_id: transactionId,
+        tx_ref: txRef
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Payment verification failed:', error);
+      throw new Error('Payment verification failed');
+    }
+  };
+
   const processSubscriptionPayment = useCallback(async (paymentData: PaymentData): Promise<SubscriptionResponse> => {
     try {
       setProcessing(true);
-      
+
       // Get Flutterwave public key from environment variables
       const publicKey = process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY;
-      
+
       if (!publicKey) {
         throw new Error('Flutterwave public key not configured');
       }
@@ -94,32 +107,52 @@ export const useFlutterwaveHook = () => {
           description: `${paymentData.planData.name} - ${paymentData.billingCycle === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
           logo: '/logo.png',
         },
+        redirect_url: window.location.href, // Important for proper redirect handling
       };
 
       console.log('🔄 Initializing Flutterwave payment...', config);
 
       // Initialize Flutterwave payment
       const response: any = await initializeFlutterwave(config);
-      
+
       console.log('💰 Payment response:', response);
 
+      // Verify payment on backend
       if (response.status === 'successful') {
-        const successResponse: SubscriptionResponse = {
-          success: true,
-          message: 'Payment completed successfully',
-          subscription: {
-            id: response.transaction_id,
+        console.log('✅ Payment successful, verifying...');
+        
+        // Verify payment with backend
+        const verification = await verifyPayment(response.transaction_id, response.tx_ref);
+        
+        if (verification.success) {
+          // Create subscription after successful verification
+          const subscriptionResponse = await api.post("/subscription/subscribe", {
             plan_id: paymentData.planId,
             billing_cycle: paymentData.billingCycle,
-            status: 'active',
             transaction_reference: response.tx_ref,
             flutterwave_transaction_id: response.transaction_id,
-          }
-        };
-        await api.post("/subscription/subscribe",{plan_id:paymentData.planId,billing_cycle:paymentData.billingCycle})
-        setPaymentResult(successResponse);
-        setShowSuccessModal(true);
-        return successResponse;
+            amount: paymentData.planData.amount
+          });
+
+          const successResponse: SubscriptionResponse = {
+            success: true,
+            message: 'Payment completed successfully',
+            subscription: {
+              id: subscriptionResponse.data.subscription?.id,
+              plan_id: paymentData.planId,
+              billing_cycle: paymentData.billingCycle,
+              status: 'active',
+              transaction_reference: response.tx_ref,
+              flutterwave_transaction_id: response.transaction_id,
+            }
+          };
+
+          setPaymentResult(successResponse);
+          setShowSuccessModal(true);
+          return successResponse;
+        } else {
+          throw new Error('Payment verification failed');
+        }
       } else {
         throw new Error(response.message || 'Payment failed');
       }
@@ -130,11 +163,12 @@ export const useFlutterwaveHook = () => {
         message: error.message || 'Payment failed'
       };
       setPaymentResult(errorResponse);
-      setShowFailedModal(true);
-      // if (error.message !== 'Payment cancelled by user') {
-      //   setShowFailedModal(true);
-      // }
       
+      // Only show failed modal for actual failures, not cancellations
+      if (error.message !== 'Payment cancelled by user') {
+        setShowFailedModal(true);
+      }
+
       throw error;
     } finally {
       setProcessing(false);

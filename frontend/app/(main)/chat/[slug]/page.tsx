@@ -906,8 +906,6 @@ export default function ChatDetailPage() {
   const sendMessage = async (e?: React.FormEvent) => {
     if (e) {
       e.preventDefault();
-      // Prevent default form submission behavior that might close keyboard
-      e.stopPropagation();
     }
 
     console.log('Can Send message', canSendMessage())
@@ -967,11 +965,6 @@ export default function ChatDetailPage() {
       setMessages(prev => prev.filter(m => !isTempId(m.id)));
     } finally {
       setSending(false);
-      // Scroll to bottom after sending message
-      setTimeout(() => {
-        scrollToBottom("smooth");
-      }, 100);
-      
       // Keep keyboard open on mobile by refocusing the textarea
       setTimeout(() => {
         if (textareaRef.current) {
@@ -1287,7 +1280,7 @@ export default function ChatDetailPage() {
           <UpgradePrompt onUpgrade={() => setShowUpgradeModal(true)} />
         )}
 
-        <form className="max-w-3xl mx-auto" onSubmit={sendMessage}>
+        <form className="max-w-3xl mx-auto">
           <div className="flex items-end space-x-2">
             <div className="flex-1 relative">
               <textarea
@@ -1305,7 +1298,7 @@ export default function ChatDetailPage() {
               />
             </div>
             <Button
-              type="submit"
+              onClick={sendMessage}
               disabled={!message.trim() || sending || !canSendMessage()}
               size="icon"
               className="flex-none bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed h-11 w-11 rounded-full shadow-lg"

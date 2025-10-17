@@ -331,7 +331,7 @@ export default function ChatDetailPage() {
   const canSendMessage = useCallback(() => {
     if (hasSubscription) return true;
     if (usage && usage.messages) {
-      const canSend = usage.messages.remaining > 0;
+      const canSend = usage.messages.remaining > 0 || usage.messages.limit === -1;
       return canSend;
     }
     return true; // Default to true if no usage data
@@ -341,7 +341,13 @@ export default function ChatDetailPage() {
   const updateMessagesWithFilter = useCallback((msgs: Message[], userHasSubscription: boolean) => {
     return msgs.map(msg => ({
       ...msg,
-      content: filterSensitiveContent(msg.content, userHasSubscription)
+      content: filterSensitiveContent(msg.content, userHasSubscription),
+      reply_to: msg.reply_to
+        ? {
+            ...msg.reply_to,
+            content: filterSensitiveContent(msg.reply_to.content ?? '', userHasSubscription),
+          }
+        : null,
     }));
   }, []);
 
@@ -469,12 +475,8 @@ export default function ChatDetailPage() {
       const response = await api.get(`/chat/messages/conversationId?conversationId=${id}`);
       if (response.data.success) {
         const serverMessages: Message[] = response.data.messages || [];
-        const filteredMessages = serverMessages.map(msg => ({
-          ...msg,
-          content: filterSensitiveContent(msg.content, hasSubscription)
-        }));
+        const filteredMessages = updateMessagesWithFilter(serverMessages, hasSubscription);
         setMessages(filteredMessages);
-        console.log(messages)
         initialMessagesLoadedRef.current = true;
         // Reset unseen messages count when loading messages
         setUnseenMessagesCount(0);
@@ -552,6 +554,12 @@ export default function ChatDetailPage() {
         const filteredMessage = {
           ...newMessage,
           content: filterSensitiveContent(newMessage.content, hasSubscription),
+          reply_to: newMessage.reply_to
+            ? {
+                ...newMessage.reply_to,
+                content: filterSensitiveContent(newMessage.reply_to.content ?? '', hasSubscription),
+              }
+            : null,
           status: newMessage.is_read ? 'read' : (!onlineStatus ? 'sent' : 'delivered')
         };
 
@@ -686,7 +694,7 @@ export default function ChatDetailPage() {
         typingDebounceRef.current = null;
       }
     };
-  }, [socket, conversation, profile?.id, onlineStatus, hasSubscription, filterSensitiveContent, usage, chatId]);
+  }, [socket, conversation, profile?.id, onlineStatus, hasSubscription, usage, chatId, updateMessagesWithFilter]);
 
   // Update online status when onlineUsers changes
   useEffect(() => {
@@ -719,7 +727,7 @@ export default function ChatDetailPage() {
   // Auto scroll to bottom on initial load only
   useEffect(() => {
     if (messages.length > 0 && !messagesLoading && initialMessagesLoadedRef.current === false) {
-      // Small delay to ensure DOM is updated
+      // Use setTimeout to ensure DOM is fully rendered
       setTimeout(() => {
         scrollToBottom('auto');
         initialMessagesLoadedRef.current = true;
@@ -898,6 +906,8 @@ export default function ChatDetailPage() {
   const sendMessage = async (e?: React.FormEvent) => {
     if (e) {
       e.preventDefault();
+      // Prevent default form submission behavior that might close keyboard
+      e.stopPropagation();
     }
 
     console.log('Can Send message', canSendMessage())
@@ -921,11 +931,11 @@ export default function ChatDetailPage() {
       handleTypingStop();
 
       // ENHANCED: Check if free user is trying to send sensitive content
-      if (!hasSubscription && containsSensitiveContent(contentToSend)) {
-        console.log('🔒 Free user attempting to send sensitive content - filtering');
-        // The content will be filtered when displayed to other free users
-        // Premium users will see the original content
-      }
+      // if (!hasSubscription && containsSensitiveContent(contentToSend)) {
+      //   console.log('🔒 Free user attempting to send sensitive content - filtering');
+      //   // The content will be filtered when displayed to other free users
+      //   // Premium users will see the original content
+      // }
 
       if (socket && socketConnected) {
         console.log('📤 Sending via socket');
@@ -957,6 +967,17 @@ export default function ChatDetailPage() {
       setMessages(prev => prev.filter(m => !isTempId(m.id)));
     } finally {
       setSending(false);
+      // Scroll to bottom after sending message
+      setTimeout(() => {
+        scrollToBottom("smooth");
+      }, 100);
+      
+      // Keep keyboard open on mobile by refocusing the textarea
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }, 50);
     }
   };
 
@@ -1266,7 +1287,7 @@ export default function ChatDetailPage() {
           <UpgradePrompt onUpgrade={() => setShowUpgradeModal(true)} />
         )}
 
-        <form className="max-w-3xl mx-auto">
+        <form className="max-w-3xl mx-auto" onSubmit={sendMessage}>
           <div className="flex items-end space-x-2">
             <div className="flex-1 relative">
               <textarea
@@ -1284,7 +1305,7 @@ export default function ChatDetailPage() {
               />
             </div>
             <Button
-              onClick={sendMessage}
+              type="submit"
               disabled={!message.trim() || sending || !canSendMessage()}
               size="icon"
               className="flex-none bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed h-11 w-11 rounded-full shadow-lg"

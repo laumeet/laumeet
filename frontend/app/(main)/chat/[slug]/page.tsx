@@ -26,7 +26,7 @@ import { UpgradeModal, LockedContentTooltip, UpgradePrompt } from '@/components/
 import { useUsageStats } from '@/hooks/useUsageStats';
 
 // ---------------------------------------------------------------------
-// Types
+// Types (keep the same as before)
 // ---------------------------------------------------------------------
 
 export interface Message {
@@ -78,7 +78,7 @@ export interface UserProfile {
 }
 
 // ---------------------------------------------------------------------
-// Utility helpers
+// Utility helpers (keep the same as before)
 // ---------------------------------------------------------------------
 
 const isTempId = (id: any) => String(id).startsWith('temp-');
@@ -122,7 +122,7 @@ const SENSITIVE_PATTERNS = {
 };
 
 // ---------------------------------------------------------------------
-// Advanced Content Filtering Functions
+// Advanced Content Filtering Functions (keep the same as before)
 // ---------------------------------------------------------------------
 
 /**
@@ -192,7 +192,7 @@ const containsSensitiveContent = (content: string): boolean => {
 };
 
 // ---------------------------------------------------------------------
-// Custom Hook for Upgrade Prompts
+// Custom Hook for Upgrade Prompts (keep the same as before)
 // ---------------------------------------------------------------------
 
 const useUpgradePrompts = (hasSubscription: boolean, showUpgradeModal: boolean, setShowUpgradeModal: (show: boolean) => void) => {
@@ -284,6 +284,7 @@ export default function ChatDetailPage() {
   const lastUsageFetchRef = useRef<number>(0);
   const lastSeenMessageIndexRef = useRef<number>(-1);
   const lastScrollTopRef = useRef<number>(0);
+  const previousMessagesLengthRef = useRef<number>(0);
 
   // Swipe states
   const [swipeStartX, setSwipeStartX] = useState(0);
@@ -297,7 +298,7 @@ export default function ChatDetailPage() {
   useUpgradePrompts(hasSubscription, showUpgradeModal, setShowUpgradeModal);
 
   // ---------------------------------------------------------------------
-  // Subscription Management
+  // Subscription Management (keep the same as before)
   // ---------------------------------------------------------------------
 
   useEffect(() => {
@@ -306,7 +307,7 @@ export default function ChatDetailPage() {
 
     if (subscription) {
        
-      setHasSubscription(subscription.has_subscription || usage.messages.limit === -1);
+      setHasSubscription(subscription.has_subscription || usage?.messages.limit === -1);
 
       // Only fetch usage stats if subscription status changes
       if (usage) {
@@ -370,7 +371,7 @@ export default function ChatDetailPage() {
   }, [messages.length, hasSubscription, updateMessagesWithFilter]);
 
   // ---------------------------------------------------------------------
-  // Formatting helpers
+  // Formatting helpers (keep the same as before)
   // ---------------------------------------------------------------------
 
   const formatMessageTime = (timestamp: string) => {
@@ -426,7 +427,7 @@ export default function ChatDetailPage() {
   };
 
   // ---------------------------------------------------------------------
-  // Fetch functions
+  // Fetch functions (keep the same as before)
   // ---------------------------------------------------------------------
 
   const fetchUserProfile = async (userId: string) => {
@@ -503,7 +504,7 @@ export default function ChatDetailPage() {
   };
 
   // ---------------------------------------------------------------------
-  // Socket Connection & Event Handlers
+  // Socket Connection & Event Handlers (keep the same as before)
   // ---------------------------------------------------------------------
 
   useEffect(() => {
@@ -563,17 +564,6 @@ export default function ChatDetailPage() {
             : null,
           status: newMessage.is_read ? 'read' : (!onlineStatus ? 'sent' : 'delivered')
         };
-
-        // ENHANCED: Calculate unseen messages based on scroll position
-        const messagesContainer = messagesContainerRef.current;
-        if (messagesContainer && newMessage.sender_id !== profile?.id) {
-          const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
-          const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
-
-          if (!isAtBottom) {
-            setUnseenMessagesCount(count => count + 1);
-          }
-        }
 
         return [...prev, filteredMessage];
       });
@@ -707,7 +697,7 @@ export default function ChatDetailPage() {
   }, [conversation, onlineUsers]);
 
   // ---------------------------------------------------------------------
-  // ENHANCED Scroll Management (WhatsApp-like behavior)
+  // FIXED Scroll Management (WhatsApp-like behavior)
   // ---------------------------------------------------------------------
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
@@ -725,16 +715,45 @@ export default function ChatDetailPage() {
     }
   }, [messages.length]);
 
-  // Auto scroll to bottom on initial load only
+  // FIXED: Auto scroll to bottom on initial load
   useEffect(() => {
     if (messages.length > 0 && !messagesLoading && initialMessagesLoadedRef.current === false) {
+      console.log('📜 Initial messages loaded, scrolling to bottom');
       // Use setTimeout to ensure DOM is fully rendered
       setTimeout(() => {
         scrollToBottom('auto');
         initialMessagesLoadedRef.current = true;
-      }, 100);
+        previousMessagesLengthRef.current = messages.length;
+      }, 300);
     }
   }, [messages.length, messagesLoading, scrollToBottom]);
+
+  // FIXED: Auto scroll when new messages arrive and user is at bottom
+  useEffect(() => {
+    if (messages.length === 0 || messagesLoading) return;
+
+    const isNewMessage = messages.length > previousMessagesLengthRef.current;
+    const isInitialLoad = previousMessagesLengthRef.current === 0 && messages.length > 0;
+
+    console.log('🔄 Messages update:', {
+      previousLength: previousMessagesLengthRef.current,
+      currentLength: messages.length,
+      isNewMessage,
+      isInitialLoad,
+      isAtBottom,
+      autoScrollEnabled: autoScrollEnabledRef.current
+    });
+
+    if ((isNewMessage || isInitialLoad) && (isAtBottom || autoScrollEnabledRef.current)) {
+      console.log('⬇️ Auto-scrolling to bottom for new message');
+      setTimeout(() => {
+        scrollToBottom('smooth');
+      }, 100);
+    }
+
+    // Update previous length for next comparison
+    previousMessagesLengthRef.current = messages.length;
+  }, [messages.length, messagesLoading, isAtBottom, scrollToBottom]);
 
   // Enhanced scroll behavior - WhatsApp-like
   useEffect(() => {
@@ -782,7 +801,7 @@ export default function ChatDetailPage() {
   }, [isTyping, isAtBottom, scrollToBottom]);
 
   // ---------------------------------------------------------------------
-  // Typing Indicator Functions - FIXED
+  // Typing Indicator Functions - FIXED (keep the same as before)
   // ---------------------------------------------------------------------
 
   const handleTypingStart = useCallback(() => {
@@ -835,7 +854,7 @@ export default function ChatDetailPage() {
   };
 
   // ---------------------------------------------------------------------
-  // Textarea Height Management
+  // Textarea Height Management (keep the same as before)
   // ---------------------------------------------------------------------
 
   useEffect(() => {
@@ -848,7 +867,7 @@ export default function ChatDetailPage() {
   }, [message]);
 
   // ---------------------------------------------------------------------
-  // Swipe to Reply
+  // Swipe to Reply (keep the same as before)
   // ---------------------------------------------------------------------
 
   const handleSwipeStart = (e: React.TouchEvent | React.MouseEvent, messageId: string | number) => {
@@ -881,7 +900,7 @@ export default function ChatDetailPage() {
   };
 
   // ---------------------------------------------------------------------
-  // Message Functions
+  // Message Functions (keep the same as before)
   // ---------------------------------------------------------------------
 
   const markMessagesAsRead = useCallback((messageIds: (string | number)[]) => {
@@ -928,13 +947,6 @@ export default function ChatDetailPage() {
 
     try {
       handleTypingStop();
-
-      // ENHANCED: Check if free user is trying to send sensitive content
-      // if (!hasSubscription && containsSensitiveContent(contentToSend)) {
-      //   console.log('🔒 Free user attempting to send sensitive content - filtering');
-      //   // The content will be filtered when displayed to other free users
-      //   // Premium users will see the original content
-      // }
 
       if (socket && socketConnected) {
         console.log('📤 Sending via socket');
@@ -993,7 +1005,7 @@ export default function ChatDetailPage() {
   };
 
   // ---------------------------------------------------------------------
-  // Load Chat Data
+  // Load Chat Data (keep the same as before)
   // ---------------------------------------------------------------------
 
   const loadChatData = async () => {
@@ -1021,7 +1033,7 @@ export default function ChatDetailPage() {
   }, [chatId]);
 
   // ---------------------------------------------------------------------
-  // UI Components
+  // UI Components (keep the same as before)
   // ---------------------------------------------------------------------
 
   const TypingBubble = () => (
@@ -1041,7 +1053,7 @@ export default function ChatDetailPage() {
   );
 
   // ---------------------------------------------------------------------
-  // UI Render
+  // UI Render (keep the same as before)
   // ---------------------------------------------------------------------
 
   if (loading || messagesLoading) {

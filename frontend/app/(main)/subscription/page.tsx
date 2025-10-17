@@ -35,7 +35,7 @@ export default function SubscriptionPage() {
     paymentResult,
   } = useFlutterwaveHook();
   const { profile } = useProfile();
-  const { subscription: userSubscription, refetch: refetchUserSubscription } = useUserSubscription(profile?.id);
+  const { subscription: userSubscription, fetchUserSubscription } = useUserSubscription(profile?.id);
 
   // Check if user has an active subscription
   const hasActiveSubscription = userSubscription?.has_subscription && 
@@ -45,9 +45,9 @@ export default function SubscriptionPage() {
   // Refetch user subscription when payment is successful
   useEffect(() => {
     if (showSuccessModal && profile?.id) {
-      refetchUserSubscription();
+      fetchUserSubscription(profile.id);
     }
-  }, [showSuccessModal, profile?.id, refetchUserSubscription]);
+  }, [showSuccessModal, profile?.id, fetchUserSubscription]);
 
   const handleSubscribe = async (planId: string, cycle: 'monthly' | 'yearly') => {
     if (!profile) {
@@ -66,7 +66,7 @@ export default function SubscriptionPage() {
           billing_cycle: cycle
         });
         toast.success('Switched to free plan successfully');
-        refetchUserSubscription();
+        fetchUserSubscription(profile.id);
       } catch (error) {
         console.error('Free plan switch error:', error);
         toast.error('Failed to switch plan');
@@ -102,6 +102,9 @@ export default function SubscriptionPage() {
         userData,
         planData
       });
+
+      // Refresh subscription data after successful payment
+      fetchUserSubscription(profile.id);
 
     } catch (error: any) {
       console.error('❌ Subscription error:', error);
@@ -163,7 +166,7 @@ export default function SubscriptionPage() {
               <Button 
                 onClick={() => {
                   setShowSuccessModal(false);
-                  refetchUserSubscription();
+                  fetchUserSubscription(profile?.id);
                 }}
                 className="w-full bg-green-600 hover:bg-green-700"
               >

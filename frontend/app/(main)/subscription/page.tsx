@@ -1,9 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/subscription/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Crown, Star, Zap, CheckCircle, Loader2, Calendar, Infinity, MessageCircle, Heart, Hand, X, Check, Eye, Filter, UserCheck, BadgeCheck } from 'lucide-react';
+import { useState } from 'react';
+import { Crown, Star, Zap, CheckCircle, Loader2, Calendar, Infinity, MessageCircle, Heart, Hand, Eye, Filter, UserCheck, BadgeCheck } from 'lucide-react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useUsageStats } from '@/hooks/useUsageStats';
 import { useCurrentPlan } from '@/hooks/useCurrentPlan';
@@ -17,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import api from '@/lib/axio';
+
 export default function SubscriptionPage() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [isSubscribing, setIsSubscribing] = useState(false);
@@ -25,15 +24,7 @@ export default function SubscriptionPage() {
   const { plans, loading: plansLoading } = useSubscription();
   const { usage } = useUsageStats();
   const { currentPlan, hasSubscription, loading: planLoading } = useCurrentPlan();
-  const { 
-    processing, 
-    processSubscriptionPayment, 
-    showSuccessModal,
-    showFailedModal,
-    setShowFailedModal,
-    setShowSuccessModal,
-    paymentResult,
-  } = useFlutterwaveHook();
+  const { processing, processSubscriptionPayment } = useFlutterwaveHook();
   const { profile } = useProfile();
   const { subscription: userSubscription, fetchUserSubscription } = useUserSubscription(profile?.id);
 
@@ -41,13 +32,6 @@ export default function SubscriptionPage() {
   const hasActiveSubscription = userSubscription?.has_subscription && 
                                userSubscription.subscription?.is_active && 
                                userSubscription.subscription?.status === 'active';
-
-  // Refetch user subscription when payment is successful
-  useEffect(() => {
-    if (showSuccessModal && profile?.id) {
-      fetchUserSubscription(profile.id);
-    }
-  }, [showSuccessModal, profile?.id, fetchUserSubscription]);
 
   const handleSubscribe = async (planId: string, cycle: 'monthly' | 'yearly') => {
     if (!profile) {
@@ -95,7 +79,7 @@ export default function SubscriptionPage() {
 
       console.log('🔄 Starting payment process...', { planId, cycle, userData, planData });
 
-      // Process payment using Flutterwave
+      // Process payment using Flutterwave - this will redirect to success/failed pages
       await processSubscriptionPayment({
         planId,
         billingCycle: cycle,
@@ -103,13 +87,10 @@ export default function SubscriptionPage() {
         planData
       });
 
-      // Refresh subscription data after successful payment
-      fetchUserSubscription(profile.id);
-
     } catch (error: any) {
       console.error('❌ Subscription error:', error);
-
-      if (error.message !== 'Payment cancelled by user') {
+      // Only show toast for errors that aren't redirects
+      if (!error.message.includes('Payment cancelled by user')) {
         toast.error('Subscription failed', {
           description: error.message || 'Please try again or contact support if the issue persists.',
         });
@@ -142,79 +123,7 @@ export default function SubscriptionPage() {
         )}
       </div>
 
-      {/* Success Modal */}
-      {showSuccessModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md mx-auto">
-            <CardHeader className="text-center">
-              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                <Check className="h-8 w-8 text-green-600" />
-              </div>
-              <CardTitle className="text-green-600">Payment Successful!</CardTitle>
-              <CardDescription>
-                Your subscription has been activated successfully
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 text-center">
-              {paymentResult?.subscription && (
-                <div className="space-y-2 text-sm">
-                  <p><strong>Plan:</strong> {paymentResult.subscription.plan_id}</p>
-                  <p><strong>Transaction ID:</strong> {paymentResult.subscription.flutterwave_transaction_id}</p>
-                  <p><strong>Reference:</strong> {paymentResult.subscription.transaction_reference}</p>
-                </div>
-              )}
-              <Button 
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  fetchUserSubscription(profile?.id);
-                }}
-                className="w-full bg-green-600 hover:bg-green-700"
-              >
-                Continue
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Failed Modal */}
-      {showFailedModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md mx-auto">
-            <CardHeader className="text-center">
-              <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                <X className="h-8 w-8 text-red-600" />
-              </div>
-              <CardTitle className="text-red-600">Payment Failed</CardTitle>
-              <CardDescription>
-                {paymentResult?.message || 'Your payment could not be processed'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 text-center">
-              <div className="text-sm text-gray-600">
-                <p>Please try again or contact support if the issue persists.</p>
-              </div>
-              <div className="flex gap-3">
-                <Button 
-                  variant="outline"
-                  onClick={() => setShowFailedModal(false)}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={() => setShowFailedModal(false)}
-                  className="flex-1 bg-red-600 hover:bg-red-700"
-                >
-                  Try Again
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Payment Processing Modal */}
+      {/* Payment Processing Overlay */}
       {processing && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-md mx-auto">

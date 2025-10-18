@@ -386,59 +386,59 @@ def create_comment(post_id):
         }), 500
 
 
-@feed_bp.route('/upload', methods=['POST'])
-@jwt_required()
-def upload_image():
-    """Upload an image to Supabase Storage and return its public URL"""
-    try:
-        user = get_current_user()
-        if not user:
-            return jsonify({"success": False, "message": "User not found"}), 404
-
-        if 'image' not in request.files:
-            return jsonify({"success": False, "message": "No image file provided"}), 400
-
-        file = request.files['image']
-
-        if file.filename == '':
-            return jsonify({"success": False, "message": "No file selected"}), 400
-
-        if not allowed_file(file.filename):
-            return jsonify({
-                "success": False,
-                "message": f"Invalid file type. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}",
-            }), 400
-
-        # ✅ This line should be right here
-        supabase = current_app.config['supabase']
-
-        filename = secure_filename(file.filename)
-        filename = f"{user.id}_{int(time.time())}_{filename}"
-        file_bytes = file.read()
-
-        # ✅ Upload to Supabase Storage
-        response = supabase.storage.from_("upload").upload(filename, file_bytes)
-
-        if hasattr(response, "status_code") and response.status_code != 200:
-            return jsonify({
-                "success": False,
-                "message": f"Upload failed: {response.json()}",
-            }), 400
-
-        # ✅ Build permanent public URL
-        image_url = f"{Config.SUPABASE_URL}/storage/v1/object/public/upload/{filename}"
-
-        return jsonify({
-            "success": True,
-            "message": "Image uploaded successfully",
-            "data": {"filename": filename, "url": image_url}
-        }), 200
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "message": f"Failed to upload image: {repr(e)}"
-        }), 500
+# @feed_bp.route('/upload', methods=['POST'])
+# @jwt_required()
+# def upload_image():
+#     """Upload an image to Supabase Storage and return its public URL"""
+#     try:
+#         user = get_current_user()
+#         if not user:
+#             return jsonify({"success": False, "message": "User not found"}), 404
+#
+#         if 'image' not in request.files:
+#             return jsonify({"success": False, "message": "No image file provided"}), 400
+#
+#         file = request.files['image']
+#
+#         if file.filename == '':
+#             return jsonify({"success": False, "message": "No file selected"}), 400
+#
+#         if not allowed_file(file.filename):
+#             return jsonify({
+#                 "success": False,
+#                 "message": f"Invalid file type. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}",
+#             }), 400
+#
+#         # ✅ This line should be right here
+#         supabase = current_app.config['supabase']
+#
+#         filename = secure_filename(file.filename)
+#         filename = f"{user.id}_{int(time.time())}_{filename}"
+#         file_bytes = file.read()
+#
+#         # ✅ Upload to Supabase Storage
+#         response = supabase.storage.from_("upload").upload(filename, file_bytes)
+#
+#         if hasattr(response, "status_code") and response.status_code != 200:
+#             return jsonify({
+#                 "success": False,
+#                 "message": f"Upload failed: {response.json()}",
+#             }), 400
+#
+#         # ✅ Build permanent public URL
+#         image_url = f"{Config.SUPABASE_URL}/storage/v1/object/public/upload/{filename}"
+#
+#         return jsonify({
+#             "success": True,
+#             "message": "Image uploaded successfully",
+#             "data": {"filename": filename, "url": image_url}
+#         }), 200
+#
+#     except Exception as e:
+#         return jsonify({
+#             "success": False,
+#             "message": f"Failed to upload image: {repr(e)}"
+#         }), 500
 
 
 

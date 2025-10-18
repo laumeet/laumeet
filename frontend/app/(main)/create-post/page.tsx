@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { ArrowLeft, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { feedApi } from '@/lib/axio';
+import { supabase } from '@/lib/supabaseClient'; // ✅ Added import
 
 export default function CreatePostPage() {
   const [text, setText] = useState('');
@@ -24,6 +25,7 @@ export default function CreatePostPage() {
 
   const router = useRouter();
 
+  // ✅ REPLACED upload logic with Supabase upload
   const handleImageUpload = async (file: File) => {
     try {
       setUploading(true);
@@ -34,36 +36,40 @@ export default function CreatePostPage() {
         throw new Error('Invalid file type. Please upload JPEG, PNG, GIF, or WebP images.');
       }
 
+
       // Validate file size (16MB max)
       if (file.size > 16 * 1024 * 1024) {
         throw new Error('File size too large. Maximum size is 16MB.');
       }
 
-      const formData = new FormData();
-      formData.append('image', file);
-
-      console.log('🔧 Starting image upload...', {
+      console.log('🔧 Starting upload to Supabase...', {
         name: file.name,
         type: file.type,
         size: file.size
       });
 
-      // Use the CORRECT upload endpoint
-      const response = await feedApi.uploadImage(formData);
-      const data = response.data;
+      const fileName = `${Date.now()}-${file.name}`;
 
-      console.log('🔧 Upload response:', data);
+      // ✅ Upload directly to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('upload') // ⚠️ Make sure your bucket name is "images"
+        .upload(fileName, file);
 
-      if (data.success) {
-        setImageUrl(data.data.url);
-        toast.success('Image uploaded successfully!');
-      } else {
-        throw new Error(data.message || 'Upload failed');
-      }
+      if (error) throw error;
+
+      // ✅ Get the public URL
+      const { data: publicData } = supabase.storage
+        .from('upload')
+        .getPublicUrl(fileName);
+
+      if (!publicData?.publicUrl) throw new Error('Failed to retrieve public URL');
+
+      setImageUrl(publicData.publicUrl);
+      toast.success('Image uploaded successfully!');
     } catch (error: any) {
-      console.error('Error uploading image:', error);
+      console.error('❌ Error uploading image to Supabase:', error);
       toast.error('Upload failed', {
-        description: error.response?.data?.message || error.message || 'Failed to upload image'
+        description: error.message || 'Failed to upload image'
       });
     } finally {
       setUploading(false);
@@ -74,7 +80,7 @@ export default function CreatePostPage() {
     const file = e.target.files?.[0];
     if (file) {
       setImage(file);
-      setImageUrl(''); // Clear previous image URL
+      setImageUrl('');
       handleImageUpload(file);
     }
   };
@@ -96,43 +102,32 @@ export default function CreatePostPage() {
         text: text.trim(),
         category: category.trim() || 'general',
         location: location.trim() || undefined,
-        image: imageUrl || undefined,
+        image: imageUrl || undefined, // ✅ Now this is a Supabase URL
       };
 
       console.log('🔧 Creating post with data:', postData);
-      console.log('🔧 Sending POST request to /api/feed/posts');
 
       const response = await feedApi.createPost(postData);
       const data = response.data;
 
-      console.log('🔧 Post creation response:', data);
-
       if (data.success) {
-        console.log('✅ Post created successfully, redirecting to feed...');
         toast.success('Post created!', {
           description: 'Your post has been shared with the campus community'
         });
 
-        // Clear form
+        // Reset form
         setText('');
         setCategory('');
         setLocation('');
         setImage(null);
         setImageUrl('');
 
-        // Redirect to feed
         router.push('/feed');
       } else {
         throw new Error(data.message || 'Post creation failed');
       }
     } catch (error: any) {
       console.error('❌ Error creating post:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
-
       toast.error('Failed to create post', {
         description: error.response?.data?.message || error.message || 'Please try again later'
       });
@@ -155,7 +150,9 @@ export default function CreatePostPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create Post</h1>
-          <p className="text-gray-500 dark:text-gray-400">Share something with the campus community</p>
+          <p className="text-gray-500 dark:text-gray-400">
+            Share something with the campus community
+          </p>
         </div>
       </div>
 

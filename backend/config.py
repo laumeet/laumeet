@@ -1,5 +1,11 @@
 import os
 from datetime import timedelta
+from supabase import create_client
+from flask import current_app
+
+
+supabase = current_app.config['supabase']
+
 
 class Config:
     """Base configuration"""
@@ -36,6 +42,11 @@ class Config:
     FLW_PUBLIC_KEY = os.getenv('FLW_PUBLIC_KEY')
     FLW_SECRET_KEY = os.getenv('FLW_SECRET_KEY')
     FLW_WEBHOOK_SECRET = os.getenv('FLW_WEBHOOK_SECRET')
+
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
     # Payment redirect URLs
     PAYMENT_SUCCESS_URL = os.getenv('PAYMENT_SUCCESS_URL', 'https://laumeet.com/payment/success')

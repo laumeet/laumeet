@@ -4,9 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="chat&#10;# Conflicts:&#10;#&#9;.idea/workspace.xml">
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="payment model">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/subscription.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/subscription.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/config.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -99,22 +99,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1758428877896</updated>
-    </task>
-    <task id="LOCAL-00016" summary="Added an Admin">
-      <option name="closed" value="true" />
-      <created>1758961281056</created>
-      <option name="number" value="00016" />
-      <option name="presentableId" value="LOCAL-00016" />
-      <option name="project" value="LOCAL" />
-      <updated>1758961281056</updated>
-    </task>
-    <task id="LOCAL-00017" summary="Added an Admin">
-      <option name="closed" value="true" />
-      <created>1758972136765</created>
-      <option name="number" value="00017" />
-      <option name="presentableId" value="LOCAL-00017" />
-      <option name="project" value="LOCAL" />
-      <updated>1758972136765</updated>
     </task>
     <task id="LOCAL-00018" summary="Added an Admin">
       <option name="closed" value="true" />
@@ -492,7 +476,23 @@
       <option name="project" value="LOCAL" />
       <updated>1760463393928</updated>
     </task>
-    <option name="localTasksCounter" value="65" />
+    <task id="LOCAL-00065" summary="remove the payments logic from backend">
+      <option name="closed" value="true" />
+      <created>1760628629778</created>
+      <option name="number" value="00065" />
+      <option name="presentableId" value="LOCAL-00065" />
+      <option name="project" value="LOCAL" />
+      <updated>1760628629779</updated>
+    </task>
+    <task id="LOCAL-00066" summary="payment model">
+      <option name="closed" value="true" />
+      <created>1760635691489</created>
+      <option name="number" value="00066" />
+      <option name="presentableId" value="LOCAL-00066" />
+      <option name="project" value="LOCAL" />
+      <updated>1760635691489</updated>
+    </task>
+    <option name="localTasksCounter" value="67" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -539,8 +539,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="token" />
-    <MESSAGE value="now" />
     <MESSAGE value="added swipe and explore API" />
     <MESSAGE value="edit sign up" />
     <MESSAGE value="explore and signp again" />
@@ -564,6 +562,8 @@
     <MESSAGE value="testing&#10;testing" />
     <MESSAGE value="suscription&#10;testing" />
     <MESSAGE value="chat&#10;# Conflicts:&#10;#&#9;.idea/workspace.xml" />
-    <option name="LAST_COMMIT_MESSAGE" value="chat&#10;# Conflicts:&#10;#&#9;.idea/workspace.xml" />
+    <MESSAGE value="remove the payments logic from backend" />
+    <MESSAGE value="payment model" />
+    <option name="LAST_COMMIT_MESSAGE" value="payment model" />
   </component>
 </project>

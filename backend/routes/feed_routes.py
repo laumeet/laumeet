@@ -7,6 +7,8 @@ from werkzeug.utils import secure_filename
 
 from models.user import Post, Comment, Like, User
 from models.core import db
+from config import Config  # <-- You already have supabase there
+
 
 feed_bp = Blueprint('feed', __name__)
 
@@ -387,77 +389,57 @@ def create_comment(post_id):
 @feed_bp.route('/upload', methods=['POST'])
 @jwt_required()
 def upload_image():
-    """Upload an image and return the URL"""
+    """Upload an image to Supabase Storage and return its public URL"""
     try:
         user = get_current_user()
         if not user:
             return jsonify({"success": False, "message": "User not found"}), 404
 
         if 'image' not in request.files:
-            return jsonify({
-                "success": False,
-                "message": "No image file provided",
-                "data": None
-            }), 400
+            return jsonify({"success": False, "message": "No image file provided"}), 400
 
         file = request.files['image']
 
         if file.filename == '':
-            return jsonify({
-                "success": False,
-                "message": "No file selected",
-                "data": None
-            }), 400
+            return jsonify({"success": False, "message": "No file selected"}), 400
 
-        if file and allowed_file(file.filename):
-            # Check file size
-            file.seek(0, 2)  # Seek to end
-            file_size = file.tell()
-            file.seek(0)  # Reset seek position
-
-            if file_size > MAX_FILE_SIZE:
-                return jsonify({
-                    "success": False,
-                    "message": f"File size too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)}MB",
-                    "data": None
-                }), 400
-
-            # Secure filename and save
-            filename = secure_filename(file.filename)
-            # Add user ID and timestamp to avoid conflicts
-            filename = f"{user.id}_{int(time.time())}_{filename}"
-
-            upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
-            os.makedirs(upload_folder, exist_ok=True)
-
-            file_path = os.path.join(upload_folder, filename)
-            file.save(file_path)
-
-            # Build full URL using your existing helper function
-            from utils.helpers import build_image_url
-            image_url = build_image_url(filename)
-
-            return jsonify({
-                "success": True,
-                "message": "Image uploaded successfully",
-                "data": {
-                    "filename": filename,
-                    "url": image_url
-                }
-            }), 200
-        else:
+        if not allowed_file(file.filename):
             return jsonify({
                 "success": False,
                 "message": f"Invalid file type. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}",
-                "data": None
             }), 400
+
+        # ✅ This line should be right here
+        supabase = current_app.config['supabase']
+
+        filename = secure_filename(file.filename)
+        filename = f"{user.id}_{int(time.time())}_{filename}"
+        file_bytes = file.read()
+
+        # ✅ Upload to Supabase Storage
+        response = supabase.storage.from_("feed-images").upload(filename, file_bytes)
+
+        if hasattr(response, "status_code") and response.status_code != 200:
+            return jsonify({
+                "success": False,
+                "message": f"Upload failed: {response.json()}",
+            }), 400
+
+        # ✅ Build permanent public URL
+        image_url = f"{Config.SUPABASE_URL}/storage/v1/object/public/feed-images/{filename}"
+
+        return jsonify({
+            "success": True,
+            "message": "Image uploaded successfully",
+            "data": {"filename": filename, "url": image_url}
+        }), 200
 
     except Exception as e:
         return jsonify({
             "success": False,
-            "message": f"Failed to upload image: {str(e)}",
-            "data": None
+            "message": f"Failed to upload image: {str(e)}"
         }), 500
+
 
 
 # Debug endpoints (optional - remove in production)

@@ -216,7 +216,7 @@ function ProfileCard({
                       {displayName}
                       {profile.age > 0 && `, ${profile.age}`}
                     </h2>
-                    {isVerified && <VerifiedBadge size="sm" />}
+              
                   </div>
                   <p className="text-gray-200 text-sm capitalize drop-shadow-md">
                     {profile.category}
@@ -324,7 +324,7 @@ function ProfileCard({
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <h3 className="font-semibold text-gray-800 dark:text-white">Interests</h3>
-                      {isVerified && <VerifiedBadge size="sm" />}
+                  
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {profile.interests.slice(0, 8).map((interest: string, i: number) => (
@@ -386,8 +386,8 @@ function SwipeInstructions() {
   if (!showInstructions) return null;
 
   return (
-    <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full mx-4">
-      <Alert className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg">
+    <div className="fixed top-20 right-0 left-0 z-50 max-w-md w-full mx-4">
+      <Alert className=" bg-blue-900 border-blue-200  shadow-lg">
         <div className="flex items-start justify-between w-full">
           <div className="flex items-start space-x-3 flex-1">
             <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />

@@ -71,13 +71,13 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
         const filePath = `${category ? category + '/' : ''}${fileName}`;
 
         const { error } = await supabase.storage
-          .from('uploads') // your Supabase bucket name
+          .from('upload') // your Supabase bucket name
           .upload(filePath, file);
 
         if (error) throw error;
 
         const { data: publicData } = supabase.storage
-          .from('uploads')
+          .from('upload')
           .getPublicUrl(filePath);
 
         // Update status to completed with uploaded URL
@@ -131,7 +131,7 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
           const fileName = imageToRemove.uploadedUrl.split('/').pop();
           if (fileName) {
             await supabase.storage
-              .from('uploads')
+              .from('upload')
               .remove([`${category ? category + '/' : ''}${fileName}`]);
           }
         } catch (error) {

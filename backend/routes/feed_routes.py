@@ -417,7 +417,7 @@ def upload_image():
         file_bytes = file.read()
 
         # ✅ Upload to Supabase Storage
-        response = supabase.storage.from_("feed-images").upload(filename, file_bytes)
+        response = supabase.storage.from_("upload").upload(filename, file_bytes)
 
         if hasattr(response, "status_code") and response.status_code != 200:
             return jsonify({
@@ -426,7 +426,7 @@ def upload_image():
             }), 400
 
         # ✅ Build permanent public URL
-        image_url = f"{Config.SUPABASE_URL}/storage/v1/object/public/feed-images/{filename}"
+        image_url = f"{Config.SUPABASE_URL}/storage/v1/object/public/upload/{filename}"
 
         return jsonify({
             "success": True,
@@ -437,7 +437,7 @@ def upload_image():
     except Exception as e:
         return jsonify({
             "success": False,
-            "message": f"Failed to upload image: {str(e)}"
+            "message": f"Failed to upload image: {repr(e)}"
         }), 500
 
 

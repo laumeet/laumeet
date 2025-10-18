@@ -1,7 +1,11 @@
 import os
 from datetime import timedelta
-from supabase import create_client
 from flask import current_app
+from supabase import create_client, Client
+
+from dotenv import load_dotenv
+
+load_dotenv()  # ✅ Load from .env file
 
 
 class Config:
@@ -43,7 +47,10 @@ class Config:
     SUPABASE_URL = os.getenv("SUPABASE_URL")
     SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    if SUPABASE_URL and SUPABASE_KEY:
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    else:
+        print("⚠️ Warning: Supabase environment variables not found!")
 
     # Payment redirect URLs
     PAYMENT_SUCCESS_URL = os.getenv('PAYMENT_SUCCESS_URL', 'https://laumeet.com/payment/success')

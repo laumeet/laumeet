@@ -1,7 +1,8 @@
 import eventlet
+import os
+os.environ["EVENTLET_NO_GREENDNS"] = "yes"
 eventlet.monkey_patch()  # 👈 Must be first to patch sockets/threads before any imports
 
-import os
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
@@ -12,6 +13,13 @@ from sockets import socketio, register_socket_events
 from utils.helpers import initialize_database
 from sqlalchemy.pool import NullPool
 from supabase import create_client
+
+
+from dotenv import load_dotenv
+load_dotenv()
+
+
+
 
 
 

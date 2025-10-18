@@ -171,8 +171,8 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
       gender: "male",
       bio: formData.bio,
       interestedIn: formData.interests,
-      is_anonymous: isAnonymous,
-      profile_images: uploadedImageUrls,
+      isAnonymous: isAnonymous,
+      pictures: uploadedImageUrls,
     };
 
     setIsProcessing(true);

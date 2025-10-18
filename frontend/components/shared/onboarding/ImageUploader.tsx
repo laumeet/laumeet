@@ -39,13 +39,39 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
 
     useImperativeHandle(ref, () => internalRef.current as HTMLInputElement);
 
-    const uploadToSupabase = async (file: File): Promise<string> => {
+    const handleImageUpload = async (event: any) => {
       try {
+        setIsProcessingImages(true);
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (processingImages.length >= maxImages) {
+          toast.error(`You can only upload up to ${maxImages} photos. You already have ${processingImages.length}.`);
+          return;
+        }
+
+        // Add new file to processing queue
+        const newProcessingImage: ProcessingImage = {
+          file,
+          previewUrl: URL.createObjectURL(file),
+          status: 'pending'
+        };
+
+        setProcessingImages(prev => [...prev, newProcessingImage]);
+        const index = processingImages.length;
+
+        // Update status to uploading
+        setProcessingImages(prev =>
+          prev.map((img, idx) =>
+            idx === index ? { ...img, status: 'uploading' } : img
+          )
+        );
+
         const fileName = `${Date.now()}-${file.name}`;
         const filePath = `${category ? category + '/' : ''}${fileName}`;
 
         const { error } = await supabase.storage
-          .from('uploads')
+          .from('uploads') // your Supabase bucket name
           .upload(filePath, file);
 
         if (error) throw error;
@@ -54,55 +80,10 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
           .from('uploads')
           .getPublicUrl(filePath);
 
-        return publicData.publicUrl;
-      } catch (error: any) {
-        throw new Error(`Upload failed: ${error.message}`);
-      }
-    };
-
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files && e.target.files.length > 0 && !isProcessingImages) {
-        await handleImageUpload(Array.from(e.target.files));
-        e.target.value = ''; // Reset input
-      }
-    };
-
-    const handleImageUpload = async (files: File[]) => {
-      if (files.length === 0) return;
-
-      const file = files[0];
-    
-      if (processingImages.length >= maxImages) {
-        toast.error(`You can only upload up to ${maxImages} photos. You already have ${processingImages.length}.`);
-        return;
-      }
-
-      setIsProcessingImages(true);
-
-      // Add new file to processing queue
-      const newProcessingImage: ProcessingImage = {
-        file,
-        previewUrl: URL.createObjectURL(file),
-        status: 'pending'
-      };
-
-      setProcessingImages(prev => [...prev, newProcessingImage]);
-      const index = processingImages.length;
-
-      try {
-        // Update status to uploading
-        setProcessingImages(prev =>
-          prev.map((img, idx) =>
-            idx === index ? { ...img, status: 'uploading' } : img
-          )
-        );
-
-        const uploadedUrl = await uploadToSupabase(file);
-        
         // Update status to completed with uploaded URL
         setProcessingImages(prev =>
           prev.map((img, idx) =>
-            idx === index ? { ...img, status: 'completed', uploadedUrl } : img
+            idx === index ? { ...img, status: 'completed', uploadedUrl: publicData.publicUrl } : img
           )
         );
 
@@ -110,21 +91,29 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
         const uploadedUrls = processingImages
           .filter(img => img.uploadedUrl)
           .map(img => img.uploadedUrl as string)
-          .concat(uploadedUrl);
+          .concat(publicData.publicUrl);
         
         onImageUpload(uploadedUrls);
 
       } catch (error: any) {
         console.error('Error uploading image:', error);
         
+        // Update status to error
         setProcessingImages(prev =>
           prev.map((img, idx) =>
-            idx === index ? { ...img, status: 'error' } : img
+            idx === processingImages.length ? { ...img, status: 'error' } : img
           )
         );
         toast.error("Failed to upload image. Please try again.");
       } finally {
         setIsProcessingImages(false);
+      }
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0 && !isProcessingImages) {
+        await handleImageUpload(e);
+        e.target.value = ''; // Reset input
       }
     };
 
@@ -183,7 +172,13 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
 
       const files = Array.from(e.dataTransfer.files);
       if (files.length > 0) {
-        handleImageUpload(files);
+        // Create a synthetic event for the drop
+        const syntheticEvent = {
+          target: {
+            files: e.dataTransfer.files
+          }
+        };
+        handleImageUpload(syntheticEvent);
       }
     };
 
@@ -291,7 +286,7 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
         {processingImages.length > 0 && (
           <div className="grid grid-cols-3 gap-3">
             {processingImages.map((img, index) => (
-              <div key={index} className={`relative group rounded-lg border-2 ${getStatusColor(img.status)}`}>
+              <div key={index} className={`relative group overflow-hidden rounded-lg border-2 ${getStatusColor(img.status)}`}>
                 <div className="aspect-square rounded-lg overflow-hidden">
                   <Image
                     src={getImageDisplayUrl(img)}

@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/subscription/payment-failed/page.tsx
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   XCircle,
@@ -21,8 +20,6 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import api from '@/lib/axio';
-import { toast } from 'sonner';
 
 interface PaymentError {
   code?: string;
@@ -37,106 +34,58 @@ function PaymentFailedContent() {
   const errorCode = searchParams?.get('error_code');
   const errorMessage = searchParams?.get('error_message');
 
-  const [payment, setPayment] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [retrying, setRetrying] = useState(false);
-
-  useEffect(() => {
-    if (paymentId) {
-      fetchPaymentDetails();
-    } else {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentId]);
-
-  const fetchPaymentDetails = async () => {
-    if (!paymentId) return;
-
-    try {
-      const response = await api.get(`/subscribe/status`, { params: { paymentId } });
-      if (response.data.success) {
-        setPayment(response.data.payment);
-      }
-    } catch (error) {
-      console.error('Error fetching payment details:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const getErrorDetails = (): PaymentError => {
-    if (payment?.failure_reason) {
-      const reason = payment.failure_reason.toLowerCase();
+    const message = errorMessage ? decodeURIComponent(errorMessage) : 'Payment processing failed';
+    
+    if (errorCode === 'SUBSCRIPTION_FAILED') {
+      return {
+        code: 'SUBSCRIPTION_FAILED',
+        message: 'Payment successful but subscription activation failed',
+        suggestion: 'Please contact support to activate your subscription manually.'
+      };
+    }
 
-      if (reason.includes('insufficient') || reason.includes('balance')) {
-        return {
-          code: 'INSUFFICIENT_FUNDS',
-          message: 'Insufficient funds in your account',
-          suggestion:
-            'Please check your account balance or try a different payment method.'
-        };
-      }
+    if (message.includes('insufficient') || message.includes('balance')) {
+      return {
+        code: 'INSUFFICIENT_FUNDS',
+        message: 'Insufficient funds in your account',
+        suggestion: 'Please check your account balance or try a different payment method.'
+      };
+    }
 
-      if (reason.includes('card') || reason.includes('declined')) {
-        return {
-          code: 'CARD_DECLINED',
-          message: 'Your card was declined',
-          suggestion:
-            'Please check your card details or try a different payment card.'
-        };
-      }
+    if (message.includes('card') || message.includes('declined')) {
+      return {
+        code: 'CARD_DECLINED',
+        message: 'Your card was declined',
+        suggestion: 'Please check your card details or try a different payment card.'
+      };
+    }
 
-      if (reason.includes('expired')) {
-        return {
-          code: 'CARD_EXPIRED',
-          message: 'Your card has expired',
-          suggestion:
-            'Please update your card expiration date or use a different card.'
-        };
-      }
+    if (message.includes('expired')) {
+      return {
+        code: 'CARD_EXPIRED',
+        message: 'Your card has expired',
+        suggestion: 'Please update your card expiration date or use a different card.'
+      };
+    }
 
-      if (reason.includes('security') || reason.includes('fraud')) {
-        return {
-          code: 'SECURITY_VIOLATION',
-          message: 'Security check failed',
-          suggestion:
-            'Please contact your bank or try a different payment method.'
-        };
-      }
-
-      if (reason.includes('cancelled') || reason.includes('canceled')) {
-        return {
-          code: 'USER_CANCELLED',
-          message: 'Payment was cancelled',
-          suggestion:
-            "You cancelled the payment process. You can try again whenever you're ready."
-        };
-      }
+    if (message.includes('cancelled') || message.includes('canceled')) {
+      return {
+        code: 'USER_CANCELLED',
+        message: 'Payment was cancelled',
+        suggestion: "You cancelled the payment process. You can try again whenever you're ready."
+      };
     }
 
     return {
       code: errorCode || 'UNKNOWN_ERROR',
-      message: errorMessage || payment?.failure_reason || 'Payment processing failed',
+      message: message,
       suggestion: 'Please try again or contact support if the problem persists.'
     };
   };
 
-  const handleRetryPayment = async () => {
-    if (!paymentId) {
-      router.push('/subscription');
-      return;
-    }
-
-    try {
-      setRetrying(true);
-      router.push('/subscription');
-    } catch (error) {
-      console.error('Error retrying payment:', error);
-      toast.error('Failed to retry payment');
-    } finally {
-      setRetrying(false);
-    }
+  const handleRetryPayment = () => {
+    router.push('/subscription');
   };
 
   const handleContactSupport = () => {
@@ -146,26 +95,13 @@ function PaymentFailedContent() {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-100 dark:from-red-900/20 dark:to-orange-900/20 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md text-center">
-          <CardContent className="pt-6">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">
-              Loading payment details...
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const errorDetails = getErrorDetails();
-  if(!paymentId) {
+  if (!paymentId && !errorCode) {
     router.push('/subscription');
     return null;
   }
+
+  const errorDetails = getErrorDetails();
+
   return (
     <div className="min-h-screen bg-gradient-to-br pb-32 from-red-50 to-orange-100 dark:from-red-900/20 dark:to-orange-900/20">
       <div className="container mx-auto px-4 py-8">
@@ -251,20 +187,10 @@ function PaymentFailedContent() {
               <CardContent>
                 <Button
                   onClick={handleRetryPayment}
-                  disabled={retrying}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  {retrying ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Retry Payment
-                    </>
-                  )}
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Retry Payment
                 </Button>
               </CardContent>
             </Card>
@@ -291,66 +217,6 @@ function PaymentFailedContent() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Common Solutions */}
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="text-lg">Common Solutions</CardTitle>
-              <CardDescription>
-                Try these steps if you&apos;re having payment issues
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="bg-blue-100 dark:bg-blue-900/30 rounded-full p-2 mt-1">
-                  <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div>
-                  <p className="font-medium">Check Card Details</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Ensure your card number, expiration date, and CVV are correct.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="bg-green-100 dark:bg-green-900/30 rounded-full p-2 mt-1">
-                  <RefreshCw className="h-4 w-4 text-green-600 dark:text-green-400" />
-                </div>
-                <div>
-                  <p className="font-medium">Sufficient Funds</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Make sure your account has enough balance to cover the payment.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="bg-purple-100 dark:bg-purple-900/30 rounded-full p-2 mt-1">
-                  <AlertTriangle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div>
-                  <p className="font-medium">Bank Restrictions</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Some banks block online transactions. Contact your bank to
-                    authorize the payment.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="bg-orange-100 dark:bg-orange-900/30 rounded-full p-2 mt-1">
-                  <CreditCard className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                </div>
-                <div>
-                  <p className="font-medium">Try Different Method</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Use a different credit/debit card or payment method.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Navigation Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">

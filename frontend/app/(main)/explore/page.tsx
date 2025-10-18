@@ -4,7 +4,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { 
-  Heart, X, Filter,Users, 
+  Heart, X, Users, 
   Loader2, AlertCircle, ChevronLeft, ChevronRight,
   Book, GraduationCap, Droplets, Cross, Eye, MessageCircle, BadgeCheck
 } from 'lucide-react';
@@ -152,34 +152,20 @@ export default function ExplorePage() {
         const matchedUser = profiles.find((profile) => profile.id === result.matched_with);
         setProcessingMatch(profileId);
         
-        // Show match success toast
-        toast.success(`It's a match with ${matchedUser?.username || 'someone'}! 🎉`, {
-          duration: 5000,
-          icon: '💖'
-        });
+      
 
         // Automatically create conversation and send initial message
         const conversationResult = await createConversationWithMessage(result.matched_with);
         
         if (conversationResult.success) {
           // Show success message with chat option
-          toast(
-            <div className="flex flex-col space-y-2">
-              <p className="font-medium">Chat unlocked! 🎉</p>
-              <p className="text-sm text-gray-600">Say hello to your new match!</p>
-              <Button 
-                onClick={() => router.push(`/chat/${conversationResult.conversationId}`)}
-                size="sm"
-                className="bg-pink-500 hover:bg-pink-600 text-white"
-              >
-                <MessageCircle className="h-4 w-4 mr-2" />
-                Start Chatting
-              </Button>
-            </div>,
-            {
-              duration: 8000,
-            }
-          );
+          toast.success(`It's a match with ${matchedUser?.username}! 🎉`, {
+                   duration: 5000,
+                   action: {
+                     label: 'Chat',
+                     onClick: () => router.push('/chat')
+                   }
+                 });
         } else {
           toast.error('Match created! Failed to start conversation automatically.');
         }

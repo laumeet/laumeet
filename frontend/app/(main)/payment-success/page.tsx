@@ -1,117 +1,83 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/payment-success/page.tsx
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { CheckCircle, Crown, Zap, Star, ArrowRight, Home } from 'lucide-react';
+import { CheckCircle, Crown, Zap, Star, ArrowRight, Home, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useCurrentPlan } from '@/hooks/useCurrentPlan';
-import { useUsageStats } from '@/hooks/useUsageStats';
 import api from '@/lib/axio';
 import { toast } from 'sonner';
 
-interface PaymentData {
-  id: string;
-  status: string;
-  amount: number;
-  billing_cycle: string;
-  created_at: string;
-  plan_name: string;
-}
-
-// ✅ Extracted inner content to avoid Next.js prerender error
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const paymentId = searchParams?.get('payment_id');
+  const transactionId = searchParams?.get('transaction_id');
+  const txRef = searchParams?.get('payment_id');
+  const planId = searchParams?.get('plan_id');
+  const billingCycle = searchParams?.get('billing_cycle');
+  const amount = searchParams?.get('amount');
 
-  const { currentPlan, hasSubscription, fetchCurrentPlan } = useCurrentPlan();
-  const { fetchUsageStats } = useUsageStats();
-  const [payment, setPayment] = useState<PaymentData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [verifying, setVerifying] = useState(false);
+  const [subscriptionCreated, setSubscriptionCreated] = useState(false);
 
   useEffect(() => {
-    if (paymentId) {
-      verifyPayment();
+    if (txRef && planId) {
+      createSubscription();
     } else {
-      setLoading(false);
+      // Redirect back if no valid parameters
+      router.push('/subscription');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentId]);
+  }, [txRef, planId]);
 
-  const verifyPayment = async () => {
-    if (!paymentId) return;
-
-    try {
-      setVerifying(true);
-
-      const paymentResponse = await api.get(`/subscribe/status`, { params: { paymentId } });
-
-      if (paymentResponse.data.success) {
-        const paymentData = paymentResponse.data.payment;
-
-        setPayment({
-          id: paymentData.id,
-          status: paymentData.status,
-          amount: paymentData.amount,
-          billing_cycle: paymentData.billing_cycle,
-          created_at: paymentData.created_at,
-          plan_name: getPlanNameFromPayment(paymentData),
-        });
-
-        if (paymentData.status === 'completed') {
-          await fetchCurrentPlan();
-          await fetchUsageStats();
-        } else if (paymentData.status === 'pending') {
-          await manuallyVerifyPayment();
-        }
-      }
-    } catch (error) {
-      console.error('Error verifying payment:', error);
-      toast.error('Failed to verify payment status');
-    } finally {
-      setLoading(false);
-      setVerifying(false);
-    }
-  };
-
-  const manuallyVerifyPayment = async () => {
-    if (!paymentId) return;
+  const createSubscription = async () => {
+    if (!txRef || !planId) return;
 
     try {
-      const verifyResponse = await api.post(`/subscribe/status`, { params: { paymentId } });
+      setLoading(true);
+      
+      const subscriptionResponse = await api.post('/subscription/subscribe', {
+        plan_id: planId,
+        billing_cycle: billingCycle || 'monthly',
+        transaction_reference: txRef,
+        flutterwave_transaction_id: transactionId,
+        amount: amount ? parseFloat(amount) : 0
+      });
 
-      if (verifyResponse.data.success) {
-        toast.success('Payment verified successfully!');
-        await fetchCurrentPlan();
-        await fetchUsageStats();
-
-        setPayment(prev =>
-          prev
-            ? {
-                ...prev,
-                status: 'completed',
-              }
-            : null
-        );
+      if (subscriptionResponse.data.success) {
+        setSubscriptionCreated(true);
+        toast.success('Subscription activated successfully!');
+      } else {
+        throw new Error(subscriptionResponse.data.message || 'Failed to create subscription');
       }
     } catch (error: any) {
-      console.error('Error manually verifying payment:', error);
-      if (error.response?.data?.message) {
-        toast.error(error.response.data.message);
-      }
+      console.error('Error creating subscription:', error);
+      toast.error('Failed to activate subscription');
+      // Redirect to failed page if subscription creation fails
+      router.push(`/payment-failed?payment_id=${txRef}&error_code=SUBSCRIPTION_FAILED&error_message=${encodeURIComponent(error.message || 'Subscription activation failed')}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getPlanNameFromPayment = (paymentData: any): string => {
-    if (currentPlan?.name) return currentPlan.name;
-    if (paymentData.billing_cycle === 'yearly') return 'Yearly Plan';
-    return 'Monthly Plan';
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/20 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md text-center">
+          <CardContent className="pt-6">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Activating your subscription...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!subscriptionCreated) {
+    return null;
+  }
 
   const getPremiumFeatures = () => [
     'Unlimited Likes and Swipes',
@@ -121,23 +87,6 @@ function PaymentSuccessContent() {
     'Read Receipts',
     'Incognito Mode',
   ];
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/20 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md text-center">
-          <CardContent className="pt-6">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Verifying your payment...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-    if(!paymentId) {
-    router.push('/subscription');
-    return null;
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br pb-32 from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/20">
@@ -169,35 +118,30 @@ function PaymentSuccessContent() {
                 <CardContent className="pt-6">
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600 dark:text-gray-400">Plan</span>
-                      <span className="font-semibold">
-                        {payment?.plan_name || currentPlan?.name || 'Premium Plan'}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600 dark:text-gray-400">Billing Cycle</span>
-                      <span className="font-semibold capitalize">
-                        {payment?.billing_cycle || currentPlan?.billing_cycle || 'monthly'}
-                      </span>
-                    </div>
-
-                    {payment?.amount && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 dark:text-gray-400">Amount Paid</span>
-                        <span className="font-semibold text-green-600">
-                          ₦{payment.amount.toLocaleString()}
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between items-center border-t pt-4">
-                      <span className="text-lg font-semibold">Status</span>
+                      <span className="text-gray-600 dark:text-gray-400">Status</span>
                       <Badge className="bg-green-500 text-white">
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Active
                       </Badge>
                     </div>
+
+                    {txRef && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600 dark:text-gray-400">Reference ID</span>
+                        <span className="font-mono text-sm bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                          {txRef}
+                        </span>
+                      </div>
+                    )}
+
+                    {amount && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600 dark:text-gray-400">Amount Paid</span>
+                        <span className="font-semibold text-green-600">
+                          ₦{parseFloat(amount).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -322,45 +266,12 @@ function PaymentSuccessContent() {
               </Card>
             </div>
           </div>
-
-          {verifying && (
-            <Card className="mt-8 border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-yellow-600"></div>
-                  <p className="text-yellow-800 dark:text-yellow-200">
-                    Verifying your payment... This may take a few moments.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {hasSubscription && currentPlan && (
-            <Card className="mt-8 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-                  <div>
-                    <p className="font-semibold text-green-800 dark:text-green-200">
-                      Welcome to {currentPlan.name}!
-                    </p>
-                    <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-                      Your subscription is now active. You can manage your subscription anytime from
-                      your account settings.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
     </div>
   );
 }
 
-// ✅ Wrap in Suspense to fix the useSearchParams error
 export default function PaymentSuccessPage() {
   return (
     <Suspense fallback={<div className="p-10 text-center">Loading...</div>}>

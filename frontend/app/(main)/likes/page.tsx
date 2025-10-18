@@ -19,21 +19,54 @@ import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useLikedMe } from '@/hooks/useUsersWhoLikedMe';
 import useExploreProfiles from '@/hooks/use-explore-profiles';
+import api from '@/lib/axio';
 
 export default function LikesPage() {
-  const { users, loading, error,  fetchUsersWhoLikedMe,  } = useLikedMe();
+  const { users, loading, error,  fetchUsersWhoLikedMe  } = useLikedMe();
     const { swipeProfile } = useExploreProfiles();
     
           const [isSwiping, setIsSwiping] = useState(false);
   const [expandedBio, setExpandedBio] = useState<string | null>(null);
   const router = useRouter();
 
+    const createConversationWithMessage = async (matchedUserId: any) => {
+      try {
+        // First, create the conversation
+        const conversationResponse = await api.post('/chat/conversations/create', {
+          target_user_id: matchedUserId
+        });
+  
+        if (conversationResponse.data.success) {
+          const conversationId = conversationResponse.data.conversation_id;
+          
+          // Send initial message
+          const messageResponse = await api.post(`/chat/messages/send?conversationId=${conversationId}`, {
+            content: "Conversation has been unlocked! 🎉"
+          });
+  
+          if (messageResponse.data.success) {
+            return { success: true, conversationId };
+          }
+        }
+        
+        return { success: false, error: 'Failed to create conversation' };
+      } catch (err: any) {
+        console.error('Error creating conversation:', err);
+        return { 
+          success: false, 
+          error: err.response?.data?.message || 'Failed to create conversation' 
+        };
+      }
+    };
+    
   const handleLikeBack = async (user: any) => {
     setIsSwiping(true)
     try{
     const result = await swipeProfile(user.id, 'like')
     if (result.success) {
-      if (result.match) {
+       const conversationResult = await createConversationWithMessage(result.matched_with);
+              
+      if (conversationResult) {
         toast.success(`It's a match with ${user.name}! 🎉`, {
           duration: 5000,
           action: {
@@ -50,6 +83,7 @@ export default function LikesPage() {
   }
   finally{
     setIsSwiping(false)
+    fetchUsersWhoLikedMe()
   }
   };
 
@@ -66,6 +100,7 @@ export default function LikesPage() {
     }
   finally{
     setIsSwiping(false)
+    fetchUsersWhoLikedMe()
   }
   };
 

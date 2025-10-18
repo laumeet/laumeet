@@ -120,15 +120,7 @@ export function PlanCard({
     }
 
     try {
-      // For free plan, just call the onSubscribe callback
-      if (plan.tier === 'free') {
-        onSubscribe(plan.id, billingCycle);
-        return;
-      }
-
-      // For paid plans, trigger the parent subscription handler
       onSubscribe(plan.id, billingCycle);
-      
     } catch (error) {
       console.error('Subscription error:', error);
       if (error instanceof Error && !error.message.includes('cancelled')) {
@@ -138,7 +130,7 @@ export function PlanCard({
   };
 
   const isFreePlan = plan.tier === 'free';
-  const isDisabled = disabled || currentPlan || (isFreePlan && !currentPlan);
+  const isDisabled = disabled || (currentPlan && !isFreePlan);
   const isLoading = loading;
 
   return (
@@ -158,7 +150,7 @@ export function PlanCard({
           </Badge>
         </div>
       )}
-      
+
       {/* Current Plan Badge */}
       {currentPlan && (
         <div className="absolute top-4 left-4 z-10">
@@ -168,7 +160,7 @@ export function PlanCard({
           </Badge>
         </div>
       )}
-      
+
       {/* Free Plan Badge */}
       {isFreePlan && !currentPlan && (
         <div className="absolute top-4 left-4 z-10">
@@ -208,7 +200,7 @@ export function PlanCard({
               </span>
             )}
           </div>
-          
+
           {/* Yearly Savings */}
           {billingCycle === 'yearly' && !isFreePlan && yearlySavings > 0 && (
             <div className="mt-2 space-y-1">
@@ -243,7 +235,7 @@ export function PlanCard({
               )}>
                 {feature.name}
               </span>
-              
+
               {'value' in feature ? (
                 <span className={cn(
                   "text-sm font-medium",

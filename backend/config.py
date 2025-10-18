@@ -4,9 +4,6 @@ from supabase import create_client
 from flask import current_app
 
 
-supabase = current_app.config['supabase']
-
-
 class Config:
     """Base configuration"""
     

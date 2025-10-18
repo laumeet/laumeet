@@ -11,6 +11,9 @@ from routes import register_blueprints
 from sockets import socketio, register_socket_events
 from utils.helpers import initialize_database
 from sqlalchemy.pool import NullPool
+from supabase import create_client
+
+
 
 def create_app(config_name=None):
     """Application factory pattern for creating Flask app"""
@@ -25,6 +28,14 @@ def create_app(config_name=None):
     # ✅ Initialize extensions FIRST
     db.init_app(app)
     jwt = JWTManager(app)
+
+
+    # ✅ Initialize Supabase after app is created
+    supabase = create_client(
+        app.config['SUPABASE_URL'],
+        app.config['SUPABASE_KEY']
+    )
+    app.config['supabase'] = supabase
 
     # ✅ Configure CORS
     CORS(

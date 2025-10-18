@@ -6,7 +6,7 @@ import { Heart, Users, Lock, Shield } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LandingPage() {
-  const [userCount, setUserCount] = useState(12536);
+  const [userCount, setUserCount] = useState(500);
 
   // Simulate increasing user count
   useEffect(() => {

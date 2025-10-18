@@ -4,15 +4,17 @@
 
 import { forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { X, Upload, Loader2, CheckCircle, AlertCircle, Download } from 'lucide-react';
+import { X, Upload, Loader2, CheckCircle, AlertCircle, UserX, Download } from 'lucide-react';
 import Image from 'next/image';
+import { getFaceBlurProcessor, getPreloadStatus } from '@/lib/faceBlur';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 
 interface ProcessingImage {
   file: File;
   previewUrl: string;
-  status: 'pending' | 'uploading' | 'completed' | 'error';
+  status: 'pending' | 'processing' | 'uploading' | 'completed' | 'error' | 'no-face' | 'models-loading';
+  processedUrl?: string;
   uploadedUrl?: string;
 }
 
@@ -34,10 +36,90 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
   }, ref) => {
     const [processingImages, setProcessingImages] = useState<ProcessingImage[]>([]);
     const [isProcessingImages, setIsProcessingImages] = useState(false);
+    const [modelsStatus, setModelsStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
     
     const internalRef = useRef<HTMLInputElement>(null);
 
     useImperativeHandle(ref, () => internalRef.current as HTMLInputElement);
+
+    // Check model status on component mount
+    useEffect(() => {
+      const checkModelsStatus = () => {
+        const status = getPreloadStatus();
+        if (status.loaded) {
+          setModelsStatus('loaded');
+        } else if (status.loading) {
+          setModelsStatus('loading');
+        } else if (status.error) {
+          setModelsStatus('error');
+        } else {
+          setModelsStatus('idle');
+        }
+      };
+
+      checkModelsStatus();
+      
+      // Check status periodically until models are loaded
+      const interval = setInterval(() => {
+        if (modelsStatus !== 'loaded' && modelsStatus !== 'error') {
+          checkModelsStatus();
+        }
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }, [modelsStatus]);
+
+    const processSingleImage = async (file: File): Promise<Blob | null> => {
+      try {
+        // If not anonymous or not in sensitive category, return original file
+        const shouldProcess = isAnonymous && ["Hook Up", "Sex Chat", "Fuck Mate"].includes(category);
+        
+        if (!shouldProcess) {
+          return null; // Return null to indicate no processing needed
+        }
+
+        // Ensure models are loaded
+        if (modelsStatus !== 'loaded') {
+          setModelsStatus('loading');
+          const processor = getFaceBlurProcessor();
+          await processor.ensureModelsLoaded();
+          setModelsStatus('loaded');
+        }
+
+        console.log('Applying emoji mask to image...');
+        const processor = getFaceBlurProcessor();
+        const emojiBlob = await processor.maskFacesWithEmojis(file);
+        
+        if (!emojiBlob) {
+          throw new Error('NO_FACE_DETECTED');
+        }
+
+        return emojiBlob;
+      } catch (error) {
+        if (error instanceof Error && error.message === 'NO_FACE_DETECTED') {
+          throw error;
+        }
+        console.error('Error processing image:', error);
+        setModelsStatus('error');
+        throw new Error('PROCESSING_FAILED');
+      }
+    };
+
+    const blobToBase64 = (blob: Blob): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          if (result && result.startsWith('data:')) {
+            resolve(result);
+          } else {
+            reject(new Error('Failed to convert blob to base64'));
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    };
 
     const handleImageUpload = async (event: any) => {
       try {
@@ -54,25 +136,70 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
         const newProcessingImage: ProcessingImage = {
           file,
           previewUrl: URL.createObjectURL(file),
-          status: 'pending'
+          status: modelsStatus === 'loaded' ? 'pending' : 'models-loading'
         };
 
         setProcessingImages(prev => [...prev, newProcessingImage]);
         const index = processingImages.length;
 
-        // Update status to uploading
+        // If models are still loading, update status
+        if (modelsStatus !== 'loaded') {
+          setProcessingImages(prev =>
+            prev.map((img, idx) =>
+              idx === index ? { ...img, status: 'models-loading' } : img
+            )
+          );
+          
+          // Wait for models to load if they're loading
+          if (modelsStatus === 'loading') {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+
+        // Update status to processing
         setProcessingImages(prev =>
           prev.map((img, idx) =>
-            idx === index ? { ...img, status: 'uploading' } : img
+            idx === index ? { ...img, status: 'processing' } : img
           )
         );
 
+        // Process image (face blur if needed)
+        let processedBlob: Blob | null = null;
+        try {
+          processedBlob = await processSingleImage(file);
+        } catch (error) {
+          if (error instanceof Error && error.message === 'NO_FACE_DETECTED') {
+            setProcessingImages(prev =>
+              prev.map((img, idx) =>
+                idx === index ? { ...img, status: 'no-face' } : img
+              )
+            );
+            toast.error("No face detected in the image. Please select another image.");
+            return;
+          } else {
+            throw error;
+          }
+        }
+
+        // Update status to uploading
+        setProcessingImages(prev =>
+          prev.map((img, idx) =>
+            idx === index ? { 
+              ...img, 
+              status: 'uploading',
+              ...(processedBlob && { processedUrl: URL.createObjectURL(processedBlob) })
+            } : img
+          )
+        );
+
+        // Upload to Supabase
+        const uploadFile = processedBlob ? new File([processedBlob], file.name, { type: file.type }) : file;
         const fileName = `${Date.now()}-${file.name}`;
         const filePath = `${category ? category + '/' : ''}${fileName}`;
 
         const { error } = await supabase.storage
-          .from('upload') // your Supabase bucket name
-          .upload(filePath, file);
+          .from('upload')
+          .upload(filePath, uploadFile);
 
         if (error) throw error;
 
@@ -104,7 +231,10 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
             idx === processingImages.length ? { ...img, status: 'error' } : img
           )
         );
-        toast.error("Failed to upload image. Please try again.");
+        
+        if (error.message !== 'NO_FACE_DETECTED') {
+          toast.error("Failed to upload image. Please try again.");
+        }
       } finally {
         setIsProcessingImages(false);
       }
@@ -120,9 +250,12 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
     const removeImage = async (index: number) => {
       const imageToRemove = processingImages[index];
       
-      // Clean up preview URL
+      // Clean up preview URLs
       if (imageToRemove?.previewUrl) {
         URL.revokeObjectURL(imageToRemove.previewUrl);
+      }
+      if (imageToRemove?.processedUrl) {
+        URL.revokeObjectURL(imageToRemove.processedUrl);
       }
 
       // Remove from Supabase storage if uploaded
@@ -189,18 +322,25 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
           if (img.previewUrl) {
             URL.revokeObjectURL(img.previewUrl);
           }
+          if (img.processedUrl) {
+            URL.revokeObjectURL(img.processedUrl);
+          }
         });
       };
     }, [processingImages]);
 
     const getStatusIcon = (status: ProcessingImage['status']) => {
       switch (status) {
+        case 'models-loading':
+        case 'processing':
         case 'uploading':
           return <Loader2 className="h-3 w-3 animate-spin text-yellow-600" />;
         case 'completed':
           return <CheckCircle className="h-3 w-3 text-green-600" />;
         case 'error':
           return <AlertCircle className="h-3 w-3 text-red-600" />;
+        case 'no-face':
+          return <UserX className="h-3 w-3 text-orange-600" />;
         case 'pending':
           return <Download className="h-3 w-3 text-blue-600" />;
         default:
@@ -209,25 +349,38 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
     };
 
     const getImageDisplayUrl = (img: ProcessingImage): string => {
-      return img.previewUrl;
+      // Show processed image if available, otherwise show preview
+      return img.processedUrl || img.previewUrl;
     };
 
     const getStatusColor = (status: ProcessingImage['status']): string => {
       switch (status) {
-        case 'uploading': return 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20';
-        case 'completed': return 'border-green-400 bg-green-50 dark:bg-green-900/20';
-        case 'error': return 'border-red-400 bg-red-50 dark:bg-red-900/20';
-        case 'pending': return 'border-blue-400 bg-blue-50 dark:bg-blue-900/20';
-        default: return 'border-gray-200 dark:border-gray-700';
+        case 'models-loading':
+        case 'processing':
+        case 'uploading': 
+          return 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20';
+        case 'completed': 
+          return 'border-green-400 bg-green-50 dark:bg-green-900/20';
+        case 'error': 
+          return 'border-red-400 bg-red-50 dark:bg-red-900/20';
+        case 'no-face': 
+          return 'border-orange-400 bg-orange-50 dark:bg-orange-900/20';
+        case 'pending': 
+          return 'border-blue-400 bg-blue-50 dark:bg-blue-900/20';
+        default: 
+          return 'border-gray-200 dark:border-gray-700';
       }
     };
 
     const getStatusText = (status: ProcessingImage['status']): string => {
       switch (status) {
         case 'pending': return 'Pending';
+        case 'models-loading': return 'Loading AI...';
+        case 'processing': return 'Processing...';
         case 'uploading': return 'Uploading...';
         case 'completed': return 'Uploaded';
         case 'error': return 'Error';
+        case 'no-face': return 'No Face';
         default: return '';
       }
     };
@@ -245,6 +398,25 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
           disabled={isProcessingImages || processingImages.length >= maxImages}
         />
 
+        {/* Model Status Indicator */}
+        {modelsStatus === 'loading' && (
+          <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+            <span className="text-sm text-blue-700 dark:text-blue-300">
+              Loading face detection AI... This may take a moment
+            </span>
+          </div>
+        )}
+
+        {modelsStatus === 'error' && (
+          <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+            <span className="text-sm text-red-700 dark:text-red-300">
+              AI model failed to load. Face blurring will not be available.
+            </span>
+          </div>
+        )}
+
         {/* Upload Card */}
         {canUploadMore && (
           <Card
@@ -261,9 +433,9 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
               {isProcessingImages ? (
                 <>
                   <Loader2 className="h-10 w-10 text-gray-400 mb-3 animate-spin" />
-                  <h3 className="font-medium text-gray-500 dark:text-gray-400">Uploading Images...</h3>
+                  <h3 className="font-medium text-gray-500 dark:text-gray-400">Processing Images...</h3>
                   <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                    Please wait while we upload your images
+                    Please wait while we process your images
                   </p>
                 </>
               ) : (
@@ -303,7 +475,7 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
                 </div>
 
                 {/* Remove Button */}
-                {img.status !== 'uploading' && (
+                {img.status !== 'processing' && img.status !== 'models-loading' && img.status !== 'uploading' && (
                   <button
                     type="button"
                     onClick={() => removeImage(index)}
@@ -325,11 +497,12 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
         )}
 
         {/* Privacy Note */}
-        {isAnonymous && (
+        {isAnonymous && ["Hook Up", "Sex Chat", "Fuck Mate"].includes(category) && (
           <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
             <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
             <p className="text-amber-700 dark:text-amber-300 text-xs">
-              <strong>Privacy Note:</strong> Your images are securely stored and will only be visible based on your privacy settings.
+              <strong>Privacy Note:</strong> Your face will be automatically covered with emojis using AI.
+              This ensures your privacy while maintaining a fun experience.
             </p>
           </div>
         )}

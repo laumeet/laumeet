@@ -126,7 +126,7 @@ function ProfileCard({
         transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg) scale(${scale})`,
       }}
     >
-      <Card className="h-full p-0 w-full shadow-2xl border-0 overflow-hidden rounded-3xl bg-black/80 ">
+      <Card className="h-full p-0 w-full shadow-2xl border-0 overflow-hidden rounded-3xl  ">
         <CardContent className="p-0 h-full relative">
           {/* Swipe Overlay */}
           <SwipeOverlay direction={swipeDirection} />

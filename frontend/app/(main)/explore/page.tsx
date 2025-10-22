@@ -5,9 +5,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { 
   Heart, X, Users, 
-  Loader2, AlertCircle, ChevronLeft, ChevronRight,
-  Book, GraduationCap, Droplets, Cross, Eye, MessageCircle, BadgeCheck,
-  Maximize2, Info, Venus, Ruler, Scale, Sparkles, Coins
+  Loader2, AlertCircle, ChevronLeft, ChevronRight, Eye, MessageCircle, BadgeCheck,
+  Maximize2, Info, Venus,  Sparkles,
+  Mars
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,21 +46,7 @@ function VerifiedBadge({ size = "sm", className = "" }: { size?: "sm" | "md" | "
   );
 }
 
-// Recently Like Sticker Component
-function RecentlyLikeSticker() {
-  return (
-    <div className="absolute top-6 left-4 z-30 transform -rotate-12">
-      <div className="bg-white/95 backdrop-blur-sm rounded-2xl px-3 py-1.5 shadow-lg border border-white/60 flex items-center gap-1.5">
-        <div className="w-6 h-6 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
-          <span className="text-xs text-white">✨</span>
-        </div>
-        <span className="text-xs font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
-          Recently LIKE
-        </span>
-      </div>
-    </div>
-  );
-}
+
 
 // Info Pill Component
 function InfoPill({ icon: Icon, value, color = "pink" }: { icon: any; value: string; color?: "pink" | "purple" | "blue" | "green" | "teal" }) {
@@ -142,7 +128,7 @@ function ProfileCard({
         transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg) scale(${scale})`,
       }}
     >
-      <Card className="h-full w-full shadow-2xl border-0 overflow-hidden rounded-3xl bg-white">
+      <Card className="h-full p-0 w-full shadow-2xl border-0 overflow-hidden rounded-3xl bg-white">
         <CardContent className="p-0 h-full relative">
           {/* Swipe Overlay */}
           <SwipeOverlay direction={swipeDirection} />
@@ -156,9 +142,6 @@ function ProfileCard({
               </div>
             </div>
           )}
-
-          {/* Recently Like Sticker */}
-          <RecentlyLikeSticker />
 
           {/* Profile Image with Gradient Overlay */}
           <div className="relative h-[70%]">
@@ -275,11 +258,8 @@ function ProfileCard({
                   
                   {/* Info Pills */}
                   <div className="flex flex-wrap gap-2">
-                    <InfoPill icon={Venus} value={`${profile.gender === 'female' ? '♀' : '♂'} ${profile.age || '25'}`} color="pink" />
-                    <InfoPill icon={Ruler} value={`${profile.height || '168'} cm`} color="purple" />
-                    <InfoPill icon={Scale} value={`${profile.weight || '57'} kg`} color="blue" />
-                    <InfoPill icon={Sparkles} value={profile.zodiac || 'Leo'} color="green" />
-                    <InfoPill icon={Coins} value={`${profile.income || '10000'}₱/Month`} color="teal" />
+                    <InfoPill icon={profile.gender === 'female' ? Venus : Mars} value={` ${profile.age || '25'}`} color="pink" />
+                   
                   </div>
                 </div>
 
@@ -301,7 +281,7 @@ function ProfileCard({
           <div className="h-[30%] p-6 overflow-y-auto">
             {/* Bio Preview */}
             <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-2">
-              {profile.bio || 'No bio available yet. Say hello to start a conversation!'}
+              {profile.bio || 'No bio available yet'}
             </p>
 
             {/* Interests Preview */}
@@ -360,9 +340,89 @@ function MatchPopup({
     "What's up? 😄"
   ];
 
-  const handleStartChat = (message?: string) => {
-    router.push('/chat');
-    onClose();
+  const handleStartChat = async (message?: string) => {
+    try {
+      const conversationResponse = await api.post('/chat/conversations/create', {
+        target_user_id: matchedProfile._id
+      });
+
+      if (conversationResponse.data.success) {
+        const conversationId = conversationResponse.data.conversation_id;
+
+        const messageResponse = await api.post(`/chat/messages/send?conversationId=${conversationId}`, {
+          content: message
+        });
+
+        if (messageResponse.data.success) {
+          toast.success(`Successfully sent message to ${matchedProfile.name}`)
+          onClose()
+        }
+      }
+
+      return { success: false, error: 'Failed to create conversation' };
+    } catch (err: any) {
+      console.error('Error creating conversation:', err);
+      return { 
+        success: false, 
+        error: err.response?.data?.message || 'Failed to create conversation' 
+      };
+    }
+  };
+  const handleSendChat = async () => {
+    try {
+      const conversationResponse = await api.post('/chat/conversations/create', {
+        target_user_id: matchedProfile._id
+      });
+
+      if (conversationResponse.data.success) {
+        const conversationId = conversationResponse.data.conversation_id;
+
+        const messageResponse = await api.post(`/chat/messages/send?conversationId=${conversationId}`, {
+          content: "Chat Unlocked"
+        });
+
+        if (messageResponse.data.success) {
+          toast.success(`Successfully sent message to ${matchedProfile.name}`)
+          router.push('/chat')
+          onClose()
+        }
+      }
+
+      return { success: false, error: 'Failed to create conversation' };
+    } catch (err: any) {
+      console.error('Error creating conversation:', err);
+      return { 
+        success: false, 
+        error: err.response?.data?.message || 'Failed to create conversation' 
+      };
+    }
+  };
+  const handleKeepSwipping = async () => {
+    try {
+      const conversationResponse = await api.post('/chat/conversations/create', {
+        target_user_id: matchedProfile._id
+      });
+
+      if (conversationResponse.data.success) {
+        const conversationId = conversationResponse.data.conversation_id;
+
+        const messageResponse = await api.post(`/chat/messages/send?conversationId=${conversationId}`, {
+          content: "Chat Unlocked"
+        });
+
+        if (messageResponse.data.success) {
+          onClose()
+        }
+      }
+
+      return { success: false, error: 'Failed to create conversation' };
+    } catch (err: any) {
+      console.error('Error creating conversation:', err);
+      return { 
+        success: false, 
+        error: err.response?.data?.message || 'Failed to create conversation' 
+      };
+    }
   };
 
   if (!isOpen) return null;
@@ -446,7 +506,7 @@ function MatchPopup({
             
             {/* Send Message Button */}
             <button
-              onClick={() => handleStartChat()}
+              onClick={() => handleSendChat()}
               className="w-full mt-4 px-6 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
             >
               Send Message
@@ -454,7 +514,7 @@ function MatchPopup({
             
             {/* Keep Swiping Button */}
             <button
-              onClick={onClose}
+              onClick={() => handleKeepSwipping()}
               className="w-full mt-2 px-6 py-3 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200"
             >
               Keep Swiping
@@ -466,62 +526,7 @@ function MatchPopup({
   );
 }
 
-// Swipe Instructions Component
-function SwipeInstructions() {
-  const [showInstructions, setShowInstructions] = useState(false);
 
-  useEffect(() => {
-    const lastShowTime = localStorage.getItem('swipeInstructionsLastShow');
-    const now = Date.now();
-    const fourMinutes = 4 * 60 * 1000;
-
-    if (!lastShowTime || (now - parseInt(lastShowTime)) > fourMinutes) {
-      setShowInstructions(true);
-      localStorage.setItem('swipeInstructionsLastShow', now.toString());
-    }
-  }, []);
-
-  if (!showInstructions) return null;
-
-  return (
-    <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full mx-4">
-      <Alert className="bg-blue-50 border-blue-200 shadow-lg rounded-2xl">
-        <div className="flex items-start justify-between w-full">
-          <div className="flex items-start space-x-3 flex-1">
-            <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <AlertDescription className="text-blue-800 text-sm">
-                <strong className="block mb-2">How to connect:</strong>
-                <div className="grid grid-cols-2 gap-4 text-center">
-                  <div className="flex flex-col items-center">
-                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mb-1">
-                      <X className="h-5 w-5 text-red-600" />
-                    </div>
-                    <span className="text-xs">Swipe left to pass</span>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mb-1">
-                      <Heart className="h-5 w-5 text-green-600" />
-                    </div>
-                    <span className="text-xs">Swipe right to like</span>
-                  </div>
-                </div>
-              </AlertDescription>
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowInstructions(false)}
-            className="text-blue-600 hover:text-blue-800 ml-2 flex-shrink-0"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      </Alert>
-    </div>
-  );
-}
 
 // iOS Style Bottom Sheet Component
 function IOSDetailSheet({ 
@@ -620,7 +625,7 @@ function IOSDetailSheet({
       {/* Sheet */}
       <div 
         ref={sheetRef}
-        className={`fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl transition-transform duration-300 ${
+        className={`fixed bottom-0 left-0 right-0 z-50bg-gray-900 rounded-t-3xl shadow-2xl transition-transform duration-300 ${
           isDragging ? 'transition-none' : ''
         }`}
         style={{
@@ -636,10 +641,10 @@ function IOSDetailSheet({
       >
         {/* Drag Handle */}
         <div className="flex justify-center pt-3 pb-2">
-          <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full" />
+          <div className="w-12 h-1.5 bg-gray-600 rounded-full" />
         </div>
 
-        <div className="max-h-[80vh] overflow-y-auto pb-8">
+        <div className="max-h-[80vh] overflow-y-auto pb-32">
           {/* Header */}
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
@@ -723,7 +728,6 @@ function IOSDetailSheet({
 }
 
 export default function ExplorePage() {
-  const router = useRouter();
   const { 
     profiles = [], 
     loading, 
@@ -744,7 +748,7 @@ export default function ExplorePage() {
 
   // State for image carousel per profile
   const [currentImageIndexes, setCurrentImageIndexes] = useState<{ [key: string]: number }>({});
-  const [userSubscriptions, setUserSubscriptions] = useState<{ [key: string]: any }>({});
+  const [userSubscriptions, setUserSubscriptions] = useState("")
 
   // Drag and swipe handling
   const [isDragging, setIsDragging] = useState(false);
@@ -753,21 +757,11 @@ export default function ExplorePage() {
 
   // Use subscription hook for the current profile
   const currentProfile = profiles[currentIndex];
-  const { subscription: currentSubscription } = useUserSubscription(currentProfile?.id || "");
-
-  // Update subscriptions when current profile changes
-  useEffect(() => {
-    if (currentProfile?.id && currentSubscription) {
-      setUserSubscriptions(prev => ({
-        ...prev,
-        [currentProfile.id]: currentSubscription
-      }));
-    }
-  }, [currentProfile?.id, currentSubscription]);
+  const { subscription } = useUserSubscription(userSubscriptions|| "");
 
   // Function to check if a user has active subscription
   const hasActiveSubscription = (userId: string) => {
-    const subscription = userSubscriptions[userId];
+    setUserSubscriptions(userId)
     return subscription?.has_subscription && 
            subscription.subscription?.is_active && 
            subscription.subscription?.status === 'active';
@@ -827,34 +821,7 @@ export default function ExplorePage() {
     return currentImageIndexes[profileId] || 0;
   };
 
-  // Function to create conversation and send initial message
-  const createConversationWithMessage = async (matchedUserId: any) => {
-    try {
-      const conversationResponse = await api.post('/chat/conversations/create', {
-        target_user_id: matchedUserId
-      });
 
-      if (conversationResponse.data.success) {
-        const conversationId = conversationResponse.data.conversation_id;
-
-        const messageResponse = await api.post(`/chat/messages/send?conversationId=${conversationId}`, {
-          content: "Conversation has been unlocked! 🎉"
-        });
-
-        if (messageResponse.data.success) {
-          return { success: true, conversationId };
-        }
-      }
-
-      return { success: false, error: 'Failed to create conversation' };
-    } catch (err: any) {
-      console.error('Error creating conversation:', err);
-      return { 
-        success: false, 
-        error: err.response?.data?.message || 'Failed to create conversation' 
-      };
-    }
-  };
 
   // Handle swipe action
   const handleSwipe = async (direction: 'left' | 'right') => {
@@ -872,20 +839,6 @@ export default function ExplorePage() {
         const matchedUser = profiles.find((p) => p.id === result.matched_with);
         setProcessingMatch(profile.id);
         setMatchedProfile(matchedUser);
-
-        const conversationResult = await createConversationWithMessage(result.matched_with);
-
-        if (conversationResult.success) {
-          setTimeout(() => {
-            setShowMatchPopup(true);
-            toast.success(`It's a match with ${matchedUser?.name || matchedUser?.username}! 🎉`, {
-              duration: 5000,
-            });
-          }, 500);
-        } else {
-          toast.error('Match created! Failed to start conversation automatically.');
-        }
-
         setProcessingMatch(null);
       }
 
@@ -900,6 +853,8 @@ export default function ExplorePage() {
       toast.error('An error occurred while processing your swipe');
       setSwipeDirection(null);
       setIsSwiping(false);
+    }finally{
+      refetch()
     }
   };
 
@@ -1031,16 +986,12 @@ export default function ExplorePage() {
 
   return (
     <>
-      <SwipeInstructions />
-
-      {/* Background Gradient */}
-      <div className="fixed inset-0 bg-gradient-to-r from-pink-100 to-white -z-10" />
 
       <div className="space-y-6 px-4 pb-28 relative z-10">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Discover</h1>
+            <h1 className="text-2xl font-bold">Discover</h1>
             <p className="text-gray-600">
               {totalProfiles} people nearby • Swipe to connect
             </p>

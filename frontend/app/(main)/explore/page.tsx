@@ -722,6 +722,23 @@ function IOSDetailSheet({
   );
 }
 
+// Custom hook to manage subscription state
+function useSubscriptionManager() {
+  const [currentUserId, setCurrentUserId] = useState<string>("");
+  const { subscription } = useUserSubscription(currentUserId);
+
+  const hasActiveSubscription = (userId: string) => {
+    if (userId !== currentUserId) {
+      setCurrentUserId(userId);
+    }
+    return subscription?.has_subscription && 
+           subscription.subscription?.is_active && 
+           subscription.subscription?.status === 'active';
+  };
+
+  return { hasActiveSubscription };
+}
+
 export default function ExplorePage() {
   const { 
     profiles = [], 
@@ -731,6 +748,8 @@ export default function ExplorePage() {
     refetch, 
     swipeProfile 
   } = useExploreProfiles();
+
+  const { hasActiveSubscription } = useSubscriptionManager();
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
@@ -743,25 +762,11 @@ export default function ExplorePage() {
 
   // State for image carousel per profile
   const [currentImageIndexes, setCurrentImageIndexes] = useState<{ [key: string]: number }>({});
-  const [userSubscriptions, setUserSubscriptions] = useState("");
 
   // Drag and swipe handling
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-
-  // Use subscription hook - FIXED: Always call hooks unconditionally
-  const { subscription } = useUserSubscription(userSubscriptions);
-
-  // Function to check if a user has active subscription
-  const hasActiveSubscription = (userId: string) => {
-    // Update the user ID for the hook
-    setUserSubscriptions(userId);
-    
-    return subscription?.has_subscription && 
-           subscription.subscription?.is_active && 
-           subscription.subscription?.status === 'active';
-  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText("https://laumeet.vercel.app");
@@ -905,6 +910,7 @@ export default function ExplorePage() {
   };
 
   const canSwipe = currentIndex < profiles.length;
+  const currentProfile = profiles[currentIndex];
 
   // Show loading state
   if (loading) {
@@ -977,8 +983,6 @@ export default function ExplorePage() {
       </div>
     );
   }
-
-  const currentProfile = profiles[currentIndex];
 
   return (
     <>

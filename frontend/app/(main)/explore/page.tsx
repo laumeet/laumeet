@@ -6,7 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 import { 
   Heart, X, Users, 
   Loader2, AlertCircle, ChevronLeft, ChevronRight, Eye, MessageCircle, BadgeCheck,
-  Maximize2, Info, Venus,  Sparkles,
+  Maximize2, Venus,  Sparkles,
   Mars
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -126,7 +126,7 @@ function ProfileCard({
         transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg) scale(${scale})`,
       }}
     >
-      <Card className="h-full p-0 w-full shadow-2xl border-0 overflow-hidden rounded-3xl bg-white">
+      <Card className="h-full p-0 w-full shadow-2xl border-0 overflow-hidden rounded-3xl bg-gray-700">
         <CardContent className="p-0 h-full relative">
           {/* Swipe Overlay */}
           <SwipeOverlay direction={swipeDirection} />
@@ -307,6 +307,7 @@ function ProfileCard({
 }
 
 // Match Popup Component - BIGO Style
+// Match Popup Component - BIGO Style
 function MatchPopup({ 
   isOpen, 
   onClose, 
@@ -319,6 +320,8 @@ function MatchPopup({
   matchedProfile: any;
 }) {
   const [showConfetti, setShowConfetti] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentAction, setCurrentAction] = useState<'suggestion' | 'send' | 'keepSwiping' | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -338,6 +341,11 @@ function MatchPopup({
   ];
 
   const handleStartChat = async (message?: string) => {
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    setCurrentAction('suggestion');
+    
     try {
       const conversationResponse = await api.post('/chat/conversations/create', {
         target_user_id: matchedProfile._id
@@ -352,13 +360,19 @@ function MatchPopup({
 
         if (messageResponse.data.success) {
           toast.success(`Successfully sent message to ${matchedProfile.name}`)
-          onClose()
+          setIsLoading(false);
+          setCurrentAction(null);
+          onClose(); // Automatically close modal after sending
         }
+      } else {
+        setIsLoading(false);
+        setCurrentAction(null);
+        return { success: false, error: 'Failed to create conversation' };
       }
-
-      return { success: false, error: 'Failed to create conversation' };
     } catch (err: any) {
       console.error('Error creating conversation:', err);
+      setIsLoading(false);
+      setCurrentAction(null);
       return { 
         success: false, 
         error: err.response?.data?.message || 'Failed to create conversation' 
@@ -367,6 +381,11 @@ function MatchPopup({
   };
 
   const handleSendChat = async () => {
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    setCurrentAction('send');
+    
     try {
       const conversationResponse = await api.post('/chat/conversations/create', {
         target_user_id: matchedProfile._id
@@ -381,14 +400,20 @@ function MatchPopup({
 
         if (messageResponse.data.success) {
           toast.success(`Successfully sent message to ${matchedProfile.name}`)
+          setIsLoading(false);
+          setCurrentAction(null);
           router.push('/chat')
           onClose()
         }
+      } else {
+        setIsLoading(false);
+        setCurrentAction(null);
+        return { success: false, error: 'Failed to create conversation' };
       }
-
-      return { success: false, error: 'Failed to create conversation' };
     } catch (err: any) {
       console.error('Error creating conversation:', err);
+      setIsLoading(false);
+      setCurrentAction(null);
       return { 
         success: false, 
         error: err.response?.data?.message || 'Failed to create conversation' 
@@ -397,6 +422,11 @@ function MatchPopup({
   };
 
   const handleKeepSwipping = async () => {
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    setCurrentAction('keepSwiping');
+    
     try {
       const conversationResponse = await api.post('/chat/conversations/create', {
         target_user_id: matchedProfile._id
@@ -410,17 +440,37 @@ function MatchPopup({
         });
 
         if (messageResponse.data.success) {
+          setIsLoading(false);
+          setCurrentAction(null);
           onClose()
         }
+      } else {
+        setIsLoading(false);
+        setCurrentAction(null);
+        return { success: false, error: 'Failed to create conversation' };
       }
-
-      return { success: false, error: 'Failed to create conversation' };
     } catch (err: any) {
       console.error('Error creating conversation:', err);
+      setIsLoading(false);
+      setCurrentAction(null);
       return { 
         success: false, 
         error: err.response?.data?.message || 'Failed to create conversation' 
       };
+    }
+  };
+
+  // Helper function to get loading text based on current action
+  const getLoadingText = () => {
+    switch (currentAction) {
+      case 'suggestion':
+        return 'Sending message...';
+      case 'send':
+        return 'Starting chat...';
+      case 'keepSwiping':
+        return 'Unlocking chat...';
+      default:
+        return 'Loading...';
     }
   };
 
@@ -449,6 +499,16 @@ function MatchPopup({
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center p-4">
         <div className="bg-white/95 backdrop-blur-lg rounded-3xl shadow-2xl border border-white/60 w-full max-w-md overflow-hidden">
+          {/* Loading Overlay */}
+          {isLoading && (
+            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                <p className="text-gray-700 font-medium">{getLoadingText()}</p>
+              </div>
+            </div>
+          )}
+
           {/* Header */}
           <div className="text-center p-6">
             <div className="w-16 h-16 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -496,7 +556,8 @@ function MatchPopup({
                 <button
                   key={index}
                   onClick={() => handleStartChat(message)}
-                  className="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 active:scale-95"
+                  disabled={isLoading}
+                  className="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   {message}
                 </button>
@@ -506,7 +567,8 @@ function MatchPopup({
             {/* Send Message Button */}
             <button
               onClick={() => handleSendChat()}
-              className="w-full mt-4 px-6 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
+              disabled={isLoading}
+              className="w-full mt-4 px-6 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
               Send Message
             </button>
@@ -514,7 +576,8 @@ function MatchPopup({
             {/* Keep Swiping Button */}
             <button
               onClick={() => handleKeepSwipping()}
-              className="w-full mt-2 px-6 py-3 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200"
+              disabled={isLoading}
+              className="w-full mt-2 px-6 py-3 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Keep Swiping
             </button>
@@ -744,7 +807,6 @@ export default function ExplorePage() {
     profiles = [], 
     loading, 
     error, 
-    totalProfiles = 0, 
     refetch, 
     swipeProfile 
   } = useExploreProfiles();

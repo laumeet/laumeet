@@ -5,9 +5,17 @@ import api from '@/lib/axio';
 export interface UserSubscriptionResponse {
   success: boolean;
   message?: string;
-  user_id: string;
-  username: string;
-  name: string;
+  user_id?: string;
+  username?: string;
+  name?: string;
+  has_subscription: boolean;
+  current_plan?: any;
+  subscription?: any;
+}
+
+export interface CurrentUserSubscriptionResponse {
+  success: boolean;
+  message?: string;
   has_subscription: boolean;
   current_plan?: any;
   subscription?: any;
@@ -25,8 +33,9 @@ export const useUserSubscription = (userId?: string) => {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await api.get<UserSubscriptionResponse>(`/subscription/current`);
-      console.log('use hook sub',data)
+      const { data } = await api.get<UserSubscriptionResponse>(`/subscription/user?user_id=${id}`);
+      console.log('use hook sub', data);
+      
       if (data.success) {
         setSubscription(data);
       } else {
@@ -40,9 +49,44 @@ export const useUserSubscription = (userId?: string) => {
     }
   }, [userId]);
 
+  const fetchCurrentUserSubscription = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const { data } = await api.get<CurrentUserSubscriptionResponse>('/subscription/current');
+      console.log('use hook current sub', data);
+      
+      if (data.success) {
+        // Convert current user response to match UserSubscriptionResponse format
+        setSubscription({
+          success: true,
+          has_subscription: data.has_subscription,
+          current_plan: data.current_plan,
+          subscription: data.subscription,
+          message: data.message
+        });
+      } else {
+        setError(data.message || 'Failed to fetch current subscription');
+      }
+    } catch (err) {
+      console.error('Error fetching current subscription:', err);
+      setError('Failed to fetch current subscription');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (userId) fetchUserSubscription();
+    if (userId) {
+      fetchUserSubscription();
+    }
   }, [userId, fetchUserSubscription]);
 
-  return { subscription, loading, error, fetchUserSubscription };
+  return { 
+    subscription, 
+    loading, 
+    error, 
+    fetchUserSubscription,
+    fetchCurrentUserSubscription 
+  };
 };

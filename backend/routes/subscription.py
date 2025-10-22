@@ -815,3 +815,55 @@ def get_payment_status(payment_id):
     except Exception as e:
         print(f"Error fetching payment status: {str(e)}")
         return jsonify({"success": False, "message": "Failed to fetch payment status"}), 500
+
+
+
+@subscription_bp.route("/user/<string:user_id>", methods=["GET"])
+@jwt_required()
+def get_user_subscription(user_id):
+    """
+    Get subscription details for a specific user
+    """
+    current_user, error_response, status_code = get_current_user_from_jwt()
+    if error_response:
+        return error_response, status_code
+
+    try:
+        # Get the target user
+        target_user = User.query.get(user_id)
+        if not target_user:
+            return jsonify({
+                "success": False,
+                "message": "User not found"
+            }), 404
+
+        if not target_user.current_subscription:
+            # Return free plan details
+            free_plan = SubscriptionPlan.query.filter_by(tier=SubscriptionTier.FREE).first()
+            return jsonify({
+                "success": True,
+                "user_id": target_user.id,
+                "username": target_user.username,
+                "name": target_user.name,
+                "has_subscription": False,
+                "current_plan": free_plan.to_dict() if free_plan else None,
+                "message": "User is on the free plan"
+            }), 200
+
+        subscription_data = target_user.current_subscription.to_dict()
+
+        return jsonify({
+            "success": True,
+            "user_id": target_user.id,
+            "username": target_user.username,
+            "name": target_user.name,
+            "has_subscription": True,
+            "subscription": subscription_data
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching user subscription: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": "Failed to fetch subscription details"
+        }), 500

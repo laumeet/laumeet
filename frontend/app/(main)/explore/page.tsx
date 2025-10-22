@@ -852,9 +852,7 @@ export default function ExplorePage() {
       toast.error('An error occurred while processing your swipe');
       setSwipeDirection(null);
       setIsSwiping(false);
-    } finally {
-      refetch();
-    }
+    } 
   };
 
   // Drag handlers for swipe
@@ -992,7 +990,7 @@ export default function ExplorePage() {
           <div>
             <h1 className="text-2xl font-bold">Discover</h1>
             <p className="text-gray-600">
-              {totalProfiles} people nearby • Swipe to connect
+            Swipe to connect
             </p>
           </div>
         </div>

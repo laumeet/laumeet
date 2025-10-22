@@ -21,22 +21,34 @@ function PaymentSuccessContent() {
 
   const [loading, setLoading] = useState(true);
   const [subscriptionCreated, setSubscriptionCreated] = useState(false);
+  const [hasProcessed, setHasProcessed] = useState(false);
 
   useEffect(() => {
-    if (txRef && planId) {
+    // Check if we've already processed this payment
+    const processedPayment = sessionStorage.getItem(`processed_${txRef}`);
+    
+    if (txRef && planId && !hasProcessed && !processedPayment) {
       createSubscription();
+    } else if (processedPayment) {
+      // If already processed, just show success page
+      setSubscriptionCreated(true);
+      setLoading(false);
     } else {
       // Redirect back if no valid parameters
       router.push('/subscription');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [txRef, planId]);
+  }, [txRef, planId, hasProcessed]);
 
   const createSubscription = async () => {
-    if (!txRef || !planId) return;
+    if (!txRef || !planId || hasProcessed) return;
 
     try {
       setLoading(true);
+      setHasProcessed(true);
+      
+      // Mark this payment as processed in sessionStorage
+      sessionStorage.setItem(`processed_${txRef}`, 'true');
       
       const subscriptionResponse = await api.post('/subscription/subscribe', {
         plan_id: planId,
@@ -49,11 +61,19 @@ function PaymentSuccessContent() {
       if (subscriptionResponse.data.success) {
         setSubscriptionCreated(true);
         toast.success('Subscription activated successfully!');
+        
+        // Clear URL parameters to prevent resubmission on refresh
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
       } else {
         throw new Error(subscriptionResponse.data.message || 'Failed to create subscription');
       }
     } catch (error: any) {
       console.error('Error creating subscription:', error);
+      // Remove the processed marker so user can retry
+      sessionStorage.removeItem(`processed_${txRef}`);
+      setHasProcessed(false);
+      
       toast.error('Failed to activate subscription');
       // Redirect to failed page if subscription creation fails
       router.push(`/payment-failed?payment_id=${txRef}&error_code=SUBSCRIPTION_FAILED&error_message=${encodeURIComponent(error.message || 'Subscription activation failed')}`);
@@ -76,7 +96,16 @@ function PaymentSuccessContent() {
   }
 
   if (!subscriptionCreated) {
-    return null;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/20 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md text-center">
+          <CardContent className="pt-6">
+            <Loader2 className="h-12 w-12 text-gray-400 animate-spin mx-auto mb-4" />
+            <p className="text-gray-600 dark:text-gray-400">Processing your subscription...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   const getPremiumFeatures = () => [
@@ -274,7 +303,7 @@ function PaymentSuccessContent() {
 
 export default function PaymentSuccessPage() {
   return (
-    <Suspense fallback={<div className="p-10 text-center">Loading...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
       <PaymentSuccessContent />
     </Suspense>
   );

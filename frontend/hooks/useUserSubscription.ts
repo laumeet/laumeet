@@ -33,7 +33,7 @@ export const useUserSubscription = (userId?: string) => {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await api.get<UserSubscriptionResponse>(`/subscription/user?user_id=${id}`);
+      const { data } = await api.get<UserSubscriptionResponse>(`/subscription/user/id?user_id=${id}`);
       console.log('use hook sub', data);
       
       if (data.success) {

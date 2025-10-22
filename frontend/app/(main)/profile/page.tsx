@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import api from '@/lib/axio';
 import { toast } from 'sonner';
 import { useProfile } from '@/hooks/get-profile';
-import { useUserSubscription } from '@/hooks/useUserSubscription';
+import { useCurrentUserSubscription } from '@/hooks/useCurrentUserSubscription';
 
 // Lightbox Component
 function LightboxModal({ 
@@ -288,7 +288,7 @@ export default function ProfilePage() {
   const [gender, setGender] = useState('');
   const [interestedIn, setInterestedIn] = useState('');
   const [level, setLevel] = useState('');
-  const { subscription: userSubscription } = useUserSubscription(profile?.id);
+  const { subscription: userSubscription } = useCurrentUserSubscription(profile?.id);
 
   // Check if user has an active subscription
   const hasActiveSubscription = userSubscription?.has_subscription && 

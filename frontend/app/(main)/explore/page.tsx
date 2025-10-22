@@ -126,7 +126,7 @@ function ProfileCard({
         transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg) scale(${scale})`,
       }}
     >
-      <Card className="h-full p-0 w-full shadow-2xl border-0 overflow-hidden rounded-3xl bg-gray-400">
+      <Card className="h-full p-0 w-full shadow-2xl border-0 overflow-hidden rounded-3xl bg-black/80 ">
         <CardContent className="p-0 h-full relative">
           {/* Swipe Overlay */}
           <SwipeOverlay direction={swipeDirection} />
@@ -307,7 +307,6 @@ function ProfileCard({
 }
 
 // Match Popup Component - BIGO Style
-// Match Popup Component - BIGO Style
 function MatchPopup({ 
   isOpen, 
   onClose, 
@@ -348,7 +347,7 @@ function MatchPopup({
     
     try {
       const conversationResponse = await api.post('/chat/conversations/create', {
-        target_user_id: matchedProfile._id
+        target_user_id: matchedProfile.id
       });
 
       if (conversationResponse.data.success) {
@@ -388,7 +387,7 @@ function MatchPopup({
     
     try {
       const conversationResponse = await api.post('/chat/conversations/create', {
-        target_user_id: matchedProfile._id
+        target_user_id: matchedProfile.id
       });
 
       if (conversationResponse.data.success) {
@@ -429,7 +428,7 @@ function MatchPopup({
     
     try {
       const conversationResponse = await api.post('/chat/conversations/create', {
-        target_user_id: matchedProfile._id
+        target_user_id: matchedProfile.id
       });
 
       if (conversationResponse.data.success) {

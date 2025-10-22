@@ -286,7 +286,7 @@ export default function ChatDetailPage() {
 
   // Subscription states
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [hasSubscription, setHasSubscription] = useState(false);
+  const [hasSubscription, setHasSubscription] = useState(true);
 
   // Reply states
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -1136,6 +1136,16 @@ export default function ChatDetailPage() {
       </div>
     </div>
   );
+
+  //===============
+  //Fetching the user
+  //================
+  useEffect(() => {
+    if(!profile?.id){
+      setLoading(true)
+    }
+  }, [profile?.id])
+  
 
   // ---------------------------------------------------------------------
   // UI Render (keep the same as before)

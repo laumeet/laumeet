@@ -7,7 +7,7 @@ import {
   Heart, X, Users, 
   Loader2, AlertCircle, ChevronLeft, ChevronRight,
   Book, GraduationCap, Droplets, Cross, Eye, MessageCircle, BadgeCheck,
-  Maximize2, Info
+  Maximize2, Info, Venus, Ruler, Scale, Sparkles, Coins
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ import {
   DialogDescription,
   DialogHeader,
 } from '@/components/ui/dialog';
+import Confetti from 'react-dom-confetti';
 
 // Enhanced Verified Badge Component
 function VerifiedBadge({ size = "sm", className = "" }: { size?: "sm" | "md" | "lg"; className?: string }) {
@@ -41,6 +42,40 @@ function VerifiedBadge({ size = "sm", className = "" }: { size?: "sm" | "md" | "
   return (
     <div className={`inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-blue-600 shadow-sm ${containerClasses[size]} ${className}`}>
       <BadgeCheck className={`${sizeClasses[size]} text-white`} />
+    </div>
+  );
+}
+
+// Recently Like Sticker Component
+function RecentlyLikeSticker() {
+  return (
+    <div className="absolute top-6 left-4 z-30 transform -rotate-12">
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl px-3 py-1.5 shadow-lg border border-white/60 flex items-center gap-1.5">
+        <div className="w-6 h-6 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
+          <span className="text-xs text-white">✨</span>
+        </div>
+        <span className="text-xs font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
+          Recently LIKE
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// Info Pill Component
+function InfoPill({ icon: Icon, value, color = "pink" }: { icon: any; value: string; color?: "pink" | "purple" | "blue" | "green" | "teal" }) {
+  const colorClasses = {
+    pink: "bg-pink-500/20 border-pink-300/30 text-pink-700",
+    purple: "bg-purple-500/20 border-purple-300/30 text-purple-700", 
+    blue: "bg-blue-500/20 border-blue-300/30 text-blue-700",
+    green: "bg-green-500/20 border-green-300/30 text-green-700",
+    teal: "bg-teal-500/20 border-teal-300/30 text-teal-700"
+  };
+
+  return (
+    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border backdrop-blur-sm ${colorClasses[color]}`}>
+      <Icon className="h-3 w-3" />
+      <span className="text-xs font-semibold">{value}</span>
     </div>
   );
 }
@@ -68,7 +103,7 @@ function SwipeOverlay({ direction }: { direction: 'left' | 'right' | null }) {
   );
 }
 
-// Profile Card Component
+// Profile Card Component - BIGO Realmatch Style
 function ProfileCard({ 
   profile, 
   currentImageIndex, 
@@ -77,7 +112,8 @@ function ProfileCard({
   onOpenDetailSheet,
   onOpenImageModal,
   hasActiveSubscription,
-  swipeDirection
+  swipeDirection,
+  dragOffset
 }: {
   profile: any;
   currentImageIndex: number;
@@ -88,204 +124,345 @@ function ProfileCard({
   onOpenImageModal: (imageUrl: string) => void;
   hasActiveSubscription: boolean;
   swipeDirection: 'left' | 'right' | null;
+  dragOffset: { x: number; y: number };
 }) {
   const displayName = profile.name || profile.username;
   const hasMultipleImages = profile.pictures && profile.pictures.length > 1;
   const totalImages = profile.pictures?.length || 0;
   const isVerified = hasActiveSubscription;
 
+  // Calculate rotation and scale based on drag
+  const rotation = dragOffset.x * 0.1;
+  const scale = 1 - Math.abs(dragOffset.x) * 0.001;
+
   return (
-    <Card className="h-full w-full cursor-grab active:cursor-grabbing shadow-2xl border-0 overflow-hidden rounded-2xl">
-      <CardContent className="p-0 h-full relative">
-        {/* Swipe Overlay */}
-        <SwipeOverlay direction={swipeDirection} />
+    <div 
+      className="h-full w-full cursor-grab active:cursor-grabbing transition-transform duration-150"
+      style={{
+        transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg) scale(${scale})`,
+      }}
+    >
+      <Card className="h-full w-full shadow-2xl border-0 overflow-hidden rounded-3xl bg-white">
+        <CardContent className="p-0 h-full relative">
+          {/* Swipe Overlay */}
+          <SwipeOverlay direction={swipeDirection} />
 
-        {/* Processing Overlay */}
-        {isProcessing && (
-          <div className="absolute inset-0 bg-black/50 z-40 flex items-center justify-center rounded-2xl">
-            <div className="text-center text-white">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-              <p className="text-sm">Creating your match...</p>
+          {/* Processing Overlay */}
+          {isProcessing && (
+            <div className="absolute inset-0 bg-black/50 z-40 flex items-center justify-center rounded-3xl">
+              <div className="text-center text-white">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+                <p className="text-sm">Creating your match...</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Profile Image with Gradient Overlay and Carousel */}
-        <div className="relative h-2/3">
-          <div className="relative w-full h-full overflow-hidden">
-            {profile.pictures && profile.pictures.length > 0 ? (
-              <>
-                {/* Current Image */}
-                <img 
-                  src={profile.pictures[currentImageIndex] || '/api/placeholder/400/500'} 
-                  alt={`${displayName} - Image ${currentImageIndex + 1}`}
-                  className="w-full h-full object-cover transition-transform duration-300"
-                  onClick={onOpenDetailSheet}
-                  onError={(e) => {
-                    e.currentTarget.src = '/api/placeholder/400/500';
-                  }}
-                />
+          {/* Recently Like Sticker */}
+          <RecentlyLikeSticker />
 
-                {/* Verified Badge on Image */}
-                {isVerified && (
-                  <div className="absolute top-4 right-12 z-20">
-                    <VerifiedBadge size="sm" />
+          {/* Profile Image with Gradient Overlay */}
+          <div className="relative h-[70%]">
+            <div className="relative w-full h-full overflow-hidden">
+              {profile.pictures && profile.pictures.length > 0 ? (
+                <>
+                  {/* Current Image */}
+                  <img 
+                    src={profile.pictures[currentImageIndex] || '/api/placeholder/400/500'} 
+                    alt={`${displayName} - Image ${currentImageIndex + 1}`}
+                    className="w-full h-full object-cover"
+                    onClick={onOpenDetailSheet}
+                    onError={(e) => {
+                      e.currentTarget.src = '/api/placeholder/400/500';
+                    }}
+                  />
+
+                  {/* Verified Badge on Image */}
+                  {isVerified && (
+                    <div className="absolute top-4 right-12 z-20">
+                      <VerifiedBadge size="sm" />
+                    </div>
+                  )}
+
+                  {/* Fullscreen Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenImageModal(profile.pictures[currentImageIndex]);
+                    }}
+                    className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full backdrop-blur-sm hover:bg-black/70 transition-all duration-200 hover:scale-110 z-20"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </button>
+
+                  {/* Image Navigation Arrows */}
+                  {hasMultipleImages && (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onImageNavigate('prev');
+                        }}
+                        className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full backdrop-blur-sm hover:bg-black/70 transition-all duration-200 hover:scale-110 z-20"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onImageNavigate('next');
+                        }}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full backdrop-blur-sm hover:bg-black/70 transition-all duration-200 hover:scale-110 z-20"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
+
+                  {/* Image Dots Indicator */}
+                  {hasMultipleImages && (
+                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2 z-20">
+                      {profile.pictures.map((_: any, imgIndex: number) => (
+                        <button
+                          key={imgIndex}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onImageNavigate('go', imgIndex);
+                          }}
+                          className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                            imgIndex === currentImageIndex 
+                              ? 'bg-white scale-125' 
+                              : 'bg-white/50 hover:bg-white/70'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Image Counter */}
+                  {hasMultipleImages && (
+                    <div className="absolute top-4 left-4 bg-black/50 text-white px-2 py-1 rounded-full text-xs font-medium backdrop-blur-sm z-20">
+                      {currentImageIndex + 1} / {totalImages}
+                    </div>
+                  )}
+                </>
+              ) : (
+                // Fallback when no images
+                <div className="w-full flex-col h-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
+                  <MessageCircle className="h-12 w-12 text-gray-400" />
+                  <p className="text-gray-500 mt-2">No Pictures</p>
+                  {isVerified && (
+                    <div className="absolute top-4 right-4 z-20">
+                      <VerifiedBadge size="sm" />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Gradient Overlay for Text */}
+            <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+
+            {/* Profile Info Overlay */}
+            <div className="absolute bottom-6 left-6 right-6 z-10">
+              <div className="flex items-end justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h2 className="text-3xl font-bold text-white drop-shadow-lg">
+                      {displayName}
+                    </h2>
+                    {isVerified && <VerifiedBadge size="md" />}
                   </div>
-                )}
+                  
+                  {/* Info Pills */}
+                  <div className="flex flex-wrap gap-2">
+                    <InfoPill icon={Venus} value={`${profile.gender === 'female' ? '♀' : '♂'} ${profile.age || '25'}`} color="pink" />
+                    <InfoPill icon={Ruler} value={`${profile.height || '168'} cm`} color="purple" />
+                    <InfoPill icon={Scale} value={`${profile.weight || '57'} kg`} color="blue" />
+                    <InfoPill icon={Sparkles} value={profile.zodiac || 'Leo'} color="green" />
+                    <InfoPill icon={Coins} value={`${profile.income || '10000'}₱/Month`} color="teal" />
+                  </div>
+                </div>
 
-                {/* Fullscreen Button */}
+                {/* Details Button */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onOpenImageModal(profile.pictures[currentImageIndex]);
+                    onOpenDetailSheet();
                   }}
-                  className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full backdrop-blur-sm hover:bg-black/70 transition-all duration-200 hover:scale-110 z-20"
+                  className="bg-black/50 text-white p-3 rounded-full backdrop-blur-sm hover:bg-black/70 transition-all duration-200 hover:scale-110 z-20 ml-4"
                 >
-                  <Maximize2 className="h-4 w-4" />
+                  <Eye className="h-5 w-5" />
                 </button>
+              </div>
+            </div>
+          </div>
 
-                {/* Image Navigation Arrows */}
-                {hasMultipleImages && (
-                  <>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onImageNavigate('prev');
-                      }}
-                      className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full backdrop-blur-sm hover:bg-black/70 transition-all duration-200 hover:scale-110 z-20"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onImageNavigate('next');
-                      }}
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full backdrop-blur-sm hover:bg-black/70 transition-all duration-200 hover:scale-110 z-20"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </>
-                )}
+          {/* Content Section */}
+          <div className="h-[30%] p-6 overflow-y-auto">
+            {/* Bio Preview */}
+            <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-2">
+              {profile.bio || 'No bio available yet. Say hello to start a conversation!'}
+            </p>
 
-                {/* Image Dots Indicator */}
-                {hasMultipleImages && (
-                  <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2 z-20">
-                    {profile.pictures.map((_: any, imgIndex: number) => (
-                      <button
-                        key={imgIndex}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onImageNavigate('go', imgIndex);
-                        }}
-                        className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                          imgIndex === currentImageIndex 
-                            ? 'bg-white scale-125' 
-                            : 'bg-white/50 hover:bg-white/70'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Image Counter */}
-                {hasMultipleImages && (
-                  <div className="absolute top-4 left-4 bg-black/50 text-white px-2 py-1 rounded-full text-xs font-medium backdrop-blur-sm z-20">
-                    {currentImageIndex + 1} / {totalImages}
-                  </div>
-                )}
-              </>
-            ) : (
-              // Fallback when no images
-              <div className="w-full flex-col h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center rounded-t-2xl">
-                <MessageCircle className="h-12 w-12 text-gray-400" />
-                <p className="text-gray-500 mt-2">No Pictures</p>
-                {isVerified && (
-                  <div className="absolute top-4 right-4 z-20">
-                    <VerifiedBadge size="sm" />
-                  </div>
+            {/* Interests Preview */}
+            {profile.interests && profile.interests.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {profile.interests.slice(0, 4).map((interest: string, i: number) => (
+                  <span 
+                    key={i}
+                    className="px-3 py-1.5 bg-gradient-to-r from-pink-100 to-purple-100 text-pink-700 rounded-full text-xs font-medium border border-pink-200"
+                  >
+                    {interest}
+                  </span>
+                ))}
+                {profile.interests.length > 4 && (
+                  <span className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-full text-xs">
+                    +{profile.interests.length - 4} more
+                  </span>
                 )}
               </div>
             )}
           </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
-          {/* Gradient Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent rounded-t-2xl" />
+// Match Popup Component - BIGO Style
+function MatchPopup({ 
+  isOpen, 
+  onClose, 
+  currentProfile, 
+  matchedProfile 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  currentProfile: any; 
+  matchedProfile: any;
+}) {
+  const [showConfetti, setShowConfetti] = useState(false);
+  const router = useRouter();
 
-          {/* Profile Info Overlay */}
-          <div className="absolute bottom-4 left-4 right-4 z-10">
-            <div className="flex items-end justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-2xl font-bold capitalize text-white drop-shadow-lg">
-                    {displayName}
-                    {profile.age > 0 && `, ${profile.age}`}
-                  </h2>
-                  {isVerified && <VerifiedBadge size="sm" />}
-                </div>
-                <p className="text-gray-200 text-sm capitalize drop-shadow-md">
-                  {profile.category}
-                </p>
+  useEffect(() => {
+    if (isOpen) {
+      setShowConfetti(true);
+      const timer = setTimeout(() => setShowConfetti(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
-                {/* Quick Info */}
-                <div className="flex items-center space-x-3 mt-2">
-                  {profile.department && (
-                    <div className="flex items-center text-gray-200 text-sm drop-shadow-md">
-                      <Book className="h-3 w-3 mr-1" />
-                      <span>{profile.department}</span>
-                    </div>
-                  )}
-                  {profile.level && (
-                    <div className="flex items-center text-gray-200 text-sm drop-shadow-md">
-                      <GraduationCap className="h-3 w-3 mr-1" />
-                      <span>{profile.level}</span>
-                    </div>
-                  )}
-                </div>
+  const messageSuggestions = [
+    "Hi 👋", 
+    "Nice to meet you 😊", 
+    "You look great!",
+    "Hey there! 👋",
+    "What's up? 😄"
+  ];
+
+  const handleStartChat = (message?: string) => {
+    router.push('/chat');
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      {/* Confetti */}
+      <div className="fixed inset-0 z-50 pointer-events-none">
+        <Confetti
+          active={showConfetti}
+          config={{
+            spread: 360,
+            startVelocity: 30,
+            elementCount: 100,
+            dragFriction: 0.12,
+            duration: 3000,
+            stagger: 3,
+            width: "10px",
+            height: "10px",
+            colors: ["#a864fd", "#29cdff", "#78ff44", "#ff718d", "#fdff6a"]
+          }}
+        />
+      </div>
+
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center p-4">
+        <div className="bg-white/95 backdrop-blur-lg rounded-3xl shadow-2xl border border-white/60 w-full max-w-md overflow-hidden">
+          {/* Header */}
+          <div className="text-center p-6">
+            <div className="w-16 h-16 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Heart className="h-8 w-8 text-white fill-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">It's a Match!</h2>
+            <p className="text-gray-600">You and {matchedProfile?.name || 'Someone'} liked each other</p>
+          </div>
+
+          {/* Profile Cards */}
+          <div className="flex justify-center items-center px-6 mb-6">
+            <div className="flex -space-x-4">
+              {/* Current User Card */}
+              <div className="w-24 h-32 rounded-2xl overflow-hidden shadow-lg transform -rotate-6 border-2 border-white">
+                <img 
+                  src={currentProfile?.pictures?.[0] || '/api/placeholder/96/128'} 
+                  alt="You"
+                  className="w-full h-full object-cover"
+                />
               </div>
               
-              {/* Details Button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenDetailSheet();
-                }}
-                className="bg-black/50 text-white p-2 rounded-full backdrop-blur-sm hover:bg-black/70 transition-all duration-200 hover:scale-110 z-20"
-              >
-                <Eye className="h-4 w-4" />
-              </button>
+              {/* Heart Animation */}
+              <div className="z-10 transform scale-125">
+                <div className="w-12 h-12 bg-pink-500 rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                  <Heart className="h-6 w-6 text-white fill-white" />
+                </div>
+              </div>
+
+              {/* Matched User Card */}
+              <div className="w-24 h-32 rounded-2xl overflow-hidden shadow-lg transform rotate-6 border-2 border-white">
+                <img 
+                  src={matchedProfile?.pictures?.[0] || '/api/placeholder/96/128'} 
+                  alt={matchedProfile?.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Content Section */}
-        <div className="h-1/3 p-4 overflow-y-auto">
-          {/* Bio Preview */}
-          <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed mb-4 line-clamp-3">
-            {profile.bio || 'No bio available'}
-          </p>
-
-          {/* Interests Preview */}
-          {profile.interests && profile.interests.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {profile.interests.slice(0, 4).map((interest: string, i: number) => (
-                <span 
-                  key={i}
-                  className="px-2 py-1 bg-gradient-to-r from-pink-100 to-purple-100 dark:from-pink-900/30 dark:to-purple-900/30 text-pink-700 dark:text-pink-300 rounded-full text-xs font-medium border border-pink-200 dark:border-pink-800"
+          {/* Message Suggestions */}
+          <div className="px-6 pb-6">
+            <p className="text-sm text-gray-600 text-center mb-3">Send a message to start chatting</p>
+            <div className="grid grid-cols-2 gap-2">
+              {messageSuggestions.slice(0, 4).map((message, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleStartChat(message)}
+                  className="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 active:scale-95"
                 >
-                  {interest}
-                </span>
+                  {message}
+                </button>
               ))}
-              {profile.interests.length > 4 && (
-                <span className="px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full text-xs">
-                  +{profile.interests.length - 4} more
-                </span>
-              )}
             </div>
-          )}
+            
+            {/* Send Message Button */}
+            <button
+              onClick={() => handleStartChat()}
+              className="w-full mt-4 px-6 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
+            >
+              Send Message
+            </button>
+            
+            {/* Keep Swiping Button */}
+            <button
+              onClick={onClose}
+              className="w-full mt-2 px-6 py-3 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200"
+            >
+              Keep Swiping
+            </button>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </>
   );
 }
 
@@ -379,10 +556,10 @@ function IOSDetailSheet({
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isDragging) return;
-    
+
     const currentY = e.touches[0].clientY;
     const deltaY = currentY - startY;
-    
+
     if (deltaY > 0) {
       setSheetPosition(deltaY);
     }
@@ -390,9 +567,9 @@ function IOSDetailSheet({
 
   const handleTouchEnd = () => {
     if (!isDragging) return;
-    
+
     setIsDragging(false);
-    
+
     if (sheetPosition > 100) {
       onClose();
     } else {
@@ -407,10 +584,10 @@ function IOSDetailSheet({
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) return;
-    
+
     const currentY = e.clientY;
     const deltaY = currentY - startY;
-    
+
     if (deltaY > 0) {
       setSheetPosition(deltaY);
     }
@@ -418,9 +595,9 @@ function IOSDetailSheet({
 
   const handleMouseUp = () => {
     if (!isDragging) return;
-    
+
     setIsDragging(false);
-    
+
     if (sheetPosition > 100) {
       onClose();
     } else {
@@ -439,7 +616,7 @@ function IOSDetailSheet({
         }`}
         onClick={onClose}
       />
-      
+
       {/* Sheet */}
       <div 
         ref={sheetRef}
@@ -496,7 +673,7 @@ function IOSDetailSheet({
               {/* Gender */}
               <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
                 <div className="p-2 rounded-full bg-pink-100 dark:bg-pink-900/30">
-                  <Heart className="h-4 w-4 text-pink-600 dark:text-pink-400" />
+                  <Venus className="h-4 w-4 text-pink-600 dark:text-pink-400" />
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Gender</p>
@@ -506,81 +683,21 @@ function IOSDetailSheet({
                 </div>
               </div>
 
-              {/* Interested In */}
+              {/* Age */}
               <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
                 <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
-                  <Eye className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Interested In</p>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white capitalize">
-                    {profile.interestedIn || 'Not specified'}
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Age</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {profile.age || 'Not specified'}
                   </p>
                 </div>
               </div>
 
-              {/* Genotype */}
-              {profile.genotype && (
-                <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                  <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
-                    <Droplets className="h-4 w-4 text-red-600 dark:text-red-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Genotype</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {profile.genotype}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Religion */}
-              {profile.religious && (
-                <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                  <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900/30">
-                    <Cross className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Religion</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {profile.religious}
-                    </p>
-                  </div>
-                </div>
-              )}
+      
             </div>
-
-            {/* Education & Department */}
-            {(profile.department || profile.level) && (
-              <div className="grid grid-cols-2 gap-3">
-                {profile.department && (
-                  <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                    <div className="p-2 rounded-full bg-green-100 dark:bg-green-900/30">
-                      <Book className="h-4 w-4 text-green-600 dark:text-green-400" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Department</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
-                        {profile.department}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {profile.level && (
-                  <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                    <div className="p-2 rounded-full bg-orange-100 dark:bg-orange-900/30">
-                      <GraduationCap className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Level</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
-                        {profile.level}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Interests */}
             {profile.interests && profile.interests.length > 0 && (
@@ -622,6 +739,8 @@ export default function ExplorePage() {
   const [selectedImage, setSelectedImage] = useState<{ url: string; profileName: string } | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<any>(null);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+  const [showMatchPopup, setShowMatchPopup] = useState(false);
+  const [matchedProfile, setMatchedProfile] = useState<any>(null);
 
   // State for image carousel per profile
   const [currentImageIndexes, setCurrentImageIndexes] = useState<{ [key: string]: number }>({});
@@ -663,11 +782,11 @@ export default function ExplorePage() {
   const handleImageNavigate = (profileId: string, action: 'prev' | 'next' | 'go', index?: number) => {
     const currentIndex = currentImageIndexes[profileId] || 0;
     const totalImages = profiles.find(p => p.id === profileId)?.pictures?.length || 0;
-    
+
     if (totalImages === 0) return;
 
     let newIndex = currentIndex;
-    
+
     switch (action) {
       case 'prev':
         newIndex = (currentIndex - 1 + totalImages) % totalImages;
@@ -717,7 +836,7 @@ export default function ExplorePage() {
 
       if (conversationResponse.data.success) {
         const conversationId = conversationResponse.data.conversation_id;
-        
+
         const messageResponse = await api.post(`/chat/messages/send?conversationId=${conversationId}`, {
           content: "Conversation has been unlocked! 🎉"
         });
@@ -726,7 +845,7 @@ export default function ExplorePage() {
           return { success: true, conversationId };
         }
       }
-      
+
       return { success: false, error: 'Failed to create conversation' };
     } catch (err: any) {
       console.error('Error creating conversation:', err);
@@ -752,21 +871,21 @@ export default function ExplorePage() {
       if (result.match) {
         const matchedUser = profiles.find((p) => p.id === result.matched_with);
         setProcessingMatch(profile.id);
-        
+        setMatchedProfile(matchedUser);
+
         const conversationResult = await createConversationWithMessage(result.matched_with);
-        
+
         if (conversationResult.success) {
-          toast.success(`It's a match with ${matchedUser?.username}! 🎉`, {
-            duration: 5000,
-            action: {
-              label: 'Chat',
-              onClick: () => router.push('/chat')
-            }
-          });
+          setTimeout(() => {
+            setShowMatchPopup(true);
+            toast.success(`It's a match with ${matchedUser?.name || matchedUser?.username}! 🎉`, {
+              duration: 5000,
+            });
+          }, 500);
         } else {
           toast.error('Match created! Failed to start conversation automatically.');
         }
-        
+
         setProcessingMatch(null);
       }
 
@@ -795,13 +914,13 @@ export default function ExplorePage() {
 
   const handleDragMove = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isDragging) return;
-    
+
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    
+
     const deltaX = clientX - dragStart.x;
     const deltaY = clientY - dragStart.y;
-    
+
     setDragOffset({ x: deltaX, y: deltaY });
 
     // Show swipe direction overlay
@@ -816,14 +935,14 @@ export default function ExplorePage() {
     if (!isDragging) return;
 
     setIsDragging(false);
-    
+
     // Check if swipe distance is sufficient
     if (Math.abs(dragOffset.x) > 100) {
       handleSwipe(dragOffset.x > 0 ? 'right' : 'left');
     } else {
       setSwipeDirection(null);
     }
-    
+
     setDragOffset({ x: 0, y: 0 });
   };
 
@@ -913,30 +1032,52 @@ export default function ExplorePage() {
   return (
     <>
       <SwipeInstructions />
-      
-      <div className="space-y-6 px-4 pb-28">
+
+      {/* Background Gradient */}
+      <div className="fixed inset-0 bg-gradient-to-r from-pink-100 to-white -z-10" />
+
+      <div className="space-y-6 px-4 pb-28 relative z-10">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Discover</h1>
-            <p className="text-gray-500 dark:text-gray-400">
+            <h1 className="text-2xl font-bold text-gray-900">Discover</h1>
+            <p className="text-gray-600">
               {totalProfiles} people nearby • Swipe to connect
             </p>
           </div>
         </div>
 
-        {/* Cards Container */}
-        <div className="relative h-[600px] w-full max-w-md mx-auto">
+        {/* Cards Container with Stacked Cards Effect */}
+        <div className="relative h-[70vh] w-full max-w-md mx-auto">
+          {/* Stacked Background Cards */}
+          {canSwipe && currentIndex + 1 < profiles.length && (
+            <>
+              {/* Second Card (tilted left) */}
+              <div className="absolute inset-0 w-[95%] h-[95%] mx-auto top-4 transform -rotate-3 opacity-60 blur-sm">
+                <Card className="h-full w-full shadow-lg border-0 overflow-hidden rounded-3xl bg-white/50">
+                  <CardContent className="p-0 h-full">
+                    <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 rounded-3xl" />
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* First Card (tilted right) */}
+              <div className="absolute inset-0 w-[97%] h-[97%] mx-auto top-2 transform rotate-2 opacity-80 blur-[1px]">
+                <Card className="h-full w-full shadow-xl border-0 overflow-hidden rounded-3xl bg-white/70">
+                  <CardContent className="p-0 h-full">
+                    <div className="w-full h-full bg-gradient-to-br from-gray-50 to-gray-150 rounded-3xl" />
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+
+          {/* Active Card */}
           {canSwipe && currentProfile && (
             <div
-              className={`absolute inset-0 w-full h-full transition-transform duration-200 ${
+              className={`absolute inset-0 w-full h-full ${
                 isDragging ? 'cursor-grabbing' : 'cursor-grab'
               }`}
-              style={{
-                transform: isDragging 
-                  ? `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${dragOffset.x * 0.1}deg)`
-                  : 'none'
-              }}
               onMouseDown={handleDragStart}
               onMouseMove={handleDragMove}
               onMouseUp={handleDragEnd}
@@ -956,6 +1097,7 @@ export default function ExplorePage() {
                 onOpenImageModal={(imageUrl) => openImageModal(currentProfile.id, imageUrl)}
                 hasActiveSubscription={hasActiveSubscription(currentProfile.id)}
                 swipeDirection={swipeDirection}
+                dragOffset={dragOffset}
               />
             </div>
           )}
@@ -964,14 +1106,14 @@ export default function ExplorePage() {
           {!canSwipe && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <div className="w-20 h-20 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-20 h-20 bg-gradient-to-r from-gray-200 to-gray-300 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Users className="h-8 w-8 text-gray-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  That&apos;s all for now!
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  That's all for now!
                 </h3>
-                <p className="text-gray-500 dark:text-gray-400 mb-4">
-                  You&apos;ve seen all available profiles. Check back later for more.
+                <p className="text-gray-600 mb-4">
+                  You've seen all available profiles. Check back later for more.
                 </p>
                 <Button onClick={refetch}>
                   Refresh
@@ -987,7 +1129,7 @@ export default function ExplorePage() {
             variant="outline" 
             size="lg"
             disabled={!canSwipe || isSwiping}
-            className="w-16 h-16 rounded-full border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
+            className="w-16 h-16 rounded-full border-red-300 bg-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
             onClick={() => handleSwipe('left')}
           >
             {isSwiping ? (
@@ -1011,6 +1153,14 @@ export default function ExplorePage() {
           </Button>
         </div>
       </div>
+
+      {/* Match Popup */}
+      <MatchPopup
+        isOpen={showMatchPopup}
+        onClose={() => setShowMatchPopup(false)}
+        currentProfile={currentProfile}
+        matchedProfile={matchedProfile}
+      />
 
       {/* iOS Style Detail Sheet */}
       {selectedProfile && (

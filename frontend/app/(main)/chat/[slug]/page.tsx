@@ -22,9 +22,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import api from '@/lib/axio';
 import { useSocketContext } from '@/lib/socket-context';
 import { useProfile } from '@/hooks/get-profile';
-import { useUserSubscription } from '@/hooks/useUserSubscription';
 import { UpgradeModal, LockedContentTooltip, UpgradePrompt } from '@/components/chat/SubscriptionComponents';
 import { useUsageStats } from '@/hooks/useUsageStats';
+import { useCurrentUserSubscription } from '@/hooks/useCurrentUserSubscription';
 
 // ---------------------------------------------------------------------
 // Types (keep the same as before)
@@ -265,7 +265,7 @@ const useUpgradePrompts = (hasSubscription: boolean, showUpgradeModal: boolean, 
 
 export default function ChatDetailPage() {
   const { profile } = useProfile();
-  const { subscription } = useUserSubscription(profile?.id);
+  const { subscription } = useCurrentUserSubscription(profile?.id);
   const { usage, fetchUsageStats } = useUsageStats();
   const { socket, isConnected: socketConnected, onlineUsers } = useSocketContext();
   const params = useParams();

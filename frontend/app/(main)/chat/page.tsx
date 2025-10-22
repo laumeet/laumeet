@@ -17,7 +17,7 @@ import {
 import api from '@/lib/axio';
 import { useSocketContext } from '@/lib/socket-context';
 import { useProfile } from '@/hooks/get-profile';
-import { useUserSubscription } from '@/hooks/useUserSubscription';
+import { useCurrentUserSubscription } from '@/hooks/useCurrentUserSubscription';
 
 export interface Conversation {
   id: string;
@@ -140,7 +140,7 @@ export default function ChatPage() {
   const router = useRouter();
   const { socket, isConnected, onlineUsers } = useSocketContext();
   const { profile } = useProfile();
-  const { subscription } = useUserSubscription(profile?.id);
+  const { subscription } = useCurrentUserSubscription(profile?.id);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -287,9 +287,7 @@ export default function ChatDetailPage() {
   // Subscription states
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [hasSubscription, setHasSubscription] = useState(false);
-if(!profile?.id){
- setLoading(true)
-}
+
   // Reply states
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [showReplyPreview, setShowReplyPreview] = useState(false);

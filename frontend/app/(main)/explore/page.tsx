@@ -126,7 +126,7 @@ function ProfileCard({
         transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg) scale(${scale})`,
       }}
     >
-      <Card className="h-full p-0 w-full shadow-2xl border-0 overflow-hidden rounded-3xl bg-gray-700">
+      <Card className="h-full p-0 w-full shadow-2xl border-0 overflow-hidden rounded-3xl bg-gray-400">
         <CardContent className="p-0 h-full relative">
           {/* Swipe Overlay */}
           <SwipeOverlay direction={swipeDirection} />
@@ -1050,10 +1050,8 @@ export default function ExplorePage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Discover</h1>
-            <p className="text-gray-600">
-            Swipe to connect
-            </p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Discover</h1>
+            <p className="text-gray-500 dark:text-gray-400">Swipe to connect with amazing people</p>
           </div>
         </div>
 
@@ -1114,54 +1112,27 @@ export default function ExplorePage() {
 
           {/* No more cards message */}
           {!canSwipe && (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <div className="w-20 h-20 bg-gradient-to-r from-gray-200 to-gray-300 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Users className="h-8 w-8 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  That's all for now!
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  You've seen all available profiles. Check back later for more.
-                </p>
-                <Button onClick={refetch}>
-                  Refresh
-                </Button>
-              </div>
+         <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="w-20 h-20 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Users className="h-8 w-8 text-gray-400" />
             </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              No profiles found
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 max-w-sm mb-4">
+              There are no other users to show right now. Check back later or invite friends to join!
+            </p>
+       
+            <Button onClick={refetch}>
+              Refresh
+            </Button>
+          </div>
+        </div>
           )}
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex justify-center space-x-8">
-          <Button 
-            variant="outline" 
-            size="lg"
-            disabled={!canSwipe || isSwiping}
-            className="w-16 h-16 rounded-full border-red-300 bg-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
-            onClick={() => handleSwipe('left')}
-          >
-            {isSwiping ? (
-              <Loader2 className="h-6 w-6 animate-spin text-red-500" />
-            ) : (
-              <X className="h-8 w-8 text-red-500" />
-            )}
-          </Button>
-
-          <Button 
-            size="lg"
-            disabled={!canSwipe || isSwiping}
-            className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 shadow-lg hover:shadow-xl hover:from-pink-600 hover:to-purple-700 transition-all duration-200 hover:scale-105 active:scale-95"
-            onClick={() => handleSwipe('right')}
-          >
-            {isSwiping ? (
-              <Loader2 className="h-6 w-6 animate-spin text-white" />
-            ) : (
-              <Heart className="h-8 w-8 text-white" />
-            )}
-          </Button>
-        </div>
+     
       </div>
 
       {/* Match Popup */}

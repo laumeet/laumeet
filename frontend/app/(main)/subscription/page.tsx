@@ -8,7 +8,6 @@ import { useUsageStats } from '@/hooks/useUsageStats';
 import { useCurrentPlan } from '@/hooks/useCurrentPlan';
 import { useFlutterwaveHook } from '@/hooks/useFlutterwave';
 import { useProfile } from '@/hooks/get-profile';
-import { useUserSubscription } from '@/hooks/useUserSubscription';
 import { PlanCard } from '@/components/subscription/PlanCard';
 import { BillingCycleToggle } from '@/components/subscription/BillingCycleToggle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import api from '@/lib/axio';
+import { useCurrentUserSubscription } from '@/hooks/useCurrentUserSubscription';
 export default function SubscriptionPage() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [isSubscribing, setIsSubscribing] = useState(false);
@@ -26,7 +26,7 @@ export default function SubscriptionPage() {
   const { currentPlan, hasSubscription, loading: planLoading } = useCurrentPlan();
   const { processing, processSubscriptionPayment } = useFlutterwaveHook();
   const { profile } = useProfile();
-  const { subscription: userSubscription, fetchUserSubscription } = useUserSubscription(profile?.id);
+  const { subscription: userSubscription, fetchCurrentUserSubscription } = useCurrentUserSubscription(profile?.id);
 
   // Check if user has an active subscription
   const hasActiveSubscription = userSubscription?.has_subscription && 
@@ -50,7 +50,7 @@ export default function SubscriptionPage() {
           billing_cycle: cycle
         });
         toast.success('Switched to free plan successfully');
-        fetchUserSubscription(profile.id);
+        fetchCurrentUserSubscription(profile.id);
       } catch (error) {
         console.error('Free plan switch error:', error);
         toast.error('Failed to switch plan');

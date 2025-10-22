@@ -46,8 +46,6 @@ function VerifiedBadge({ size = "sm", className = "" }: { size?: "sm" | "md" | "
   );
 }
 
-
-
 // Info Pill Component
 function InfoPill({ icon: Icon, value, color = "pink" }: { icon: any; value: string; color?: "pink" | "purple" | "blue" | "green" | "teal" }) {
   const colorClasses = {
@@ -259,7 +257,6 @@ function ProfileCard({
                   {/* Info Pills */}
                   <div className="flex flex-wrap gap-2">
                     <InfoPill icon={profile.gender === 'female' ? Venus : Mars} value={` ${profile.age || '25'}`} color="pink" />
-                   
                   </div>
                 </div>
 
@@ -368,6 +365,7 @@ function MatchPopup({
       };
     }
   };
+
   const handleSendChat = async () => {
     try {
       const conversationResponse = await api.post('/chat/conversations/create', {
@@ -397,6 +395,7 @@ function MatchPopup({
       };
     }
   };
+
   const handleKeepSwipping = async () => {
     try {
       const conversationResponse = await api.post('/chat/conversations/create', {
@@ -526,8 +525,6 @@ function MatchPopup({
   );
 }
 
-
-
 // iOS Style Bottom Sheet Component
 function IOSDetailSheet({ 
   profile, 
@@ -625,7 +622,7 @@ function IOSDetailSheet({
       {/* Sheet */}
       <div 
         ref={sheetRef}
-        className={`fixed bottom-0 left-0 right-0 z-50bg-gray-900 rounded-t-3xl shadow-2xl transition-transform duration-300 ${
+        className={`fixed bottom-0 left-0 right-0 z-50 bg-gray-900 rounded-t-3xl shadow-2xl transition-transform duration-300 ${
           isDragging ? 'transition-none' : ''
         }`}
         style={{
@@ -700,8 +697,6 @@ function IOSDetailSheet({
                   </p>
                 </div>
               </div>
-
-      
             </div>
 
             {/* Interests */}
@@ -748,20 +743,21 @@ export default function ExplorePage() {
 
   // State for image carousel per profile
   const [currentImageIndexes, setCurrentImageIndexes] = useState<{ [key: string]: number }>({});
-  const [userSubscriptions, setUserSubscriptions] = useState("")
+  const [userSubscriptions, setUserSubscriptions] = useState("");
 
   // Drag and swipe handling
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
-  // Use subscription hook for the current profile
-  const currentProfile = profiles[currentIndex];
-  const { subscription } = useUserSubscription(userSubscriptions|| "");
+  // Use subscription hook - FIXED: Always call hooks unconditionally
+  const { subscription } = useUserSubscription(userSubscriptions);
 
   // Function to check if a user has active subscription
   const hasActiveSubscription = (userId: string) => {
-    setUserSubscriptions(userId)
+    // Update the user ID for the hook
+    setUserSubscriptions(userId);
+    
     return subscription?.has_subscription && 
            subscription.subscription?.is_active && 
            subscription.subscription?.status === 'active';
@@ -821,8 +817,6 @@ export default function ExplorePage() {
     return currentImageIndexes[profileId] || 0;
   };
 
-
-
   // Handle swipe action
   const handleSwipe = async (direction: 'left' | 'right') => {
     if (currentIndex >= profiles.length || !profiles[currentIndex]) return;
@@ -836,9 +830,9 @@ export default function ExplorePage() {
       const result = await swipeProfile(profile.id, action);
 
       if (result.match) {
-        const matchedUser = profiles.find((p) => p.id === result.matched_with);
         setProcessingMatch(profile.id);
-        setMatchedProfile(matchedUser);
+        setMatchedProfile(profiles.find((p) => p.id === result.matched_with));
+        setShowMatchPopup(true);
         setProcessingMatch(null);
       }
 
@@ -853,8 +847,8 @@ export default function ExplorePage() {
       toast.error('An error occurred while processing your swipe');
       setSwipeDirection(null);
       setIsSwiping(false);
-    }finally{
-      refetch()
+    } finally {
+      refetch();
     }
   };
 
@@ -984,9 +978,10 @@ export default function ExplorePage() {
     );
   }
 
+  const currentProfile = profiles[currentIndex];
+
   return (
     <>
-
       <div className="space-y-6 px-4 pb-28 relative z-10">
         {/* Header */}
         <div className="flex items-center justify-between">

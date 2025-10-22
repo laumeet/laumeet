@@ -147,10 +147,7 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [pinnedConversations, setPinnedConversations] = useState<Set<string>>(new Set());
   const [hasSubscription, setHasSubscription] = useState(false);
- if(!profile?.id){
- setLoading(true)
-}
-
+ 
   // Update subscription status
   useEffect(() => {
     if (subscription) {

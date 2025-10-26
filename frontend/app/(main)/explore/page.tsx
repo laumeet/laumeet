@@ -272,7 +272,7 @@ function ProfileCard({
                     <h2 className="text-3xl font-bold text-white drop-shadow-lg">
                       {displayName}
                     </h2>
-                    {profile.isAdmin ? <AdminBadge size="md"/>: isVerified && <VerifiedBadge size="md" />}
+                    {profile.is_admin ? <AdminBadge size="md"/>: isVerified && <VerifiedBadge size="md" />}
                   </div>
                   
                   {/* Info Pills */}

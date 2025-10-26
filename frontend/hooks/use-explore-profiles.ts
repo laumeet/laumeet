@@ -51,7 +51,7 @@ export const useExploreProfiles = () => {
           name: p.name || p.username || 'Unknown',
           age: p.age,
           bio: p.bio || '',
-          isAdmin: p.is_admin,
+          is_admin: p.is_admin,
           pictures: Array.isArray(p.pictures) ? p.pictures : [],
           category: p.category || '',
           isAnonymous: Boolean(p.isAnonymous),

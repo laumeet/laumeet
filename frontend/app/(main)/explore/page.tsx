@@ -24,6 +24,7 @@ import {
   DialogHeader,
 } from '@/components/ui/dialog';
 import Confetti from 'react-dom-confetti';
+import { useProfile } from '@/hooks/get-profile';
 
 // Enhanced Verified Badge Component
 function VerifiedBadge({ size = "sm", className = "" }: { size?: "sm" | "md" | "lg"; className?: string }) {
@@ -42,6 +43,26 @@ function VerifiedBadge({ size = "sm", className = "" }: { size?: "sm" | "md" | "
   return (
     <div className={`inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-blue-600 shadow-sm ${containerClasses[size]} ${className}`}>
       <BadgeCheck className={`${sizeClasses[size]} text-white`} />
+    </div>
+  );
+}
+function AdminBadge({ size = "sm", className = "" }: { size?: "sm" | "md" | "lg"; className?: string }) {
+  const sizeClasses = {
+    sm: "h-3 w-3",
+    md: "h-4 w-4", 
+    lg: "h-5 w-5"
+  };
+
+  const containerClasses = {
+    sm: "p-1",
+    md: "p-1.5",
+    lg: "p-2"
+  };
+
+  return (
+    <div className={`inline-flex items-center justify-center rounded-full bg-gradient-to-r from-red-500 to-yellow-600 shadow-sm ${containerClasses[size]} ${className}`}>
+      <Sparkles className={`${sizeClasses[size]} text-white`} />
+      <p className='text-sm'>Admin</p>
     </div>
   );
 }
@@ -114,7 +135,7 @@ function ProfileCard({
   const hasMultipleImages = profile.pictures && profile.pictures.length > 1;
   const totalImages = profile.pictures?.length || 0;
   const isVerified = hasActiveSubscription;
-
+  
   // Calculate rotation and scale based on drag
   const rotation = dragOffset.x * 0.1;
   const scale = 1 - Math.abs(dragOffset.x) * 0.001;
@@ -251,7 +272,7 @@ function ProfileCard({
                     <h2 className="text-3xl font-bold text-white drop-shadow-lg">
                       {displayName}
                     </h2>
-                    {isVerified && <VerifiedBadge size="md" />}
+                    {profile.isAdmin ? <AdminBadge size="md"/>: isVerified && <VerifiedBadge size="md" />}
                   </div>
                   
                   {/* Info Pills */}
@@ -322,7 +343,7 @@ function MatchPopup({
   const [isLoading, setIsLoading] = useState(false);
   const [currentAction, setCurrentAction] = useState<'suggestion' | 'send' | 'keepSwiping' | null>(null);
   const router = useRouter();
-
+  const { profile} = useProfile();
   useEffect(() => {
     if (isOpen) {
       setShowConfetti(true);
@@ -513,7 +534,7 @@ function MatchPopup({
             <div className="w-16 h-16 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <Heart className="h-8 w-8 text-white fill-white" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">It's a Match!</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">It&apos;s a Match!</h2>
             <p className="text-gray-600">You and {matchedProfile?.name || 'Someone'} liked each other</p>
           </div>
 
@@ -523,7 +544,7 @@ function MatchPopup({
               {/* Current User Card */}
               <div className="w-24 h-32 rounded-2xl overflow-hidden shadow-lg transform -rotate-6 border-2 border-white">
                 <img 
-                  src={currentProfile?.pictures?.[0] || '/api/placeholder/96/128'} 
+                  src={profile?.pictures?.[0] || '/api/placeholder/96/128'} 
                   alt="You"
                   className="w-full h-full object-cover"
                 />
@@ -793,6 +814,8 @@ function useSubscriptionManager() {
     if (userId !== currentUserId) {
       setCurrentUserId(userId);
     }
+    console.log("Checking if the user have subscription", userId)
+    console.log("Checking if the currentuserId ", currentUserId)
     return subscription?.has_subscription && 
            subscription.subscription?.is_active && 
            subscription.subscription?.status === 'active';

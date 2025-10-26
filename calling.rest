@@ -37,7 +37,9 @@ Content-Type: application/json
 ###
 GET   http://localhost:3000/api/chat/messages/conversationId?conversationId=2
 Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MDI2NTUzOCwianRpIjoiNjY5ODFkYmYtN2IyZS00MDIyLTg2NjMtMjRjMGRmNDgxOWRiIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6ImZkYzEyNGNhLTYyZDctNDBmYi04MmI4LTc0OTIyNDM2NDgzMSIsIm5iZiI6MTc2MDI2NTUzOCwiZXhwIjoxNzYwMzUxOTM4fQ.BmW2e-UaOTiu10oDe1W9bqK1tmNJquSZ6rxWLDr5bxU
-
+###
+GET   https://laumeet.vercel.app/api/subscription/user/id?user_id=04b5d051-efa5-4222-bae2-cf62001a7ef9
+Cookie: access_token_cookie=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2MTUyMTIyNiwianRpIjoiZDY2MmVhZjItZDgwMS00YmE4LTgzNWUtYzU1YjA4YTQxNjVmIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjVkZWUyYTdlLWY4NTAtNDE2MC04OWUwLTU5MDk3ZjcxMzc4MiIsIm5iZiI6MTc2MTUyMTIyNiwiZXhwIjoxNzYxNjA3NjI2fQ.xoKXBlCU-Ni7BC1iCmf7vk959d6Igcv2P9MW58kL8hI
 ###
 POST  http://localhost:3000/api/auth/logout
 Content-Type: application/json

@@ -8,7 +8,7 @@ interface ExploreProfile {
   name: string;
   age: number;
   bio: string;
-  isAdmin:boolean;
+  is_admin: boolean;
   pictures: string[];
   category: string;
   isAnonymous: boolean;
@@ -51,7 +51,7 @@ export const useExploreProfiles = () => {
           name: p.name || p.username || 'Unknown',
           age: p.age,
           bio: p.bio || '',
-          isAdmin:p.isAdmin,
+          isAdmin: p.is_admin,
           pictures: Array.isArray(p.pictures) ? p.pictures : [],
           category: p.category || '',
           isAnonymous: Boolean(p.isAnonymous),

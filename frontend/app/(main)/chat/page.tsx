@@ -547,7 +547,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="h-screen bg-white dark:bg-gray-900 flex flex-col">
+    <div className="h-[100vh] pb-32 bg-white dark:bg-gray-900 flex flex-col">
       {/* Header */}
       <div className=" text-white px-4 py-4">
 

@@ -42,15 +42,15 @@ export const metadata: Metadata = {
 
   applicationName: "Laumeet",
   robots: {
+  index: true,
+  follow: true,
+  googleBot: {
     index: true,
     follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      maxSnippet: -1,
-      maxImagePreview: "large",
-      maxVideoPreview: -1,
-    },
+    "max-snippet": -1,
+    "max-image-preview": "large",
+    "max-video-preview": -1,
+  },
   },
 
   authors: [
@@ -108,7 +108,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${poppins.variable} font-sans`}data-app="laumeet"
+      <body className={`${inter.variable} ${poppins.variable} font-sans`} data-app="laumeet"
   suppressHydrationWarning>
         <ThemeProvider
           attribute="class"

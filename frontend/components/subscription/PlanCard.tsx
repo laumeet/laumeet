@@ -143,7 +143,7 @@ export function PlanCard({
     )}>
       {/* Popular Badge */}
       {plan.is_popular && (
-        <div className="absolute top-4 right-4 z-10">
+        <div className="absolute top-14 right-2 z-10">
           <Badge className="bg-blue-500 text-white px-3 py-1">
             <Star className="h-3 w-3 mr-1" />
             Most Popular
@@ -153,7 +153,7 @@ export function PlanCard({
 
       {/* Current Plan Badge */}
       {currentPlan && (
-        <div className="absolute top-4 left-4 z-10">
+        <div className="absolute top-14 left-2 z-10">
           <Badge className="bg-green-500 text-white px-3 py-1">
             <Check className="h-3 w-3 mr-1" />
             Current Plan
@@ -163,7 +163,7 @@ export function PlanCard({
 
       {/* Free Plan Badge */}
       {isFreePlan && !currentPlan && (
-        <div className="absolute top-4 left-4 z-10">
+        <div className="absolute top-14 left-2 z-10">
           <Badge variant="secondary" className={getTierBadgeColor(plan.tier)}>
             Free
           </Badge>

@@ -269,7 +269,7 @@ function ProfileCard({
               <div className="flex items-end justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <h2 className="text-3xl font-bold text-white drop-shadow-lg capitalize">
+                    <h2 className="text-3xl font-bold text-white drop-shadow-lg capitalized">
                       {displayName}
                     </h2>
                     {profile.is_admin ? <AdminBadge size="md"/>: isVerified && <VerifiedBadge size="md" />}

@@ -269,7 +269,7 @@ function ProfileCard({
               <div className="flex items-end justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <h2 className="text-3xl font-bold text-white drop-shadow-lg">
+                    <h2 className="text-3xl font-bold text-white drop-shadow-lg capitalize">
                       {displayName}
                     </h2>
                     {profile.is_admin ? <AdminBadge size="md"/>: isVerified && <VerifiedBadge size="md" />}
@@ -730,7 +730,7 @@ function IOSDetailSheet({
             <div className="flex items-center gap-3">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white capitalized">
                     {displayName}
                     {profile.age > 0 && `, ${profile.age}`}
                   </h2>

@@ -29,11 +29,11 @@ export const useUserSubscription = (userId?: string) => {
   const fetchUserSubscription = useCallback(async (targetUserId?: string) => {
     const id = targetUserId || userId;
     if (!id) return;
-    const user_id = JSON.stringify(id)
+
     try {
       setLoading(true);
       setError(null);
-      const { data } = await api.get<UserSubscriptionResponse>(`/subscription/user/id?user_id=${user_id}`);
+      const { data } = await api.get<UserSubscriptionResponse>(`/subscription/user/id?user_id=${id}`);
       console.log('use hook sub', data);
       
       if (data.success) {

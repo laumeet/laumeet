@@ -830,7 +830,7 @@ def get_user_subscription(user_id):
 
     try:
         # Get the target user
-        target_user = User.query.get(user_id)
+        target_user = User.query.filter_by(public_id=user_id).first()
         if not target_user:
             return jsonify({
                 "success": False,

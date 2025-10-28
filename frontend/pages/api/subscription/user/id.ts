@@ -17,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const response = await fetch(`${BACKEND_URL}/subscription/user/${user_id}`, {
+    const response = await fetch(`${BACKEND_URL}/user/${user_id}`, {
       headers: {
         "Content-Type": "application/json",
         Cookie: req.headers.cookie || "",

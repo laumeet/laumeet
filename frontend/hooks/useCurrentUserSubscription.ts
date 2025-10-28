@@ -5,37 +5,28 @@ import api from '@/lib/axio';
 export interface UserSubscriptionResponse {
   success: boolean;
   message?: string;
-  user_id?: string;
-  username?: string;
-  name?: string;
+  user_id: string;
+  username: string;
+  name: string;
   has_subscription: boolean;
   current_plan?: any;
   subscription?: any;
 }
 
-export interface CurrentUserSubscriptionResponse {
-  success: boolean;
-  message?: string;
-  has_subscription: boolean;
-  current_plan?: any;
-  subscription?: any;
-}
-
-export const useUserSubscription = (userId?: string) => {
+export const useCurrentUserSubscription = (userId?: string) => {
   const [subscription, setSubscription] = useState<UserSubscriptionResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchUserSubscription = useCallback(async (targetUserId?: string) => {
+  const fetchCurrentUserSubscription = useCallback(async (targetUserId?: string) => {
     const id = targetUserId || userId;
     if (!id) return;
 
     try {
       setLoading(true);
       setError(null);
-      const { data } = await api.get<UserSubscriptionResponse>(`/subscription/user/id?user_id=${id}`);
-      console.log('use hook sub', data);
-      
+      const { data } = await api.get<UserSubscriptionResponse>(`/subscription/current`);
+      console.log('use hook sub',data)
       if (data.success) {
         setSubscription(data);
       } else {
@@ -49,18 +40,9 @@ export const useUserSubscription = (userId?: string) => {
     }
   }, [userId]);
 
-
-
   useEffect(() => {
-    if (userId) {
-      fetchUserSubscription();
-    }
-  }, [userId, fetchUserSubscription]);
+    if (userId) fetchCurrentUserSubscription();
+  }, [userId, fetchCurrentUserSubscription]);
 
-  return { 
-    subscription, 
-    loading, 
-    error, 
-    fetchUserSubscription,
-  };
+  return { subscription, loading, error, fetchCurrentUserSubscription };
 };

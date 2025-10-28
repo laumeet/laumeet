@@ -1,22 +1,25 @@
-// components/shared/onboarding/ImageUploader.tsx (updated)
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// components/shared/onboarding/ImageUploader.tsx
 'use client';
 
 import { forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { X, Upload,  Loader2, CheckCircle, AlertCircle, UserX, Download } from 'lucide-react';
+import { X, Upload, Loader2, CheckCircle, AlertCircle, UserX, Download } from 'lucide-react';
 import Image from 'next/image';
 import { getFaceBlurProcessor, getPreloadStatus } from '@/lib/faceBlur';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabaseClient';
 
 interface ProcessingImage {
   file: File;
   previewUrl: string;
-  status: 'pending' | 'processing' | 'completed' | 'error' | 'no-face' | 'models-loading';
+  status: 'pending' | 'processing' | 'uploading' | 'completed' | 'error' | 'no-face' | 'models-loading';
   processedUrl?: string;
+  uploadedUrl?: string;
 }
 
 interface ImageUploaderProps {
-  onImageUpload: (files: File[]) => void;
+  onImageUpload: (urls: string[]) => void;
   onRemoveImage: (index: number) => void;
   isAnonymous?: boolean | null;
   category?: string;
@@ -41,44 +44,64 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
 
     // Check model status on component mount
     useEffect(() => {
-      const status = getPreloadStatus();
-      if (status.loaded) {
-        setModelsStatus('loaded');
-      } else if (status.loading) {
-        setModelsStatus('loading');
-      } else if (status.error) {
-        setModelsStatus('error');
-      }
-    }, []);
-
-    const processSingleImage = async (file: File): Promise<string> => {
-      try {
-        setModelsStatus('loading');
-        const processor = getFaceBlurProcessor();
-        
-        // Ensure TinyYolov2 model is loaded before processing
-        await processor.ensureModelsLoaded();
-        
-        setModelsStatus('loaded');
-
-        // Check if we need to apply emoji masking
-        const shouldMaskFaces = isAnonymous && ["Hook Up", "Sex Chat", "Fuck Mate"].includes(category);
-        
-        if (shouldMaskFaces) {
-          console.log('Applying emoji mask to image...');
-          const emojiBlob = await processor.maskFacesWithEmojis(file);
-          if (emojiBlob) {
-            return await blobToBase64(emojiBlob);
-          } else {
-            throw new Error('NO_FACE_DETECTED');
-          }
+      const checkModelsStatus = () => {
+        const status = getPreloadStatus();
+        if (status.loaded) {
+          setModelsStatus('loaded');
+        } else if (status.loading) {
+          setModelsStatus('loading');
+        } else if (status.error) {
+          setModelsStatus('error');
+        } else {
+          setModelsStatus('idle');
         }
+      };
+
+      checkModelsStatus();
+      
+      // Check status periodically until models are loaded
+      const interval = setInterval(() => {
+        if (modelsStatus !== 'loaded' && modelsStatus !== 'error') {
+          checkModelsStatus();
+        }
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }, [modelsStatus]);
+
+    const processSingleImage = async (file: File): Promise<Blob | null> => {
+      try {
+        // If not anonymous or not in sensitive category, return original file
+        const shouldProcess = isAnonymous && ["Hook Up", "Sex Chat", "Fuck Mate"].includes(category);
         
-        // For non-sensitive categories or non-anonymous users, use original image
-        return await fileToBase64(file);
+        if (!shouldProcess) {
+          return null; // Return null to indicate no processing needed
+        }
+
+        // Ensure models are loaded
+        if (modelsStatus !== 'loaded') {
+          setModelsStatus('loading');
+          const processor = getFaceBlurProcessor();
+          await processor.ensureModelsLoaded();
+          setModelsStatus('loaded');
+        }
+
+        console.log('Applying emoji mask to image...');
+        const processor = getFaceBlurProcessor();
+        const emojiBlob = await processor.maskFacesWithEmojis(file);
+        
+        if (!emojiBlob) {
+          throw new Error('NO_FACE_DETECTED');
+        }
+
+        return emojiBlob;
       } catch (error) {
+        if (error instanceof Error && error.message === 'NO_FACE_DETECTED') {
+          throw error;
+        }
+        console.error('Error processing image:', error);
         setModelsStatus('error');
-        throw error;
+        throw new Error('PROCESSING_FAILED');
       }
     };
 
@@ -98,53 +121,28 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
       });
     };
 
-    const fileToBase64 = (file: File): Promise<string> => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const result = reader.result as string;
-          if (result && result.startsWith('data:')) {
-            resolve(result);
-          } else {
-            reject(new Error('Failed to convert file to base64'));
-          }
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    };
-
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files && e.target.files.length > 0 && !isProcessingImages) {
-        await handleImageUpload(Array.from(e.target.files));
-        e.target.value = ''; // Reset input
-      }
-    };
-
-    const handleImageUpload = async (files: File[]) => {
-      if (files.length === 0) return;
-
-      const file = files[0];
-    
-      if (processingImages.length >= maxImages) {
-        toast.error(`You can only upload up to ${maxImages} photos. You already have ${processingImages.length}.`);
-        return;
-      }
-
-      setIsProcessingImages(true);
-
-      // Add new file to processing queue
-      const newProcessingImage: ProcessingImage = {
-        file,
-        previewUrl: URL.createObjectURL(file),
-        status: modelsStatus === 'loaded' ? 'pending' : 'models-loading'
-      };
-
-      setProcessingImages(prev => [...prev, newProcessingImage]);
-      const index = processingImages.length;
-
+    const handleImageUpload = async (event: any) => {
       try {
-        // If models are still loading, wait for them
+        setIsProcessingImages(true);
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (processingImages.length >= maxImages) {
+          toast.error(`You can only upload up to ${maxImages} photos. You already have ${processingImages.length}.`);
+          return;
+        }
+
+        // Add new file to processing queue
+        const newProcessingImage: ProcessingImage = {
+          file,
+          previewUrl: URL.createObjectURL(file),
+          status: modelsStatus === 'loaded' ? 'pending' : 'models-loading'
+        };
+
+        setProcessingImages(prev => [...prev, newProcessingImage]);
+        const index = processingImages.length;
+
+        // If models are still loading, update status
         if (modelsStatus !== 'loaded') {
           setProcessingImages(prev =>
             prev.map((img, idx) =>
@@ -152,7 +150,7 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
             )
           );
           
-          // Wait a bit for models to load if they're loading
+          // Wait for models to load if they're loading
           if (modelsStatus === 'loading') {
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
@@ -165,60 +163,124 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
           )
         );
 
-        const processedUrl = await processSingleImage(file);
-        
-        // Update status to completed with processed URL
+        // Process image (face blur if needed)
+        let processedBlob: Blob | null = null;
+        try {
+          processedBlob = await processSingleImage(file);
+        } catch (error) {
+          if (error instanceof Error && error.message === 'NO_FACE_DETECTED') {
+            setProcessingImages(prev =>
+              prev.map((img, idx) =>
+                idx === index ? { ...img, status: 'no-face' } : img
+              )
+            );
+            toast.error("No face detected in the image. Please select another image.");
+            return;
+          } else {
+            throw error;
+          }
+        }
+
+        // Update status to uploading
         setProcessingImages(prev =>
           prev.map((img, idx) =>
-            idx === index ? { ...img, status: 'completed', processedUrl } : img
+            idx === index ? { 
+              ...img, 
+              status: 'uploading',
+              ...(processedBlob && { processedUrl: URL.createObjectURL(processedBlob) })
+            } : img
           )
         );
 
-        // Notify parent component about the processed image
-        const processedFile = await base64ToFile(processedUrl, file.name, file.type);
-        onImageUpload([processedFile]);
+        // Upload to Supabase
+        const uploadFile = processedBlob ? new File([processedBlob], file.name, { type: file.type }) : file;
+        const fileName = `${Date.now()}-${file.name}`;
+        const filePath = `${category ? category + '/' : ''}${fileName}`;
 
-      } catch (error) {
-        console.error('Error processing image:', error);
+        const { error } = await supabase.storage
+          .from('upload')
+          .upload(filePath, uploadFile);
+
+        if (error) throw error;
+
+        const { data: publicData } = supabase.storage
+          .from('upload')
+          .getPublicUrl(filePath);
+
+        // Update status to completed with uploaded URL
+        setProcessingImages(prev =>
+          prev.map((img, idx) =>
+            idx === index ? { ...img, status: 'completed', uploadedUrl: publicData.publicUrl } : img
+          )
+        );
+
+        // Notify parent component about the uploaded image URL
+        const uploadedUrls = processingImages
+          .filter(img => img.uploadedUrl)
+          .map(img => img.uploadedUrl as string)
+          .concat(publicData.publicUrl);
         
-        if (error instanceof Error && error.message === 'NO_FACE_DETECTED') {
-          setProcessingImages(prev =>
-            prev.map((img, idx) =>
-              idx === index ? { ...img, status: 'no-face' } : img
-            )
-          );
-          toast.error("No face detected in the image. Please select another image.");
-        } else {
-          setProcessingImages(prev =>
-            prev.map((img, idx) =>
-              idx === index ? { ...img, status: 'error' } : img
-            )
-          );
-          toast.error("Failed to process image. Please try again.");
+        onImageUpload(uploadedUrls);
+
+      } catch (error: any) {
+        console.error('Error uploading image:', error);
+        
+        // Update status to error
+        setProcessingImages(prev =>
+          prev.map((img, idx) =>
+            idx === processingImages.length ? { ...img, status: 'error' } : img
+          )
+        );
+        
+        if (error.message !== 'NO_FACE_DETECTED') {
+          toast.error("Failed to upload image. Please try again.");
         }
       } finally {
         setIsProcessingImages(false);
       }
     };
 
-    const base64ToFile = (base64: string, filename: string, mimeType: string): Promise<File> => {
-      return new Promise((resolve, reject) => {
-        fetch(base64)
-          .then(res => res.blob())
-          .then(blob => {
-            const file = new File([blob], filename, { type: mimeType });
-            resolve(file);
-          })
-          .catch(reject);
-      });
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0 && !isProcessingImages) {
+        await handleImageUpload(e);
+        e.target.value = ''; // Reset input
+      }
     };
 
-    const removeImage = (index: number) => {
-      if (processingImages[index]?.previewUrl) {
-        URL.revokeObjectURL(processingImages[index].previewUrl);
+    const removeImage = async (index: number) => {
+      const imageToRemove = processingImages[index];
+      
+      // Clean up preview URLs
+      if (imageToRemove?.previewUrl) {
+        URL.revokeObjectURL(imageToRemove.previewUrl);
+      }
+      if (imageToRemove?.processedUrl) {
+        URL.revokeObjectURL(imageToRemove.processedUrl);
+      }
+
+      // Remove from Supabase storage if uploaded
+      if (imageToRemove?.uploadedUrl) {
+        try {
+          const fileName = imageToRemove.uploadedUrl.split('/').pop();
+          if (fileName) {
+            await supabase.storage
+              .from('upload')
+              .remove([`${category ? category + '/' : ''}${fileName}`]);
+          }
+        } catch (error) {
+          console.error('Error removing image from storage:', error);
+        }
       }
       
       setProcessingImages(prev => prev.filter((_, i) => i !== index));
+      
+      // Update parent with remaining URLs
+      const remainingUrls = processingImages
+        .filter((_, i) => i !== index)
+        .map(img => img.uploadedUrl)
+        .filter(Boolean) as string[];
+      
+      onImageUpload(remainingUrls);
       onRemoveImage(index);
     };
 
@@ -243,7 +305,13 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
 
       const files = Array.from(e.dataTransfer.files);
       if (files.length > 0) {
-        handleImageUpload(files);
+        // Create a synthetic event for the drop
+        const syntheticEvent = {
+          target: {
+            files: e.dataTransfer.files
+          }
+        };
+        handleImageUpload(syntheticEvent);
       }
     };
 
@@ -254,6 +322,9 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
           if (img.previewUrl) {
             URL.revokeObjectURL(img.previewUrl);
           }
+          if (img.processedUrl) {
+            URL.revokeObjectURL(img.processedUrl);
+          }
         });
       };
     }, [processingImages]);
@@ -262,6 +333,7 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
       switch (status) {
         case 'models-loading':
         case 'processing':
+        case 'uploading':
           return <Loader2 className="h-3 w-3 animate-spin text-yellow-600" />;
         case 'completed':
           return <CheckCircle className="h-3 w-3 text-green-600" />;
@@ -277,18 +349,26 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
     };
 
     const getImageDisplayUrl = (img: ProcessingImage): string => {
+      // Show processed image if available, otherwise show preview
       return img.processedUrl || img.previewUrl;
     };
 
     const getStatusColor = (status: ProcessingImage['status']): string => {
       switch (status) {
         case 'models-loading':
-        case 'processing': return 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20';
-        case 'completed': return 'border-green-400 bg-green-50 dark:bg-green-900/20';
-        case 'error': return 'border-red-400 bg-red-50 dark:bg-red-900/20';
-        case 'no-face': return 'border-orange-400 bg-orange-50 dark:bg-orange-900/20';
-        case 'pending': return 'border-blue-400 bg-blue-50 dark:bg-blue-900/20';
-        default: return 'border-gray-200 dark:border-gray-700';
+        case 'processing':
+        case 'uploading': 
+          return 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20';
+        case 'completed': 
+          return 'border-green-400 bg-green-50 dark:bg-green-900/20';
+        case 'error': 
+          return 'border-red-400 bg-red-50 dark:bg-red-900/20';
+        case 'no-face': 
+          return 'border-orange-400 bg-orange-50 dark:bg-orange-900/20';
+        case 'pending': 
+          return 'border-blue-400 bg-blue-50 dark:bg-blue-900/20';
+        default: 
+          return 'border-gray-200 dark:border-gray-700';
       }
     };
 
@@ -297,7 +377,8 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
         case 'pending': return 'Pending';
         case 'models-loading': return 'Loading AI...';
         case 'processing': return 'Processing...';
-        case 'completed': return 'Ready';
+        case 'uploading': return 'Uploading...';
+        case 'completed': return 'Uploaded';
         case 'error': return 'Error';
         case 'no-face': return 'No Face';
         default: return '';
@@ -331,7 +412,7 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
           <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
             <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
             <span className="text-sm text-red-700 dark:text-red-300">
-              AI model failed to load. Please refresh the page.
+              AI model failed to load. Face blurring will not be available.
             </span>
           </div>
         )}
@@ -377,7 +458,7 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
         {processingImages.length > 0 && (
           <div className="grid grid-cols-3 gap-3">
             {processingImages.map((img, index) => (
-              <div key={index} className={`relative group rounded-lg border-2 ${getStatusColor(img.status)}`}>
+              <div key={index} className={`relative group overflow-hidden rounded-lg border-2 ${getStatusColor(img.status)}`}>
                 <div className="aspect-square rounded-lg overflow-hidden">
                   <Image
                     src={getImageDisplayUrl(img)}
@@ -394,7 +475,7 @@ const ImageUploader = forwardRef<HTMLInputElement, ImageUploaderProps>(
                 </div>
 
                 {/* Remove Button */}
-                {img.status !== 'processing' && img.status !== 'models-loading' && (
+                {img.status !== 'processing' && img.status !== 'models-loading' && img.status !== 'uploading' && (
                   <button
                     type="button"
                     onClick={() => removeImage(index)}

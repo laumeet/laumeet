@@ -16,6 +16,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import api from '@/lib/axio';
 import { useSocketContext } from '@/lib/socket-context';
+import { useProfile } from '@/hooks/get-profile';
+import { useCurrentUserSubscription } from '@/hooks/useCurrentUserSubscription';
 
 export interface Conversation {
   id: string;
@@ -39,14 +41,119 @@ export interface Conversation {
   isPinned?: boolean;
 }
 
+// ENHANCED SENSITIVE CONTENT DETECTION PATTERNS - UPDATED FOR SMART FILTERING
+const SENSITIVE_PATTERNS = {
+  // Enhanced phone number patterns
+  PHONE: /(\+?234[\s-]?|0)?[789][01]\d{1}[\s-]?\d{3}[\s-]?\d{4}|\+\d{10,15}|\b\d{4,15}\b/g,
+
+  // Email patterns
+  EMAIL: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+
+  // Location patterns
+  COORDINATES: /\b-?\d{1,3}\.\d+,\s*-?\d{1,3}\.\d+\b/g,
+  ADDRESS: /\b\d+\s+(?:[A-Za-z]+\s+){1,5}(?:street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|court|ct|plaza|plz|square|sq|hostel|apartment|apt|building|bldg|house)\b/gi,
+
+  // Social media and platform patterns - ENHANCED
+  URL: /https?:\/\/[^\s]+|www\.[^\s]+|\.[a-z]{2,}\/[^\s]*/gi,
+
+  // Social media names with variations and common bypass attempts
+  SOCIAL_MEDIA_NAMES: /\b(?:whatsapp|whats app|whats\.app|wh@tsapp|wh@ts@pp|whtasapp|whatsap|whatsappp|telegram|telegran|telegramm|teligram|tele gram|telegrm|telgram|facebook|face book|fb|facebok|facebookk|f@cebook|instagram|insta|instagrm|instgram|instagran|insta gram|ingstagram|twitter|x|twiter|twittr|twtter|twiter|tweet|tiktok|tik tok|tikt0k|tik-tok|snapchat|snap chat|snapchat|sc|snapch@t|discord|discrod|discordd|d!scord|disc0rd|signal|signl|sign@l|signal|viber|vib3r|viberr|wechat|we chat|wech@t|line|lin3|linee)\b/gi,
+
+  // Social media handles and URLs
+  DISCORD: /discord\.gg\/[^\s]+|discordapp\.com\/[^\s]+/gi,
+  INSTAGRAM: /(?:instagram\.com\/|@)[^\s]+/gi,
+  FACEBOOK: /(?:facebook\.com\/|fb\.com\/)[^\s]+/gi,
+  TWITTER: /(?:twitter\.com\/|x\.com\/|@)[^\s]+/gi,
+  SNAPCHAT: /snapchat\.com\/add\/[^\s]+/gi,
+  TELEGRAM: /(?:t\.me\/|telegram\.me\/|@)[^\s]+/gi,
+  WHATSAPP: /(?:wa\.me\/|whatsapp\.com\/)[^\s]+/gi,
+  TIKTOK: /tiktok\.com\/[^\s]+/gi,
+
+  // Number word replacements (like "zero eight zero")
+  NUMBER_WORDS: /\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\b/gi,
+
+  // Spaced out text detection
+  SPACED_TEXT: /(\w\s+){3,}\w/g,
+
+  // Combined contact pattern
+  COMBINED_CONTACT: /(?:\b\d{4,15}\b.*\b(?:call|text|message|contact|whatsapp|instagram|facebook|twitter|x|tiktok|snapchat|telegram|discord|signal|viber|wechat|line)\b)|(?:\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b.*\b(?:email|contact|reach)\b)/gi,
+};
+
+/**
+ * Detects and replaces sensitive content with hashes for free users
+ * Only filters sensitive parts, keeps the rest of the message intact
+ */
+const filterSensitiveContent = (content: string, userHasSubscription: boolean): string => {
+  if (userHasSubscription || !content) {
+    return content;
+  }
+
+  let filteredContent = content;
+
+  // Helper function to replace matches with hashes
+  const replaceWithHashes = (text: string, pattern: RegExp): string => {
+    return text.replace(pattern, (match) => {
+      // For longer patterns like phone numbers, emails, etc., use full hash
+      if (match.length >= 4) {
+        return '#####';
+      }
+      // For shorter patterns, preserve some context but still hash
+      return '###';
+    });
+  };
+
+  // 1. First, detect and hash phone numbers (including disguised ones)
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.PHONE);
+
+  // 2. Detect and hash emails
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.EMAIL);
+
+  // 3. Detect and hash social media names with variations
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.SOCIAL_MEDIA_NAMES);
+
+  // 4. Detect and hash social media URLs and handles
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.INSTAGRAM);
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.FACEBOOK);
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.TWITTER);
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.WHATSAPP);
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.TELEGRAM);
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.DISCORD);
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.SNAPCHAT);
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.TIKTOK);
+
+  // 5. Detect and hash addresses and locations
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.ADDRESS);
+
+  // 6. Detect and hash general URLs
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.URL);
+
+  // 7. Advanced: Detect number words (like "zero eight zero")
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.NUMBER_WORDS);
+
+  // 8. Detect combined contact patterns
+  filteredContent = replaceWithHashes(filteredContent, SENSITIVE_PATTERNS.COMBINED_CONTACT);
+
+  return filteredContent;
+};
+
 export default function ChatPage() {
   const router = useRouter();
   const { socket, isConnected, onlineUsers } = useSocketContext();
+  const { profile } = useProfile();
+  const { subscription } = useCurrentUserSubscription(profile?.id);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [pinnedConversations, setPinnedConversations] = useState<Set<string>>(new Set());
+  const [hasSubscription, setHasSubscription] = useState(false);
+ 
+  // Update subscription status
+  useEffect(() => {
+    if (subscription) {
+      setHasSubscription(subscription.has_subscription);
+    }
+  }, [subscription]);
 
   // Load pinned conversations from localStorage
   useEffect(() => {
@@ -69,6 +176,14 @@ export default function ChatPage() {
     }
   }, [pinnedConversations]);
 
+  // Apply sensitive content filtering to conversations
+  const filterConversationContent = useCallback((conversationsData: Conversation[], userHasSubscription: boolean) => {
+    return conversationsData.map((conv: Conversation) => ({
+      ...conv,
+      last_message: conv.last_message ? filterSensitiveContent(conv.last_message, userHasSubscription) : null,
+    }));
+  }, []);
+
   // Fetch conversations
   const fetchConversations = useCallback(async () => {
     try {
@@ -79,8 +194,11 @@ export default function ChatPage() {
       if (response.data.success) {
         const conversationsData = response.data.conversations || [];
         
+        // Apply sensitive content filtering
+        const filteredConversations = filterConversationContent(conversationsData, hasSubscription);
+        
         // Update online status and pinned status
-        const updatedConversations = conversationsData.map((conv: Conversation) => ({
+        const updatedConversations = filteredConversations.map((conv: Conversation) => ({
           ...conv,
           other_user: {
             ...conv.other_user,
@@ -109,7 +227,15 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
-  }, [onlineUsers, pinnedConversations]);
+  }, [onlineUsers, pinnedConversations, hasSubscription, filterConversationContent]);
+
+  // Re-filter conversations when subscription changes
+  useEffect(() => {
+    if (conversations.length > 0) {
+      const filteredConversations = filterConversationContent(conversations, hasSubscription);
+      setConversations(filteredConversations);
+    }
+  }, [hasSubscription, filterConversationContent, conversations.length]);
 
   // Initial fetch
   useEffect(() => {
@@ -137,9 +263,12 @@ export default function ChatPage() {
           const updated = [...prev];
           const conversation = updated[existingConvIndex];
           
+          // Apply sensitive content filtering to the new message
+          const filteredMessage = filterSensitiveContent(message.content, hasSubscription);
+          
           const updatedConversation: Conversation = {
             ...conversation,
-            last_message: message.content,
+            last_message: filteredMessage,
             last_message_at: message.timestamp,
             last_message_id: message.id,
             last_message_sender_id: message.sender_id,
@@ -164,17 +293,24 @@ export default function ChatPage() {
     // Handle conversation updates
     const handleConversationUpdate = (updatedConv: Conversation) => {
       console.log('🔄 Conversation update received:', updatedConv);
+      
+      // Apply sensitive content filtering to the updated conversation
+      const filteredConv = {
+        ...updatedConv,
+        last_message: updatedConv.last_message ? filterSensitiveContent(updatedConv.last_message, hasSubscription) : null,
+      };
+      
       setConversations(prev => {
-        const exists = prev.find(c => c.id === updatedConv.id);
+        const exists = prev.find(c => c.id === filteredConv.id);
         if (exists) {
           return prev.map(c => 
-            c.id === updatedConv.id 
-              ? { ...c, ...updatedConv, isPinned: pinnedConversations.has(updatedConv.id) }
+            c.id === filteredConv.id 
+              ? { ...c, ...filteredConv, isPinned: pinnedConversations.has(filteredConv.id) }
               : c
           );
         }
         // If it's a new conversation, add it to the top
-        return [{ ...updatedConv, isPinned: pinnedConversations.has(updatedConv.id) }, ...prev];
+        return [{ ...filteredConv, isPinned: pinnedConversations.has(filteredConv.id) }, ...prev];
       });
     };
 
@@ -270,7 +406,7 @@ export default function ChatPage() {
       socket.off('user_online_status', handleOnlineStatus);
       socket.off('message_status_update', handleMessageStatusUpdate);
     };
-  }, [socket, isConnected, pinnedConversations, fetchConversations]);
+  }, [socket, isConnected, pinnedConversations, fetchConversations, hasSubscription]);
 
   // Update conversations when onlineUsers changes
   useEffect(() => {
@@ -411,7 +547,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="h-screen bg-white dark:bg-gray-900 flex flex-col">
+    <div className="h-[87vh] overflow-y-auto pb-32 flex flex-col">
       {/* Header */}
       <div className=" text-white px-4 py-4">
 
@@ -455,93 +591,103 @@ export default function ChatPage() {
             )}
           </div>
         ) : (
-          filteredConversations.map((conversation) => (
-            <div
-              key={conversation.id}
-              className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700"
-              onClick={() => handleChatSelect(conversation.id)}
-            >
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage
-                      src={conversation.other_user.avatar || '/placeholder-avatar.jpg'}
-                      alt={conversation.other_user.name}
-                    />
-                    <AvatarFallback className="bg-gradient-to-r capitalize from-pink-500 to-purple-600 text-white">
-                      {conversation.other_user.username?.charAt(0)} 
+          filteredConversations.map((conversation) => {
+            const hasLockedContent = conversation.last_message?.includes('#####') || conversation.last_message?.includes('###');
+            
+            return (
+              <div
+                key={conversation.id}
+                className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700"
+                onClick={() => handleChatSelect(conversation.id)}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage
+                        src={conversation.other_user.avatar || '/placeholder-avatar.jpg'}
+                        alt={conversation.other_user.name}
+                      />
+                      <AvatarFallback className="bg-gradient-to-r capitalize from-pink-500 to-purple-600 text-white">
+                        {conversation.other_user.username?.charAt(0)} 
+                      </AvatarFallback>
+                    </Avatar>
+                    {conversation.other_user.isOnline && (
+                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900" />
+                    )}
+                  </div>
 
-                    </AvatarFallback>
-                  </Avatar>
-                  {conversation.other_user.isOnline && (
-                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900" />
-                  )}
-                </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center space-x-2">
+                        {conversation.isPinned && (
+                          <span className="text-purple-500" title="Pinned conversation">📌</span>
+                        )}
+                        <h3 className="font-semibold capitalize text-gray-900 dark:text-white truncate">
+                          {conversation.other_user.username}
+                        </h3>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        {getMessageStatusIcon(conversation)}
+                        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                          {formatTimestamp(conversation.last_message_at)}
+                        </span>
+                      </div>
+                    </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center space-x-2">
-                      {conversation.isPinned && (
-                        <span className="text-purple-500" title="Pinned conversation">📌</span>
+                    <div className="flex items-center justify-between">
+                      <div
+                        className={`text-sm truncate flex-1 ${
+                          conversation.unread_count > 0
+                            ? 'text-gray-900 dark:text-white font-medium'
+                            : 'text-gray-500 dark:text-gray-400'
+                        } ${hasLockedContent ? 'italic' : ''}`}
+                      >
+                        {hasLockedContent ? (
+                          <span className="text-gray-400 italic">
+                            {conversation.last_message}
+                            {!hasSubscription && (
+                              <span className="text-xs text-purple-500 ml-1">🔒</span>
+                            )}
+                          </span>
+                        ) : (
+                          getLastMessagePreview(conversation)
+                        )}
+                      </div>
+
+                      {conversation.unread_count > 0 && (
+                        <Badge className="bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xs min-w-[20px] h-5 flex items-center justify-center rounded-full">
+                          {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
+                        </Badge>
                       )}
-                      <h3 className="font-semibold capitalize text-gray-900 dark:text-white truncate">
-                        {conversation.other_user.username  }
-                      </h3>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      {getMessageStatusIcon(conversation)}
-                      <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                        {formatTimestamp(conversation.last_message_at)}
-                      </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div
-                      className={`text-sm truncate flex-1 ${
-                        conversation.unread_count > 0
-                          ? 'text-gray-900 dark:text-white font-medium'
-                          : 'text-gray-500 dark:text-gray-400'
-                      }`}
-                    >
-                      {getLastMessagePreview(conversation)}
-                    </div>
-
-                    {conversation.unread_count > 0 && (
-                      <Badge className="bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xs min-w-[20px] h-5 flex items-center justify-center rounded-full">
-                        {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                {/* Context Menu */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button 
-                      onClick={(e) => e.stopPropagation()}
-                      className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      <MoreVertical size={16} className="text-gray-500" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={(e) => togglePinConversation(conversation.id, e)}>
-                      {conversation.isPinned ? 'Unpin chat' : 'Pin chat'}
-                    </DropdownMenuItem>
-                    {conversation.unread_count > 0 && (
-                      <DropdownMenuItem onClick={(e) => markConversationAsRead(conversation.id, e)}>
-                        Mark as read
+                  {/* Context Menu */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button 
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <MoreVertical size={16} className="text-gray-500" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={(e) => togglePinConversation(conversation.id, e)}>
+                        {conversation.isPinned ? 'Unpin chat' : 'Pin chat'}
                       </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem className="text-red-600">
-                      Delete chat
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      {conversation.unread_count > 0 && (
+                        <DropdownMenuItem onClick={(e) => markConversationAsRead(conversation.id, e)}>
+                          Mark as read
+                        </DropdownMenuItem>
+                      )}
+                     
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

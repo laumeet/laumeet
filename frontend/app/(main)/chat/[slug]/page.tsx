@@ -15,15 +15,16 @@ import {
   Info,
   Lock,
   ChevronDown,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import api from '@/lib/axio';
 import { useSocketContext } from '@/lib/socket-context';
 import { useProfile } from '@/hooks/get-profile';
-import { useUserSubscription } from '@/hooks/useUserSubscription';
 import { UpgradeModal, LockedContentTooltip, UpgradePrompt } from '@/components/chat/SubscriptionComponents';
 import { useUsageStats } from '@/hooks/useUsageStats';
+import { useCurrentUserSubscription } from '@/hooks/useCurrentUserSubscription';
 
 // ---------------------------------------------------------------------
 // Types (keep the same as before)
@@ -191,6 +192,34 @@ const containsSensitiveContent = (content: string): boolean => {
   return patterns.some(pattern => pattern.test(content));
 };
 
+/**
+ * Detects what type of sensitive content is in the message
+ * Used to show specific reasons to the user
+ */
+const detectSensitiveContentTypes = (content: string): string[] => {
+  const detectedTypes: string[] = [];
+
+  if (SENSITIVE_PATTERNS.PHONE.test(content)) detectedTypes.push('phone numbers');
+  if (SENSITIVE_PATTERNS.EMAIL.test(content)) detectedTypes.push('email addresses');
+  if (SENSITIVE_PATTERNS.SOCIAL_MEDIA_NAMES.test(content) || 
+      SENSITIVE_PATTERNS.INSTAGRAM.test(content) ||
+      SENSITIVE_PATTERNS.FACEBOOK.test(content) ||
+      SENSITIVE_PATTERNS.TWITTER.test(content) ||
+      SENSITIVE_PATTERNS.WHATSAPP.test(content) ||
+      SENSITIVE_PATTERNS.TELEGRAM.test(content) ||
+      SENSITIVE_PATTERNS.DISCORD.test(content) ||
+      SENSITIVE_PATTERNS.SNAPCHAT.test(content) ||
+      SENSITIVE_PATTERNS.TIKTOK.test(content)) {
+    detectedTypes.push('social media handles');
+  }
+  if (SENSITIVE_PATTERNS.URL.test(content)) detectedTypes.push('website links');
+  if (SENSITIVE_PATTERNS.ADDRESS.test(content) || SENSITIVE_PATTERNS.COORDINATES.test(content)) {
+    detectedTypes.push('addresses or locations');
+  }
+
+  return detectedTypes;
+};
+
 // ---------------------------------------------------------------------
 // Custom Hook for Upgrade Prompts (keep the same as before)
 // ---------------------------------------------------------------------
@@ -236,7 +265,7 @@ const useUpgradePrompts = (hasSubscription: boolean, showUpgradeModal: boolean, 
 
 export default function ChatDetailPage() {
   const { profile } = useProfile();
-  const { subscription } = useUserSubscription(profile?.id);
+  const { subscription } = useCurrentUserSubscription(profile?.id);
   const { usage, fetchUsageStats } = useUsageStats();
   const { socket, isConnected: socketConnected, onlineUsers } = useSocketContext();
   const params = useParams();
@@ -273,6 +302,15 @@ export default function ChatDetailPage() {
   const [unseenMessagesCount, setUnseenMessagesCount] = useState(0);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
+  // NEW: Sensitive content notification state
+  const [sensitiveContentNotification, setSensitiveContentNotification] = useState<{
+    show: boolean;
+    reasons: string[];
+  }>({
+    show: false,
+    reasons: []
+  });
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -285,11 +323,53 @@ export default function ChatDetailPage() {
   const lastSeenMessageIndexRef = useRef<number>(-1);
   const lastScrollTopRef = useRef<number>(0);
   const previousMessagesLengthRef = useRef<number>(0);
+  const sensitiveNotificationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Swipe states
   const [swipeStartX, setSwipeStartX] = useState(0);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [swipingMessageId, setSwipingMessageId] = useState<string | number | null>(null);
+
+  // ---------------------------------------------------------------------
+  // NEW: Sensitive Content Notification Handler
+  // ---------------------------------------------------------------------
+
+  const showSensitiveContentNotification = useCallback((originalContent: string) => {
+    const detectedTypes = detectSensitiveContentTypes(originalContent);
+    
+    if (detectedTypes.length > 0) {
+      setSensitiveContentNotification({
+        show: true,
+        reasons: detectedTypes
+      });
+
+      // Auto-hide notification after 5 seconds
+      if (sensitiveNotificationTimeoutRef.current) {
+        clearTimeout(sensitiveNotificationTimeoutRef.current);
+      }
+
+      sensitiveNotificationTimeoutRef.current = setTimeout(() => {
+        setSensitiveContentNotification(prev => ({ ...prev, show: false }));
+      }, 5000);
+    }
+  }, []);
+
+  const hideSensitiveContentNotification = useCallback(() => {
+    setSensitiveContentNotification(prev => ({ ...prev, show: false }));
+    if (sensitiveNotificationTimeoutRef.current) {
+      clearTimeout(sensitiveNotificationTimeoutRef.current);
+      sensitiveNotificationTimeoutRef.current = null;
+    }
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (sensitiveNotificationTimeoutRef.current) {
+        clearTimeout(sensitiveNotificationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // ---------------------------------------------------------------------
   // Upgrade Prompts
@@ -565,6 +645,11 @@ export default function ChatDetailPage() {
           status: newMessage.is_read ? 'read' : (!onlineStatus ? 'sent' : 'delivered')
         };
 
+        // NEW: Show sensitive content notification if message was filtered and user doesn't have subscription
+        if (!hasSubscription && containsSensitiveContent(newMessage.content)) {
+          showSensitiveContentNotification(newMessage.content);
+        }
+
         return [...prev, filteredMessage];
       });
 
@@ -685,7 +770,7 @@ export default function ChatDetailPage() {
         typingDebounceRef.current = null;
       }
     };
-  }, [socket, conversation, profile?.id, onlineStatus, hasSubscription, usage, chatId, updateMessagesWithFilter]);
+  }, [socket, conversation, profile?.id, onlineStatus, hasSubscription, usage, chatId, updateMessagesWithFilter, showSensitiveContentNotification]);
 
   // Update online status when onlineUsers changes
   useEffect(() => {
@@ -1052,6 +1137,16 @@ export default function ChatDetailPage() {
     </div>
   );
 
+  //===============
+  //Fetching the user
+  //================
+  useEffect(() => {
+    if(!profile?.id){
+      setLoading(true)
+    }
+  }, [profile?.id])
+  
+
   // ---------------------------------------------------------------------
   // UI Render (keep the same as before)
   // ---------------------------------------------------------------------
@@ -1129,6 +1224,32 @@ export default function ChatDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* NEW: Sensitive Content Notification */}
+      {sensitiveContentNotification.show && (
+        <div className="flex-none bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 p-3">
+          <div className="max-w-3xl mx-auto flex items-start space-x-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-amber-800 dark:text-amber-300 text-sm font-medium mb-1">
+                Sensitive content filtered
+              </p>
+              <p className="text-amber-700 dark:text-amber-400 text-xs">
+                Message contained {sensitiveContentNotification.reasons.join(', ')}. 
+                {!hasSubscription && " Upgrade to view full content."}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={hideSensitiveContentNotification}
+              className="h-6 w-6 text-amber-600 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-800"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Messages Area - Flexible middle section */}
       <div

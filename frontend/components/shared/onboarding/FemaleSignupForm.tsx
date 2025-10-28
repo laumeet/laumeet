@@ -1,7 +1,7 @@
 // components/shared/onboarding/FemaleSignupForm.tsx
 'use client';
 
-import { useState, useRef} from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,7 +33,6 @@ export default function FemaleSignupForm({
 }: FemaleSignupFormProps) {
   const [formData, setFormData] = useState({
     category: '',
-    pictures: [] as File[],
     age: '',
     username: '',
     bio: '',
@@ -49,7 +48,8 @@ export default function FemaleSignupForm({
     name: ''
   });
 
-    const { socket, isConnected } = useSocket();
+  const [uploadedImageUrls, setUploadedImageUrls] = useState<string[]>([]);
+  const { socket, isConnected } = useSocket();
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -109,7 +109,7 @@ export default function FemaleSignupForm({
     }
 
     // Only validate images if uploader is shown
-    if (shouldShowImageUploader() && formData.pictures.length === 0) {
+    if (shouldShowImageUploader() && uploadedImageUrls.length === 0) {
       toast.error("Please upload at least one photo");
       return;
     }
@@ -182,14 +182,6 @@ export default function FemaleSignupForm({
     setIsProcessing(true);
 
     try {
-      // Convert files to base64 for submission
-      const processedImagesData: string[] = [];
-      
-      for (const file of formData.pictures) {
-        const base64 = await fileToBase64(file);
-        processedImagesData.push(base64);
-      }
-
       const payload = {
         username: formData.username,
         password: formData.password,
@@ -201,7 +193,7 @@ export default function FemaleSignupForm({
         category: formData.category,
         bio: formData.bio,
         interestedIn: formData.interests,
-        pictures: processedImagesData,
+        pictures: uploadedImageUrls,
         department: formData.department,
         level: formData.level,
         genotype: formData.genotype,
@@ -212,7 +204,7 @@ export default function FemaleSignupForm({
       const res = await api.post('/auth/signup', payload);
       if(res.data){
         toast.success('Profile created successfully!');
-              // Set user as online immediately after successful login
+        // Set user as online immediately after successful login
         if (socket && isConnected) {
           console.log('✅ Login successful - setting user online');
           socket.emit('set_online', { 
@@ -243,44 +235,12 @@ export default function FemaleSignupForm({
     }
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        if (result && result.startsWith('data:')) {
-          resolve(result);
-        } else {
-          reject(new Error('Failed to convert file to base64'));
-        }
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  const handleImageUpload = (urls: string[]) => {
+    setUploadedImageUrls(urls);
   };
 
-  const handleImageUpload = (files: File[]) => {
-    if (files.length === 0) return;
-
-    const file = files[0]; // Only take the first file
-    
-    // Check if adding new file would exceed the limit
-    if (formData.pictures.length >= 5) {
-      toast.error(`You can only upload up to 5 photos. You already have ${formData.pictures.length}.`);
-      return;
-    }
-
-    setFormData(prev => ({
-      ...prev,
-      pictures: [...prev.pictures, file],
-    }));
-  };
-
-  const removeImage = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      pictures: prev.pictures.filter((_, i) => i !== index),
-    }));
+  const handleRemoveImage = (index: number) => {
+    setUploadedImageUrls(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleChange = (field: string, value: string) => {
@@ -298,10 +258,7 @@ export default function FemaleSignupForm({
       
       if (wasSensitive && !isSensitive) {
         // Switching from sensitive to non-sensitive category, clear images
-        setFormData(prev => ({
-          ...prev,
-          pictures: []
-        }));
+        setUploadedImageUrls([]);
         toast.info("Photo upload disabled for selected category");
       }
     }
@@ -386,13 +343,13 @@ export default function FemaleSignupForm({
             <div className="flex items-center justify-between">
               <Label className="text-gray-700 dark:text-gray-300">Upload Photos</Label>
               <span className="text-sm text-gray-500 dark:text-gray-400">
-                {formData.pictures.length}/5 photos
+                {uploadedImageUrls.length}/5 photos
               </span>
             </div>
             
             <ImageUploader
               onImageUpload={handleImageUpload}
-              onRemoveImage={removeImage}
+              onRemoveImage={handleRemoveImage}
               isAnonymous={isAnonymous}
               category={formData.category}
               maxImages={5}

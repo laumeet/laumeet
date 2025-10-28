@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Shield, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Shield, Loader2, Eye, EyeOff, User, UserX } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -17,9 +17,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import api from '@/lib/axio';
 import { useSocket } from '@/hooks/useSocket';
+import ImageUploader from '@/components/shared/onboarding/ImageUploader';
 
 interface MaleSignupFormProps {
   onBack: () => void;
@@ -37,6 +39,8 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
     securityQuestion: '',
     securityAnswer: ''
   });
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [uploadedImageUrls, setUploadedImageUrls] = useState<string[]>([]);
   const { socket, isConnected } = useSocket();
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -81,6 +85,14 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
       });
       element.focus();
     }
+  };
+
+  const handleImageUpload = (urls: string[]) => {
+    setUploadedImageUrls(urls);
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setUploadedImageUrls(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -144,6 +156,12 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
       return;
     }
 
+    // For non-anonymous users, require at least one image
+    if (!isAnonymous && uploadedImageUrls.length === 0) {
+      toast.error("Please upload at least one profile picture");
+      return;
+    }
+
     const payload = {
       username: formData.username,
       password: formData.password,
@@ -153,11 +171,14 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
       gender: "male",
       bio: formData.bio,
       interestedIn: formData.interests,
+      isAnonymous: isAnonymous,
+      pictures: uploadedImageUrls,
     };
 
     setIsProcessing(true);
     try {
       const res = await api.post('/auth/signup', payload);
+      
       if (res.data) {
         toast.success('Profile created successfully!');
         // Set user as online immediately after successful login
@@ -218,6 +239,30 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
         <p className="text-gray-600 dark:text-gray-300 mt-1">Tell us about yourself</p>
       </div>
 
+      {/* Anonymous Toggle */}
+      <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center space-x-3">
+          {isAnonymous ? (
+            <UserX className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+          ) : (
+            <User className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+          )}
+          <div>
+            <Label htmlFor="anonymous-mode" className="text-gray-700 dark:text-gray-300 font-medium">
+              Anonymous Mode
+            </Label>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {isAnonymous ? 'Your profile will be hidden from other users' : 'Your profile will be visible to other users'}
+            </p>
+          </div>
+        </div>
+        <Switch
+          id="anonymous-mode"
+          checked={isAnonymous}
+          onCheckedChange={setIsAnonymous}
+        />
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="username" className="text-gray-700 dark:text-gray-300">Username</Label>
@@ -272,6 +317,20 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
             className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
           />
         </div>
+
+        {/* Image Uploader - Only show if not anonymous */}
+        {!isAnonymous && (
+          <div className="space-y-2">
+            <Label className="text-gray-700 dark:text-gray-300">Profile Picture</Label>
+            <ImageUploader 
+              onImageUpload={handleImageUpload}
+              onRemoveImage={handleRemoveImage}
+              isAnonymous={isAnonymous}
+              category=""
+              maxImages={5}
+            />
+          </div>
+        )}
 
         {/* Password Fields */}
         <div className="grid gap-4">
@@ -416,7 +475,10 @@ export default function MaleSignupForm({ onBack, onNext }: MaleSignupFormProps) 
         <Alert className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
           <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           <AlertDescription className="text-blue-800 dark:text-blue-200">
-            Your privacy is our priority. We never share your personal data without your consent.
+            {isAnonymous 
+              ? "In anonymous mode, your profile will be hidden from other users for enhanced privacy."
+              : "Your privacy is our priority. We never share your personal data without your consent."
+            }
           </AlertDescription>
         </Alert>
 

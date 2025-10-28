@@ -8,13 +8,12 @@ interface ExploreProfile {
   name: string;
   age: number;
   bio: string;
+  is_admin: boolean;
   pictures: string[];
   category: string;
   isAnonymous: boolean;
   department: string;
   interests: string[];
-  distance: number;
-  compatibility: number;
   level: string;
   gender: string;
   interestedIn: string;
@@ -50,15 +49,14 @@ export const useExploreProfiles = () => {
           id: p.id || '',
           username: p.username || '',
           name: p.name || p.username || 'Unknown',
-          age: typeof p.age === 'number' ? p.age : 0,
+          age: p.age,
           bio: p.bio || '',
+          is_admin: p.is_admin,
           pictures: Array.isArray(p.pictures) ? p.pictures : [],
           category: p.category || '',
           isAnonymous: Boolean(p.isAnonymous),
           department: p.department || '',
           interests: Array.isArray(p.interests) ? p.interests : [],
-          distance: typeof p.distance === 'number' ? p.distance : 0,
-          compatibility: typeof p.compatibility === 'number' ? p.compatibility : 0,
           level: p.level || '',
           gender: p.gender || '',
           interestedIn: p.interestedIn || '',

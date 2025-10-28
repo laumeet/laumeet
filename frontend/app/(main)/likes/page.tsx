@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // app/(main)/likes/page.tsx
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,96 +12,140 @@ import {
   RefreshCw, 
   X,
   MessageCircle,
- 
-  GraduationCap
+  GraduationCap,
+  BadgeCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useLikedMe } from '@/hooks/useUsersWhoLikedMe';
 import useExploreProfiles from '@/hooks/use-explore-profiles';
 import api from '@/lib/axio';
+import { useUserSubscription } from '@/hooks/useUserSubscription';
+
+// Verified Badge Component
+function VerifiedBadge({ size = "sm", className = "" }: { size?: "sm" | "md" | "lg"; className?: string }) {
+  const sizeClasses = {
+    sm: "h-3 w-3",
+    md: "h-4 w-4", 
+    lg: "h-5 w-5"
+  };
+
+  const containerClasses = {
+    sm: "p-1",
+    md: "p-1.5",
+    lg: "p-2"
+  };
+
+  return (
+    <div className={`inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-blue-600 shadow-sm ${containerClasses[size]} ${className}`}>
+      <BadgeCheck className={`${sizeClasses[size]} text-white`} />
+    </div>
+  );
+}
 
 export default function LikesPage() {
-  const { users, loading, error,  fetchUsersWhoLikedMe  } = useLikedMe();
-    const { swipeProfile } = useExploreProfiles();
-    
-          const [isSwiping, setIsSwiping] = useState(false);
+  const { users, loading, error, fetchUsersWhoLikedMe } = useLikedMe();
+  const { swipeProfile } = useExploreProfiles();
+  const [isSwiping, setIsSwiping] = useState(false);
   const [expandedBio, setExpandedBio] = useState<string | null>(null);
+  const [userSubscriptions, setUserSubscriptions] = useState<{ [key: string]: any }>({});
   const router = useRouter();
 
-    const createConversationWithMessage = async (matchedUserId: any) => {
-      try {
-        // First, create the conversation
-        const conversationResponse = await api.post('/chat/conversations/create', {
-          target_user_id: matchedUserId
-        });
-  
-        if (conversationResponse.data.success) {
-          const conversationId = conversationResponse.data.conversation_id;
-          
-          // Send initial message
-          const messageResponse = await api.post(`/chat/messages/send?conversationId=${conversationId}`, {
-            content: "Conversation has been unlocked! 🎉"
-          });
-  
-          if (messageResponse.data.success) {
-            return { success: true, conversationId };
-          }
-        }
+  // Use subscription hook for the first user (you can extend this for multiple users)
+  const firstUser = users[0];
+  const { subscription: currentSubscription } = useUserSubscription(firstUser?.id || "");
+
+  // Update subscriptions when current user changes
+  useEffect(() => {
+    if (firstUser?.id && currentSubscription) {
+      setUserSubscriptions(prev => ({
+        ...prev,
+        [firstUser.id]: currentSubscription
+      }));
+    }
+  }, [firstUser?.id, currentSubscription]);
+
+  // Function to check if a user has active subscription
+  const hasActiveSubscription = (userId: string) => {
+    const subscription = userSubscriptions[userId];
+    return subscription?.has_subscription && 
+           subscription.subscription?.is_active && 
+           subscription.subscription?.status === 'active';
+  };
+
+  const createConversationWithMessage = async (matchedUserId: any) => {
+    try {
+      // First, create the conversation
+      const conversationResponse = await api.post('/chat/conversations/create', {
+        target_user_id: matchedUserId
+      });
+
+      if (conversationResponse.data.success) {
+        const conversationId = conversationResponse.data.conversation_id;
         
-        return { success: false, error: 'Failed to create conversation' };
-      } catch (err: any) {
-        console.error('Error creating conversation:', err);
-        return { 
-          success: false, 
-          error: err.response?.data?.message || 'Failed to create conversation' 
-        };
+        // Send initial message
+        const messageResponse = await api.post(`/chat/messages/send?conversationId=${conversationId}`, {
+          content: "Conversation has been unlocked! 🎉"
+        });
+
+        if (messageResponse.data.success) {
+          return { success: true, conversationId };
+        }
       }
-    };
-    
+      
+      return { success: false, error: 'Failed to create conversation' };
+    } catch (err: any) {
+      console.error('Error creating conversation:', err);
+      return { 
+        success: false, 
+        error: err.response?.data?.message || 'Failed to create conversation' 
+      };
+    }
+  };
+  
   const handleLikeBack = async (user: any) => {
     setIsSwiping(true)
     try{
-    const result = await swipeProfile(user.id, 'like')
-    if (result.success) {
-       const conversationResult = await createConversationWithMessage(result.matched_with);
+      const result = await swipeProfile(user.id, 'like')
+      if (result.success) {
+        const conversationResult = await createConversationWithMessage(result.matched_with);
               
-      if (conversationResult) {
-        toast.success(`It's a match with ${user.name}! 🎉`, {
-          duration: 5000,
-          action: {
-            label: 'Chat',
-            onClick: () => router.push('/chat')
-          }
-        });
+        if (conversationResult) {
+          toast.success(`It's a match with ${user.name}! 🎉`, {
+            duration: 5000,
+            action: {
+              label: 'Chat',
+              onClick: () => router.push('/chat')
+            }
+          });
+        } else {
+          toast.success(`You liked ${user.name} back!`);
+        }
       } else {
-        toast.success(`You liked ${user.name} back!`);
+        toast.error(result.message || 'Failed to like back');
       }
-    } else {
-      toast.error(result.message || 'Failed to like back');
     }
-  }
-  finally{
-    setIsSwiping(false)
-    fetchUsersWhoLikedMe()
-  }
+    finally{
+      setIsSwiping(false)
+      fetchUsersWhoLikedMe()
+    }
   };
 
   const handlePass = async (user: any) => {
-     setIsSwiping(true)
+    setIsSwiping(true)
     try{
-    const result = await swipeProfile(user.id, 'like')
-    
-    if (result.success) {
-      toast.info(`You passed on ${user.name}`);
-    } else {
-      toast.error(result.message || 'Failed to pass');
+      const result = await swipeProfile(user.id, 'like')
+      
+      if (result.success) {
+        toast.info(`You passed on ${user.name}`);
+      } else {
+        toast.error(result.message || 'Failed to pass');
+      }
     }
+    finally{
+      setIsSwiping(false)
+      fetchUsersWhoLikedMe()
     }
-  finally{
-    setIsSwiping(false)
-    fetchUsersWhoLikedMe()
-  }
   };
 
   const toggleBio = (userId: string) => {
@@ -205,107 +249,117 @@ export default function LikesPage() {
 
       {/* Users Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {users.map((user:any) => (
-          <Card key={user.id} className="overflow-hidden border-2 border-pink-200 dark:border-pink-800">
-            <CardContent className="p-0">
-              {/* Header with Image and Basic Info */}
-              <div className="relative">
-               {
-                user.pictures && user.pictures.length > 0  ? <img
-                  src={user.pictures[0] || '/api/placeholder/400/300'}
-                  alt={user.username}
-                  className="w-full h-48 object-cover"
-                /> : <div className="w-full flex-col h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                  <MessageCircle className="h-12 w-12 text-gray-400" />
-                  <p>No Pictures</p>
-                </div>
-               } 
+        {users.map((user:any) => {
+          const isVerified = hasActiveSubscription(user.id);
+          const displayName = user.name || user.username;
+          
+          return (
+            <Card key={user.id} className="overflow-hidden border-2 border-pink-200 dark:border-pink-800">
+              <CardContent className="p-0">
+                {/* Header with Image and Basic Info */}
+                <div className="relative">
+                  {user.pictures && user.pictures.length > 0 ? (
+                    <img
+                      src={user.pictures[0] || '/api/placeholder/400/300'}
+                      alt={user.username}
+                      className="w-full h-48 object-cover"
+                    />
+                  ) : (
+                    <div className="w-full flex-col h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                      <MessageCircle className="h-12 w-12 text-gray-400" />
+                      <p>No Pictures</p>
+                    </div>
+                  )}
 
-                <div className="absolute top-3 left-3 bg-pink-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center">
-                  <Heart className="h-3 w-3 mr-1" fill="white" />
-                  Liked You
-                </div>
-                <div className="absolute top-3 right-3 bg-black/50 text-white px-2 py-1 rounded-full text-xs backdrop-blur-sm">
-                  {user.liked_at ? formatDate(user.liked_at) : 'Recently'}
-                </div>
-                
-                {/* Gradient Overlay */}
-                <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/60 to-transparent" />
-                
-                {/* Basic Info Overlay */}
-                <div className="absolute bottom-3 left-3 right-3 text-white">
-                  <h3 className="font-bold text-lg truncate">{user.username}</h3>
-                  <div className="flex items-center space-x-2 text-sm opacity-90">
-                    {user.age && <span>{user.age} years</span>}
-                    {user.department && (
-                      <div className="flex items-center">
-                        <GraduationCap className="h-3 w-3 mr-1" />
-                        <span>{user.department}</span>
-                      </div>
-                    )}
+                  <div className="absolute top-3 left-3 bg-pink-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center">
+                    <Heart className="h-3 w-3 mr-1" fill="white" />
+                    Liked You
                   </div>
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="p-4 space-y-3">
-                {/* Bio */}
-                {user.bio && (
-                  <div>
-                    <p className={`text-sm text-gray-600 dark:text-gray-300 ${
-                      expandedBio === user.id ? '' : 'line-clamp-2'
-                    }`}>
-                      {user.bio}
-                    </p>
-                    {user.bio.length > 100 && (
-                      <Button
-                        variant="link"
-                        className="p-0 h-auto text-xs text-pink-500"
-                        onClick={() => toggleBio(user.id)}
-                      >
-                        {expandedBio === user.id ? 'Show less' : 'Read more'}
-                      </Button>
-                    )}
+                  <div className="absolute top-3 right-3 bg-black/50 text-white px-2 py-1 rounded-full text-xs backdrop-blur-sm">
+                    {user.liked_at ? formatDate(user.liked_at) : 'Recently'}
                   </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex space-x-2 pt-2">
-                  <Button
-                    onClick={() => handlePass(user)}
-                    variant="outline"
-                    className="flex-1"
-                    disabled={isSwiping}
-                  >
-                    {isSwiping ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <X className="h-4 w-4 mr-2" />
-                        Pass
-                      </>
-                    )}
-                  </Button>
                   
-                  <Button
-                    onClick={() => handleLikeBack(user)}
-                    className="flex-1 bg-pink-500 hover:bg-pink-600 text-white"
-                    disabled={isSwiping}
-                  >
-                    {isSwiping ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Heart className="h-4 w-4 mr-2" fill="currentColor" />
-                        Like Back
-                      </>
-                    )}
-                  </Button>
+                  {/* Gradient Overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/60 to-transparent" />
+                  
+                  {/* Basic Info Overlay */}
+                  <div className="absolute bottom-3 left-3 right-3 text-white">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-lg truncate">{displayName}</h3>
+                      {isVerified && <VerifiedBadge size="sm" />}
+                    </div>
+                    <div className="flex items-center space-x-2 text-sm opacity-90">
+                      {user.age && <span>{user.age} years</span>}
+                      {user.department && (
+                        <div className="flex items-center">
+                          <GraduationCap className="h-3 w-3 mr-1" />
+                          <span>{user.department}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+
+                {/* Content */}
+                <div className="p-4 space-y-3">
+                  {/* Bio */}
+                  {user.bio && (
+                    <div>
+                      <p className={`text-sm text-gray-600 dark:text-gray-300 ${
+                        expandedBio === user.id ? '' : 'line-clamp-2'
+                      }`}>
+                        {user.bio}
+                      </p>
+                      {user.bio.length > 100 && (
+                        <Button
+                          variant="link"
+                          className="p-0 h-auto text-xs text-pink-500"
+                          onClick={() => toggleBio(user.id)}
+                        >
+                          {expandedBio === user.id ? 'Show less' : 'Read more'}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex space-x-2 pt-2">
+                    <Button
+                      onClick={() => handlePass(user)}
+                      variant="outline"
+                      className="flex-1"
+                      disabled={isSwiping}
+                    >
+                      {isSwiping ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <X className="h-4 w-4 mr-2" />
+                          Pass
+                        </>
+                      )}
+                    </Button>
+                    
+                    <Button
+                      onClick={() => handleLikeBack(user)}
+                      className="flex-1 bg-pink-500 hover:bg-pink-600 text-white"
+                      disabled={isSwiping}
+                    >
+                      {isSwiping ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Heart className="h-4 w-4 mr-2" fill="currentColor" />
+                          Like Back
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Empty State when all users are processed */}

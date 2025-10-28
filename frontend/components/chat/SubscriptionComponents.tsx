@@ -25,10 +25,11 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
   onOpenChange,
   messageLimit,
   messagesUsed,
+  
   onUpgrade,
 }) => {
-  const isLimitReached = messageLimit && messagesUsed && messagesUsed >= messageLimit;
-
+  const isLimitReached = messageLimit && messagesUsed && messageLimit !== -1 && messagesUsed >= messageLimit;
+  if (!isLimitReached) return
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="sm:max-w-md">

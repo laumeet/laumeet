@@ -46,7 +46,7 @@ def explore():
 
     # Pagination parameters
     page = int(request.args.get("page", 1))
-    limit = int(request.args.get("limit", 10))
+    limit = int(request.args.get("limit", 30))
 
     # Base query (exclude self, liked users, and recently passed users)
     query = User.query.filter(User.id != current_user.id)

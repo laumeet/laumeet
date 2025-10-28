@@ -39,7 +39,7 @@ def update_my_profile():
     data = request.json or {}
 
     # Update allowed fields with new values or keep existing ones
-    user.username = data.get("username", user.username)
+    user.username = data.get("username", user.username).strip().lower()
     user.bio = data.get("bio", user.bio)
     user.department = data.get("department", user.department)
     user.category = data.get("category", user.category)

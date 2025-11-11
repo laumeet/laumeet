@@ -139,7 +139,21 @@
   }
   body {
     @apply bg-background text-foreground;
+    display:none;
   }
+body::before {
+  content: "🚧 Laumeet is currently undergoing maintenance. We’ll be back shortly with a better experience.🕵️";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.2rem;
+  background-color: var(--background);
+  color: var(--foreground);
+  height: 100vh;
+  font-family: system-ui, sans-serif;
+}
 }
 
 .no-scrollbar {

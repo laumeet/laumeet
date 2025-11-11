@@ -1,7 +1,7 @@
 import os
 from datetime import timedelta
 from flask import current_app
-from supabase_py import create_client
+from supabase import create_client, Client
 
 from dotenv import load_dotenv
 

@@ -4,8 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="requirement">
+    <list default="true" id="b3ce0ac2-3b6b-42bf-8506-5366e8b4fb98" name="Changes" comment="requirementttttt">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/config.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/requirements.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -99,30 +100,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1758428877896</updated>
-    </task>
-    <task id="LOCAL-00023" summary="now">
-      <option name="closed" value="true" />
-      <created>1759408860019</created>
-      <option name="number" value="00023" />
-      <option name="presentableId" value="LOCAL-00023" />
-      <option name="project" value="LOCAL" />
-      <updated>1759408860019</updated>
-    </task>
-    <task id="LOCAL-00024" summary="now">
-      <option name="closed" value="true" />
-      <created>1759409387283</created>
-      <option name="number" value="00024" />
-      <option name="presentableId" value="LOCAL-00024" />
-      <option name="project" value="LOCAL" />
-      <updated>1759409387283</updated>
-    </task>
-    <task id="LOCAL-00025" summary="added swipe and explore API">
-      <option name="closed" value="true" />
-      <created>1759485886574</created>
-      <option name="number" value="00025" />
-      <option name="presentableId" value="LOCAL-00025" />
-      <option name="project" value="LOCAL" />
-      <updated>1759485886574</updated>
     </task>
     <task id="LOCAL-00026" summary="edit sign up">
       <option name="closed" value="true" />
@@ -492,7 +469,31 @@
       <option name="project" value="LOCAL" />
       <updated>1762877646048</updated>
     </task>
-    <option name="localTasksCounter" value="72" />
+    <task id="LOCAL-00072" summary="requirement">
+      <option name="closed" value="true" />
+      <created>1762879048151</created>
+      <option name="number" value="00072" />
+      <option name="presentableId" value="LOCAL-00072" />
+      <option name="project" value="LOCAL" />
+      <updated>1762879048151</updated>
+    </task>
+    <task id="LOCAL-00073" summary="requirement">
+      <option name="closed" value="true" />
+      <created>1762879099840</created>
+      <option name="number" value="00073" />
+      <option name="presentableId" value="LOCAL-00073" />
+      <option name="project" value="LOCAL" />
+      <updated>1762879099840</updated>
+    </task>
+    <task id="LOCAL-00074" summary="requirementttttt">
+      <option name="closed" value="true" />
+      <created>1762879539074</created>
+      <option name="number" value="00074" />
+      <option name="presentableId" value="LOCAL-00074" />
+      <option name="project" value="LOCAL" />
+      <updated>1762879539074</updated>
+    </task>
+    <option name="localTasksCounter" value="75" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -539,7 +540,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="made swipe based on interestedIm" />
     <MESSAGE value="ADDED PILLOW" />
     <MESSAGE value="pillow" />
     <MESSAGE value="added message system" />
@@ -564,6 +564,7 @@
     <MESSAGE value="chnaged the update profile" />
     <MESSAGE value="rquirement" />
     <MESSAGE value="requirement" />
-    <option name="LAST_COMMIT_MESSAGE" value="requirement" />
+    <MESSAGE value="requirementttttt" />
+    <option name="LAST_COMMIT_MESSAGE" value="requirementttttt" />
   </component>
 </project>

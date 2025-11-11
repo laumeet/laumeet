@@ -49,8 +49,6 @@ def signup():
         processed_pictures.append(processed)
 
 
-
-
     # Required fields validation
     if not username or not password:
         return jsonify({"success": False, "message": "Username and password are required"}), 400

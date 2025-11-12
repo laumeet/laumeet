@@ -138,8 +138,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
-    display:none;
+    @apply bg-background text-foreground hidden;
   }
 body::before {
   content: "🚧 Laumeet is currently undergoing maintenance. We’ll be back shortly with a better experience.🕵️";
@@ -149,8 +148,8 @@ body::before {
   text-align: center;
   padding: 2rem;
   font-size: 1.2rem;
-  background-color: var(--background);
-  color: var(--foreground);
+  background-color: white;
+  color: black;
   height: 100vh;
   font-family: system-ui, sans-serif;
 }

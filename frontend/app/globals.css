@@ -138,7 +138,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground hidden;
+    @apply bg-background text-foreground;
   }
 body::before {
   content: "🚧 Laumeet is currently undergoing maintenance. We’ll be back shortly with a better experience.🕵️";

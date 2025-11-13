@@ -142,16 +142,16 @@
   }
 body::before {
   content: "🚧 Laumeet is currently undergoing maintenance. We’ll be back shortly with a better experience.🕵️";
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 2rem;
-  font-size: 1.2rem;
-  background-color: white;
-  color: black;
-  height: 100vh;
-  font-family: system-ui, sans-serif;
+  display: block;
+    text-align: center;
+    padding: 2rem;
+    font-size: 1.2rem;
+    background-color: #f3f4f6;
+    color: #4b5563;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 }
 
